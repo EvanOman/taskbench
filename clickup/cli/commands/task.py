@@ -5,13 +5,17 @@ from typing import Any
 import typer
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich.table import Table
 
-from ...core import ClickUpClient, ClickUpError, Config, Task
+from ...core import ClickUpClient, ClickUpError, Config
+from ..output import render_comments, render_message, render_task, render_tasks
 from ..utils import run_async
 
 app = typer.Typer(help="Task management")
 console = Console()
+
+# Subgroup for comments
+comments_app = typer.Typer(help="Task comment operations")
+app.add_typer(comments_app, name="comments")
 
 
 async def get_client() -> ClickUpClient:
@@ -26,25 +30,33 @@ async def get_client() -> ClickUpClient:
     return ClickUpClient(config, console)
 
 
-def format_task_table(tasks: list[Task]) -> Table:
-    """Format tasks as a rich table."""
-    table = Table(title="Tasks", show_header=True)
-    table.add_column("ID", style="cyan")
-    table.add_column("Name", style="bold")
-    table.add_column("Status", style="green")
-    table.add_column("Assignees", style="blue")
-    table.add_column("Priority", style="yellow")
-    table.add_column("Due Date", style="red")
+def _resolve_list_id(list_id: str | None) -> str | None:
+    """Resolve a list ID using Agent C's resolver if available, else fallback."""
+    config = Config()
+    resolver = getattr(config, "resolve_list_id", None)
+    if callable(resolver):
+        result: str | None = resolver(list_id)
+        return result
+    return list_id or config.get("default_list_id")
 
-    for task in tasks:
-        status = task.status.status if task.status else "Unknown"
-        assignees = ", ".join([a.username for a in task.assignees]) if task.assignees else "Unassigned"
-        priority = task.priority.priority or "None" if task.priority else "None"
-        due_date = task.due_date or "None"
 
-        table.add_row(task.id, task.name, status, assignees, priority, due_date)
-
-    return table
+async def _resolve_workspace_id(client: ClickUpClient, workspace_id: str | None) -> str:
+    """Resolve workspace ID from arg, config, or single-workspace auto-detect."""
+    if workspace_id:
+        return workspace_id
+    config = Config()
+    default = config.get("default_team_id")
+    if default:
+        return default
+    # Auto-detect: if the user belongs to exactly one workspace, use it
+    teams = await client.get_teams()
+    if len(teams) == 1:
+        return teams[0].id
+    if not teams:
+        console.print("[red]Error: No workspaces found for this account.[/red]")
+        raise typer.Exit(1)
+    console.print("[red]Error: Multiple workspaces found. Please specify --workspace-id.[/red]")
+    raise typer.Exit(1)
 
 
 @app.command("list")
@@ -53,12 +65,18 @@ def list_tasks(
     status: str | None = typer.Option(None, "--status", "-s", help="Filter by status"),
     assignee: str | None = typer.Option(None, "--assignee", "-a", help="Filter by assignee"),
     limit: int = typer.Option(50, "--limit", help="Maximum number of tasks to show"),
+    sort: str | None = typer.Option(
+        None,
+        "--sort",
+        "--order-by",
+        help="Sort tasks by: created, updated, due_date, priority",
+    ),
+    reverse: bool = typer.Option(False, "--reverse", help="Reverse sort order (descending)"),
 ) -> None:
     """List tasks from a ClickUp list."""
 
     async def _list_tasks() -> None:
-        config = Config()
-        list_id_to_use = list_id or config.get("default_list_id")
+        list_id_to_use = _resolve_list_id(list_id)
 
         if not list_id_to_use:
             console.print("[red]Error: No list ID provided and no default list configured.[/red]")
@@ -74,22 +92,25 @@ def list_tasks(
                 ) as progress:
                     progress.add_task("Fetching tasks...", total=None)
 
-                    filters = {}
+                    filters: dict[str, Any] = {}
                     if status:
                         filters["statuses"] = [status]
                     if assignee:
                         filters["assignees"] = [assignee]
+                    if sort:
+                        filters["order_by"] = sort
+                    if reverse:
+                        filters["reverse"] = "true"
 
                     tasks = await client.get_tasks(list_id_to_use, **filters)
 
                 if not tasks:
-                    console.print("[yellow]No tasks found.[/yellow]")
+                    render_message("No tasks found.", "warn")
                     return
 
                 # Apply limit
                 tasks = tasks[:limit]
-                table = format_task_table(tasks)
-                console.print(table)
+                render_tasks(tasks)
 
         except ClickUpError as e:
             console.print(f"[red]ClickUp API Error: {e}[/red]")
@@ -100,7 +121,11 @@ def list_tasks(
 
 @app.command("get")
 def get_task(task_id: str = typer.Argument(..., help="Task ID")) -> None:
-    """Get detailed information about a specific task."""
+    """Get detailed information about a specific task.
+
+    Shows all available fields including tags, parent, custom fields,
+    time estimate, time tracked, watchers, and list/folder/space context.
+    """
 
     async def _get_task() -> None:
         try:
@@ -113,31 +138,66 @@ def get_task(task_id: str = typer.Argument(..., help="Task ID")) -> None:
                     progress.add_task("Fetching task...", total=None)
                     task = await client.get_task(task_id)
 
-                # Create detailed task info table
-                table = Table(title=f"Task: {task.name}", show_header=False)
-                table.add_column("Field", style="cyan", width=15)
-                table.add_column("Value", style="white")
-
-                table.add_row("ID", task.id)
-                table.add_row("Name", task.name)
-                table.add_row("Description", task.description or "None")
-                table.add_row("Status", task.status.status if task.status else "Unknown")
-                table.add_row(
-                    "Assignees", ", ".join([a.username for a in task.assignees]) if task.assignees else "Unassigned"
-                )
-                table.add_row("Priority", task.priority.priority or "None" if task.priority else "None")
-                table.add_row("Due Date", task.due_date or "None")
-                table.add_row("Created", task.date_created or "Unknown")
-                table.add_row("Updated", task.date_updated or "Unknown")
-                table.add_row("URL", task.url or "None")
-
-                console.print(table)
+                render_task(task)
 
         except ClickUpError as e:
             console.print(f"[red]ClickUp API Error: {e}[/red]")
             raise typer.Exit(1) from e
 
     run_async(_get_task())
+
+
+@app.command("mine")
+def my_tasks(
+    workspace_id: str | None = typer.Option(
+        None,
+        "--workspace-id",
+        "-w",
+        help="Workspace/team ID (defaults to default_team_id or auto-detected single workspace)",
+    ),
+    limit: int = typer.Option(50, "--limit", help="Maximum number of tasks to show"),
+) -> None:
+    """List tasks assigned to the authenticated user.
+
+    Searches across the workspace for tasks assigned to you. Uses the default
+    workspace from config, or auto-detects if you belong to exactly one workspace.
+    """
+
+    async def _my_tasks() -> None:
+        try:
+            async with await get_client() as client:
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    console=console,
+                ) as progress:
+                    progress.add_task("Fetching your tasks...", total=None)
+
+                    # Get the authenticated user's ID
+                    user = await client.get_user()
+                    ws_id = await _resolve_workspace_id(client, workspace_id)
+
+                    # Search for tasks assigned to this user across the workspace
+                    # ClickUp API expects assignees[] as repeated query params
+                    tasks = await client.search_tasks(
+                        ws_id,
+                        "",
+                        **{"assignees[]": [str(user.id)]},
+                    )
+
+                if not tasks:
+                    render_message("No tasks assigned to you.", "warn")
+                    return
+
+                tasks = tasks[:limit]
+                render_tasks(tasks)
+                render_message(f"\nShowing {len(tasks)} task(s) assigned to {user.username}.", "info")
+
+        except ClickUpError as e:
+            console.print(f"[red]ClickUp API Error: {e}[/red]")
+            raise typer.Exit(1) from e
+
+    run_async(_my_tasks())
 
 
 @app.command("create")
@@ -152,8 +212,7 @@ def create_task(
     """Create a new task."""
 
     async def _create_task() -> None:
-        config = Config()
-        list_id_to_use = list_id or config.get("default_list_id")
+        list_id_to_use = _resolve_list_id(list_id)
 
         if not list_id_to_use:
             console.print("[red]Error: No list ID provided and no default list configured.[/red]")
@@ -182,9 +241,9 @@ def create_task(
                     progress.add_task("Creating task...", total=None)
                     task = await client.create_task(list_id_to_use, **task_data)
 
-                console.print(f"✅ Created task: {task.name} (ID: {task.id})")
+                render_message(f"Created task: {task.name} (ID: {task.id})", "success")
                 if task.url:
-                    console.print(f"🔗 URL: {task.url}")
+                    render_message(f"URL: {task.url}", "info")
 
         except ClickUpError as e:
             console.print(f"[red]ClickUp API Error: {e}[/red]")
@@ -222,7 +281,7 @@ def update_task(
             updates["archived"] = archived
 
         if not updates:
-            console.print("[yellow]No updates specified.[/yellow]")
+            render_message("No updates specified.", "warn")
             return
 
         try:
@@ -235,7 +294,7 @@ def update_task(
                     progress.add_task("Updating task...", total=None)
                     task = await client.update_task(task_id, **updates)
 
-                console.print(f"✅ Updated task: {task.name} (ID: {task.id})")
+                render_message(f"Updated task: {task.name} (ID: {task.id})", "success")
 
         except ClickUpError as e:
             console.print(f"[red]ClickUp API Error: {e}[/red]")
@@ -272,7 +331,7 @@ def change_status(
                     progress.add_task("Updating task status...", total=None)
                     task = await client.update_task(task_id, status=status)
 
-                console.print(f"✅ Updated task status: {task.name} → {status}")
+                render_message(f"Updated task status: {task.name} -> {status}", "success")
 
         except ClickUpError as e:
             console.print(f"[red]ClickUp API Error: {e}[/red]")
@@ -304,7 +363,7 @@ def delete_task(
                     progress.add_task("Deleting task...", total=None)
                     await client.delete_task(task_id)
 
-                console.print(f"✅ Deleted task {task_id}")
+                render_message(f"Deleted task {task_id}", "success")
 
         except ClickUpError as e:
             console.print(f"[red]ClickUp API Error: {e}[/red]")
@@ -319,7 +378,12 @@ def search_tasks(
     workspace_id: str | None = typer.Option(None, "--workspace-id", "-w", help="Workspace ID to search in"),
     team_id: str | None = typer.Option(None, "--team-id", "-t", help="Team ID (alias for workspace-id)"),
 ) -> None:
-    """Search for tasks across the workspace."""
+    """Search for tasks across the workspace.
+
+    ClickUp search performs fuzzy/full-text matching across multiple task
+    fields (name, description, comments, custom fields, etc.), not just the
+    task name. Results are ranked by relevance.
+    """
 
     async def _search_tasks() -> None:
         if not query:
@@ -330,8 +394,11 @@ def search_tasks(
         # Use either workspace_id or team_id (they're the same thing)
         id_to_use = workspace_id or team_id
         if not id_to_use:
+            config = Config()
+            id_to_use = config.get("default_team_id")
+        if not id_to_use:
             console.print("[red]Error: Workspace ID is required for search.[/red]")
-            console.print("Use --workspace-id or --team-id to specify the workspace")
+            console.print("Use --workspace-id or --team-id, or set default_team_id in config")
             raise typer.Exit(1)
 
         try:
@@ -345,27 +412,11 @@ def search_tasks(
                     tasks = await client.search_tasks(id_to_use, query)
 
                 if not tasks:
-                    console.print(f"[yellow]No tasks found matching '{query}'[/yellow]")
+                    render_message(f"No tasks found matching '{query}'", "warn")
                     return
 
-                table = Table(title=f"Search Results for '{query}'", show_header=True)
-                table.add_column("ID", style="cyan")
-                table.add_column("Name", style="bold")
-                table.add_column("Status", style="green")
-                table.add_column("Assignees", style="blue")
-                table.add_column("Priority", style="yellow")
-                table.add_column("Due Date", style="red")
-
-                for task in tasks:
-                    status = task.status.status if task.status else "Unknown"
-                    assignees = ", ".join([a.username for a in task.assignees]) if task.assignees else "Unassigned"
-                    priority = task.priority.priority or "None" if task.priority else "None"
-                    due_date = task.due_date or "None"
-
-                    table.add_row(task.id, task.name, status, assignees, priority, due_date)
-
-                console.print(table)
-                console.print(f"\n[dim]Found {len(tasks)} tasks[/dim]")
+                render_tasks(tasks)
+                render_message(f"\nFound {len(tasks)} task(s)", "info")
 
         except ClickUpError as e:
             console.print(f"[red]ClickUp API Error: {e}[/red]")
@@ -384,8 +435,7 @@ def export_tasks(
     """Export tasks from a list to a file."""
 
     async def _export_tasks() -> None:
-        config = Config()
-        list_id_to_use = list_id or config.get("default_list_id")
+        list_id_to_use = _resolve_list_id(list_id)
 
         if not list_id_to_use:
             console.print("[red]Error: No list ID provided and no default list configured.[/red]")
@@ -401,7 +451,7 @@ def export_tasks(
                 ) as progress:
                     progress.add_task("Exporting tasks...", total=None)
 
-                    filters = {}
+                    filters: dict[str, Any] = {}
                     if not include_completed:
                         filters["include_closed"] = False
 
@@ -434,16 +484,16 @@ def export_tasks(
                         writer.writeheader()
 
                         for task in tasks:
-                            status = task.status.status if task.status else ""
-                            priority = task.priority.priority or "" if task.priority else ""
+                            t_status = task.status.status if task.status else ""
+                            t_priority = task.priority.priority or "" if task.priority else ""
                             assignees = ", ".join([a.username for a in task.assignees]) if task.assignees else ""
 
                             writer.writerow(
                                 {
                                     "id": task.id,
                                     "name": task.name,
-                                    "status": status,
-                                    "priority": priority,
+                                    "status": t_status,
+                                    "priority": t_priority,
                                     "assignees": assignees,
                                     "due_date": task.due_date or "",
                                     "description": task.description or "",
@@ -453,10 +503,71 @@ def export_tasks(
                     console.print(f"[red]Unsupported format: {format}[/red]")
                     raise typer.Exit(1)
 
-                console.print(f"✅ Exported {len(tasks)} tasks to {output_file}")
+                render_message(f"Exported {len(tasks)} tasks to {output_file}", "success")
 
         except ClickUpError as e:
             console.print(f"[red]ClickUp API Error: {e}[/red]")
             raise typer.Exit(1) from e
 
     run_async(_export_tasks())
+
+
+# --- Comments subcommands ---
+
+
+@comments_app.command("list")
+def list_comments(
+    task_id: str = typer.Argument(..., help="Task ID to list comments for"),
+) -> None:
+    """List all comments on a task."""
+
+    async def _list_comments() -> None:
+        try:
+            async with await get_client() as client:
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    console=console,
+                ) as progress:
+                    progress.add_task("Fetching comments...", total=None)
+                    comments = await client.get_task_comments(task_id)
+
+                if not comments:
+                    render_message(f"No comments on task {task_id}.", "warn")
+                    return
+
+                render_comments(comments)
+                render_message(f"\n{len(comments)} comment(s)", "info")
+
+        except ClickUpError as e:
+            console.print(f"[red]ClickUp API Error: {e}[/red]")
+            raise typer.Exit(1) from e
+
+    run_async(_list_comments())
+
+
+@comments_app.command("add")
+def add_comment(
+    task_id: str = typer.Argument(..., help="Task ID to comment on"),
+    text: str = typer.Argument(..., help="Comment text"),
+) -> None:
+    """Add a comment to a task."""
+
+    async def _add_comment() -> None:
+        try:
+            async with await get_client() as client:
+                with Progress(
+                    SpinnerColumn(),
+                    TextColumn("[progress.description]{task.description}"),
+                    console=console,
+                ) as progress:
+                    progress.add_task("Adding comment...", total=None)
+                    comment = await client.create_comment(task_id, text)
+
+                render_message(f"Comment added (ID: {comment.id})", "success")
+
+        except ClickUpError as e:
+            console.print(f"[red]ClickUp API Error: {e}[/red]")
+            raise typer.Exit(1) from e
+
+    run_async(_add_comment())
