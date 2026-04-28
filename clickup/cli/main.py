@@ -9,6 +9,7 @@ from rich.table import Table
 from ..core import ClickUpClient, Config
 from .commands import bulk, config, discover, task, templates, workspace
 from .commands import list as list_cmd
+from .output import FormatChoice, set_format
 
 app = typer.Typer(
     name="clickup",
@@ -17,6 +18,23 @@ app = typer.Typer(
     rich_markup_mode="rich",
     epilog="New here? Run [bold]clickup setup[/bold] to get started.",
 )
+
+_FORMAT_OPTION = typer.Option(
+    None,
+    "--format",
+    help="Output format (table or json)",
+    show_default=False,
+)
+
+
+@app.callback()
+def _root_callback(
+    output_format: FormatChoice | None = _FORMAT_OPTION,
+) -> None:
+    """ClickUp CLI - Task management from the command line."""
+    if output_format is not None:
+        set_format(output_format)
+
 
 # -- Get started --------------------------------------------------------
 app.add_typer(config.app, name="config", rich_help_panel="Get started")

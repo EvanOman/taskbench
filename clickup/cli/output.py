@@ -1,0 +1,360 @@
+"""Output rendering for the ClickUp CLI.
+
+Provides format-aware renderers (table / JSON) for every model the CLI displays.
+Other modules import ``render_*`` helpers and call them; the active format is
+set once by the ``--format`` callback on the root Typer app.
+"""
+
+from __future__ import annotations
+
+import json
+from datetime import UTC, datetime
+from enum import Enum
+from typing import Any, Literal
+
+from rich.console import Console
+from rich.markup import escape
+from rich.table import Table
+
+from ..core.models import Comment, Space, Task, Team, User
+from ..core.models import List as ClickUpList
+
+# ---------------------------------------------------------------------------
+# Format state (set by root Typer callback, read by renderers)
+# ---------------------------------------------------------------------------
+
+Format = Literal["table", "json"]
+
+
+class FormatChoice(str, Enum):
+    """Enum wrapper for Typer CLI option compatibility."""
+
+    table = "table"
+    json = "json"
+
+
+_current_format: Format = "table"
+
+_console = Console()
+
+
+def set_format(fmt: Format | FormatChoice) -> None:
+    """Set the global output format (called by root ``--format`` callback)."""
+    global _current_format  # noqa: PLW0603
+    _current_format = fmt.value if isinstance(fmt, FormatChoice) else fmt
+
+
+def get_format() -> Format:
+    """Read the global format setting (set by ``--format`` on root command)."""
+    return _current_format
+
+
+# ---------------------------------------------------------------------------
+# Timestamp helpers
+# ---------------------------------------------------------------------------
+
+_PRIORITY_LABELS: dict[str | None, str] = {
+    "1": "urgent",
+    "2": "high",
+    "3": "normal",
+    "4": "low",
+}
+
+
+def format_timestamp(epoch_ms: str | None, *, for_json: bool = False) -> str:
+    """Convert a ClickUp epoch-millisecond string to a display string.
+
+    * **JSON mode** returns ISO 8601 UTC, e.g. ``"2026-04-27T15:30:00Z"``.
+    * **Table mode** returns a human-friendly date, e.g. ``"2026-04-27"``.
+
+    Returns ``""`` (empty string) when the input is ``None`` or falsy.
+    """
+    if not epoch_ms:
+        return ""
+    try:
+        ts = int(epoch_ms) / 1000.0
+        dt = datetime.fromtimestamp(ts, tz=UTC)
+    except (ValueError, OSError):
+        return epoch_ms  # can't parse — pass through
+    if for_json:
+        return dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    return dt.strftime("%Y-%m-%d")
+
+
+# ---------------------------------------------------------------------------
+# Priority helpers
+# ---------------------------------------------------------------------------
+
+
+def _priority_table_str(priority_info: Any) -> str:
+    """Render priority for table display: ``"high (2)"``."""
+    if priority_info is None:
+        return "none"
+    pid = getattr(priority_info, "id", None) or getattr(priority_info, "priority", None)
+    label = _PRIORITY_LABELS.get(str(pid) if pid else None, "none")
+    if pid:
+        return f"{label} ({pid})"
+    return "none"
+
+
+def _priority_json(priority_info: Any) -> dict[str, Any]:
+    """Return ``{"priority": <int|null>, "priority_label": <str>}`` for JSON."""
+    if priority_info is None:
+        return {"priority": None, "priority_label": "none"}
+    pid = getattr(priority_info, "id", None) or getattr(priority_info, "priority", None)
+    try:
+        numeric = int(pid) if pid else None
+    except (TypeError, ValueError):
+        numeric = None
+    label = _PRIORITY_LABELS.get(str(pid) if pid else None, "none")
+    return {"priority": numeric, "priority_label": label}
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+
+def _print_json(data: Any) -> None:
+    # Use print() instead of _console.print() so Rich doesn't interpret
+    # square brackets in user data as markup tags.
+    print(json.dumps(data, indent=2, ensure_ascii=False, default=str))
+
+
+def _task_to_json_dict(task: Task) -> dict[str, Any]:
+    """Serialise a Task for JSON output with ISO timestamps and priority dual-display."""
+    d = task.model_dump(mode="json")
+    # Convert epoch-ms timestamps to ISO 8601
+    for ts_field in ("date_created", "date_updated", "date_closed", "date_done", "due_date", "start_date"):
+        raw = d.get(ts_field)
+        if raw:
+            d[ts_field] = format_timestamp(str(raw), for_json=True)
+    # Priority dual-display
+    d.update(_priority_json(task.priority))
+    return d
+
+
+def _comment_to_json_dict(comment: Comment) -> dict[str, Any]:
+    """Serialise a Comment for JSON output with ISO timestamp."""
+    d = comment.model_dump(mode="json")
+    if d.get("date"):
+        d["date"] = format_timestamp(str(d["date"]), for_json=True)
+    return d
+
+
+# ---------------------------------------------------------------------------
+# Public renderers
+# ---------------------------------------------------------------------------
+
+
+def render_user(user: User) -> None:
+    """Render a single User."""
+    if get_format() == "json":
+        _print_json(user.model_dump(mode="json"))
+        return
+    table = Table(title="User", show_header=False)
+    table.add_column("Field", style="cyan")
+    table.add_column("Value")
+    table.add_row("ID", str(user.id))
+    table.add_row("Username", escape(user.username))
+    table.add_row("Email", escape(user.email))
+    if user.color:
+        table.add_row("Color", user.color)
+    if user.role is not None:
+        table.add_row("Role", str(user.role))
+    _console.print(table)
+
+
+def render_team(team: Team) -> None:
+    """Render a single Team/Workspace."""
+    if get_format() == "json":
+        _print_json(team.model_dump(mode="json"))
+        return
+    table = Table(title="Workspace", show_header=False)
+    table.add_column("Field", style="cyan")
+    table.add_column("Value")
+    table.add_row("ID", team.id)
+    table.add_row("Name", escape(team.name))
+    table.add_row("Color", team.color)
+    table.add_row("Members", str(len(team.members)))
+    _console.print(table)
+
+
+def render_teams(teams: list[Team]) -> None:
+    """Render a list of Teams/Workspaces."""
+    if get_format() == "json":
+        _print_json({"data": [t.model_dump(mode="json") for t in teams], "count": len(teams)})
+        return
+    table = Table(title="Workspaces", show_header=True)
+    table.add_column("ID", style="cyan")
+    table.add_column("Name", style="bold")
+    table.add_column("Color", style="green")
+    table.add_column("Members", style="blue")
+    for team in teams:
+        table.add_row(team.id, escape(team.name), team.color, str(len(team.members)))
+    _console.print(table)
+
+
+def render_space(space: Space) -> None:
+    """Render a single Space."""
+    if get_format() == "json":
+        _print_json(space.model_dump(mode="json"))
+        return
+    table = Table(title="Space", show_header=False)
+    table.add_column("Field", style="cyan")
+    table.add_column("Value")
+    table.add_row("ID", space.id)
+    table.add_row("Name", escape(space.name))
+    table.add_row("Private", "Yes" if space.private else "No")
+    table.add_row("Statuses", str(len(space.statuses)))
+    _console.print(table)
+
+
+def render_spaces(spaces: list[Space]) -> None:
+    """Render a list of Spaces."""
+    if get_format() == "json":
+        _print_json({"data": [s.model_dump(mode="json") for s in spaces], "count": len(spaces)})
+        return
+    table = Table(title="Spaces", show_header=True)
+    table.add_column("ID", style="cyan")
+    table.add_column("Name", style="bold")
+    table.add_column("Private", style="yellow")
+    table.add_column("Statuses", style="green")
+    for space in spaces:
+        table.add_row(space.id, escape(space.name), "Yes" if space.private else "No", str(len(space.statuses)))
+    _console.print(table)
+
+
+def render_list(lst: ClickUpList) -> None:
+    """Render a single ClickUp List."""
+    if get_format() == "json":
+        _print_json(lst.model_dump(mode="json"))
+        return
+    table = Table(title="List", show_header=False)
+    table.add_column("Field", style="cyan")
+    table.add_column("Value")
+    table.add_row("ID", lst.id)
+    table.add_row("Name", escape(lst.name))
+    table.add_row("Tasks", str(lst.task_count) if lst.task_count is not None else "N/A")
+    if lst.due_date:
+        table.add_row("Due Date", format_timestamp(lst.due_date))
+    _console.print(table)
+
+
+def render_lists(lists: list[ClickUpList]) -> None:
+    """Render a list of ClickUp Lists."""
+    if get_format() == "json":
+        _print_json({"data": [lst.model_dump(mode="json") for lst in lists], "count": len(lists)})
+        return
+    table = Table(title="Lists", show_header=True)
+    table.add_column("ID", style="cyan")
+    table.add_column("Name", style="bold")
+    table.add_column("Tasks", style="green")
+    for lst in lists:
+        table.add_row(lst.id, escape(lst.name), str(lst.task_count) if lst.task_count is not None else "N/A")
+    _console.print(table)
+
+
+def render_task(task: Task) -> None:
+    """Render a single Task with full detail."""
+    if get_format() == "json":
+        _print_json(_task_to_json_dict(task))
+        return
+
+    table = Table(title=f"Task: {escape(task.name)}", show_header=False)
+    table.add_column("Field", style="cyan", width=15)
+    table.add_column("Value")
+
+    table.add_row("ID", task.id)
+    table.add_row("Name", escape(task.name))
+    table.add_row("Description", escape(task.description) if task.description else "None")
+    table.add_row("Status", escape(task.status.status) if task.status else "Unknown")
+    table.add_row(
+        "Assignees",
+        escape(", ".join(a.username for a in task.assignees)) if task.assignees else "Unassigned",
+    )
+    table.add_row("Priority", _priority_table_str(task.priority))
+    table.add_row("Due Date", format_timestamp(task.due_date) or "None")
+    table.add_row("Created", format_timestamp(task.date_created) or "Unknown")
+    table.add_row("Updated", format_timestamp(task.date_updated) or "Unknown")
+    table.add_row("URL", task.url or "None")
+
+    _console.print(table)
+
+
+def render_tasks(tasks: list[Task]) -> None:
+    """Render a list of Tasks."""
+    if get_format() == "json":
+        _print_json({"data": [_task_to_json_dict(t) for t in tasks], "count": len(tasks)})
+        return
+
+    table = Table(title="Tasks", show_header=True)
+    table.add_column("ID", style="cyan")
+    table.add_column("Name", style="bold")
+    table.add_column("Status", style="green")
+    table.add_column("Assignees", style="blue")
+    table.add_column("Priority", style="yellow")
+    table.add_column("Due Date", style="red")
+
+    for task in tasks:
+        status = escape(task.status.status) if task.status else "Unknown"
+        assignees = escape(", ".join(a.username for a in task.assignees)) if task.assignees else "Unassigned"
+        priority = _priority_table_str(task.priority)
+        due_date = format_timestamp(task.due_date) or "None"
+
+        table.add_row(task.id, escape(task.name), status, assignees, priority, due_date)
+
+    _console.print(table)
+
+
+def render_comments(comments: list[Comment]) -> None:
+    """Render a list of Comments."""
+    if get_format() == "json":
+        _print_json({"data": [_comment_to_json_dict(c) for c in comments], "count": len(comments)})
+        return
+
+    table = Table(title="Comments", show_header=True)
+    table.add_column("ID", style="cyan")
+    table.add_column("Author", style="blue")
+    table.add_column("Date", style="yellow")
+    table.add_column("Comment", style="white")
+    table.add_column("Resolved", style="green")
+
+    for comment in comments:
+        table.add_row(
+            comment.id,
+            escape(comment.user.username),
+            format_timestamp(comment.date),
+            escape(comment.comment_text),
+            "Yes" if comment.resolved else "No",
+        )
+
+    _console.print(table)
+
+
+def render_kv(data: dict[str, object], title: str | None = None) -> None:
+    """Render an arbitrary key/value mapping."""
+    if get_format() == "json":
+        _print_json(data)
+        return
+    table = Table(title=title, show_header=False)
+    table.add_column("Key", style="cyan")
+    table.add_column("Value")
+    for k, v in data.items():
+        table.add_row(escape(str(k)), escape(str(v)))
+    _console.print(table)
+
+
+def render_message(msg: str, level: Literal["info", "success", "warn", "error"] = "info") -> None:
+    """Print a styled one-line message. Respects ``--format json`` by emitting
+    ``{"message": ..., "level": ...}``."""
+    if get_format() == "json":
+        _print_json({"message": msg, "level": level})
+        return
+    style_map: dict[str, str] = {
+        "info": "bold",
+        "success": "bold green",
+        "warn": "bold yellow",
+        "error": "bold red",
+    }
+    _console.print(f"[{style_map.get(level, 'bold')}]{escape(msg)}[/{style_map.get(level, 'bold')}]")
