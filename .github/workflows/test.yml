@@ -52,6 +52,9 @@ jobs:
         uv run genbadge coverage -i coverage.xml -o assets/coverage.svg
 
     - name: Commit coverage badge
+      # Branch protection requires PRs for master; this step is best-effort.
+      # Failure here doesn't gate the build — coverage results are still generated.
+      continue-on-error: true
       if: matrix.python-version == '3.13' && github.ref == 'refs/heads/master'
       run: |
         git config --local user.email "github-actions[bot]@users.noreply.github.com"
