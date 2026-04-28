@@ -33,12 +33,8 @@ def isolate_clickup_env(
         monkeypatch.delenv(key, raising=False)
 
     tmp_config = tmp_path_factory.mktemp("clickup-config") / "config.json"
-    monkeypatch.setattr(
-        Config, "_get_default_config_path", lambda self: tmp_config, raising=True
-    )
-    monkeypatch.setattr(
-        Config, "_get_config_path", lambda self: str(tmp_config), raising=True
-    )
+    monkeypatch.setattr(Config, "_get_default_config_path", lambda self: tmp_config, raising=True)
+    monkeypatch.setattr(Config, "_get_config_path", lambda self: str(tmp_config), raising=True)
 
     yield
 
