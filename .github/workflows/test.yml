@@ -6,20 +6,23 @@ on:
   pull_request:
     branches: [ master, develop ]
 
+permissions:
+  contents: write
+
 jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.12", "3.13"]
+        python-version: ["3.12", "3.13", "3.14"]
 
     steps:
     - uses: actions/checkout@v4
 
     - name: Install uv
-      uses: astral-sh/setup-uv@v4
+      uses: astral-sh/setup-uv@v5
       with:
-        version: "latest"
+        enable-cache: true
 
     - name: Set up Python ${{ matrix.python-version }}
       run: uv python install ${{ matrix.python-version }}
@@ -36,14 +39,20 @@ jobs:
     - name: Run type checking
       run: uv run ty check
 
-    - name: Run tests
+    - name: Run tests with coverage
       run: uv run pytest --cov=clickup --cov-report=xml --cov-report=term-missing
 
-    - name: Upload coverage to Codecov
-      if: ${{ env.CODECOV_TOKEN != '' }}
-      env:
-        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+    - name: Generate coverage badge
+      if: matrix.python-version == '3.14' && github.ref == 'refs/heads/master'
       run: |
-        curl -s https://uploader.codecov.io/latest/linux/codecov -o codecov
-        chmod +x codecov
-        ./codecov -f coverage.xml -F unittests
+        mkdir -p assets
+        uv run genbadge coverage -i coverage.xml -o assets/coverage.svg
+
+    - name: Commit coverage badge
+      if: matrix.python-version == '3.14' && github.ref == 'refs/heads/master'
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git add assets/coverage.svg
+        git diff --staged --quiet || git commit -m "chore: update coverage badge [skip ci]"
+        git push

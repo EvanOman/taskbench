@@ -1,4 +1,7 @@
-# ClickUp Toolkit ![Codecov](https://codecov.io/gh/EvanOman/clickup-tools/branch/master/graph/badge.svg)
+# ClickUp Toolkit
+
+[![Test](https://github.com/EvanOman/clickup-tools/actions/workflows/test.yml/badge.svg)](https://github.com/EvanOman/clickup-tools/actions/workflows/test.yml)
+![coverage](assets/coverage.svg)
 
 A CLI for ClickUp task management, built with Python.
 
@@ -39,11 +42,10 @@ uv run clickup task create "My new task" --list-id <discovered-id>
 
 ### 1. Authentication
 
-The CLI supports multiple authentication methods:
+Set your ClickUp personal API token via:
 
-- **Personal API Key** (recommended): Set `CLICKUP_API_KEY`
-- **OAuth Client Credentials**: Set `CLICKUP_CLIENT_ID` and `CLICKUP_CLIENT_SECRET`
-- **Access Token**: Set `CLICKUP_TOKEN` or `CLICKUP_ACCESS_TOKEN`
+- `CLICKUP_API_KEY` environment variable (or `.env` file), or
+- `clickup config set-token <token>` to persist it in `~/.config/clickup-toolkit/config.json`
 
 Verify your credentials work:
 ```bash
