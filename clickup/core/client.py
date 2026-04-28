@@ -48,9 +48,12 @@ class ClickUpClient:
     def _handle_response(self, response: httpx.Response) -> dict[str, Any]:
         """Handle HTTP response and raise appropriate exceptions."""
         try:
-            if response.status_code == 200:
+            if response.status_code in (200, 201):
                 result: dict[str, Any] = response.json()
                 return result
+            elif response.status_code == 204:
+                # No Content (e.g., successful DELETE) — return empty dict
+                return {}
             elif response.status_code == 401:
                 raise AuthenticationError("Invalid API token", response.status_code)
             elif response.status_code == 403:
@@ -212,9 +215,13 @@ class ClickUpClient:
             return False, f"❌ API error: {str(e)}", None
 
     async def get_team_members(self, team_id: str) -> list[User]:
-        """Get team members."""
-        data = await self._request("GET", f"/team/{team_id}/member")
-        return [User(**member["user"]) for member in data.get("members", [])]
+        """Get team members.
+
+        Uses GET /team/{team_id} and extracts members from the team object,
+        since ClickUp v2 API does not have a dedicated /team/{id}/member endpoint.
+        """
+        team = await self.get_team(team_id)
+        return [member.user for member in team.members]
 
     # Comments
     async def get_task_comments(self, task_id: str) -> list[Comment]:
