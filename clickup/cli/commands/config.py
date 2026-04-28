@@ -98,7 +98,9 @@ def validate_auth() -> None:
         config = Config()
         if not config.has_credentials():
             console.print("[red]❌ No API credentials configured[/red]")
-            console.print("Set CLICKUP_CLIENT_ID and CLICKUP_CLIENT_SECRET environment variables.")
+            console.print(
+                "Set CLICKUP_API_KEY in your environment (or .env), or run 'clickup config set-token <token>'."
+            )
             raise typer.Exit(1)
 
         try:

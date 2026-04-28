@@ -22,8 +22,8 @@ async def get_client() -> ClickUpClient:
     config = Config()
     if not config.has_credentials():
         console.print(
-            "[red]Error: No client credentials configured. Set CLICKUP_CLIENT_ID and "
-            "CLICKUP_CLIENT_SECRET environment variables.[/red]"
+            "[red]Error: No ClickUp API token configured. Set CLICKUP_API_KEY in your "
+            "environment (or .env), or run 'clickup config set-token <token>'.[/red]"
         )
         raise typer.Exit(1)
     return ClickUpClient(config, console)

@@ -19,8 +19,8 @@ async def get_client() -> ClickUpClient:
     config = Config()
     if not config.has_credentials():
         console.print(
-            "[red]Error: No client credentials configured. Set CLICKUP_CLIENT_ID and "
-            "CLICKUP_CLIENT_SECRET environment variables.[/red]"
+            "[red]Error: No ClickUp API token configured. Set CLICKUP_API_KEY in your "
+            "environment (or .env), or run 'clickup config set-token <token>'.[/red]"
         )
         raise typer.Exit(1)
     return ClickUpClient(config, console)
@@ -197,22 +197,29 @@ def create_task(
 def update_task(
     task_id: str = typer.Argument(..., help="Task ID"),
     name: str | None = typer.Option(None, "--name", "-n", help="New task name"),
-    description: str | None = typer.Option(None, "--description", "-d", help="New description"),
+    description: str | None = typer.Option(None, "--description", "-d", help="New description (pass '' to clear)"),
     status: str | None = typer.Option(None, "--status", "-s", help="New status"),
     priority: int | None = typer.Option(None, "--priority", "-p", help="New priority (1-4)"),
+    due_date: str | None = typer.Option(None, "--due-date", help="New due date (ms timestamp)"),
+    archived: bool | None = typer.Option(None, "--archived/--unarchived", help="Archive state"),
 ) -> None:
-    """Update an existing task."""
+    """Update a task. Only fields you pass are changed; everything else stays the same."""
 
     async def _update_task() -> None:
         updates: dict[str, Any] = {}
-        if name:
+        # `is not None` so callers can pass '' to clear text fields.
+        if name is not None:
             updates["name"] = name
-        if description:
+        if description is not None:
             updates["description"] = description
-        if status:
+        if status is not None:
             updates["status"] = status
-        if priority:
+        if priority is not None:
             updates["priority"] = priority
+        if due_date is not None:
+            updates["due_date"] = due_date
+        if archived is not None:
+            updates["archived"] = archived
 
         if not updates:
             console.print("[yellow]No updates specified.[/yellow]")
