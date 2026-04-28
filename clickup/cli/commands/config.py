@@ -5,6 +5,7 @@ from rich.console import Console
 from rich.table import Table
 
 from ...core import ClickUpClient, Config
+from ...core.config import _CREDENTIAL_KEYS, _DEFAULT_KEYS, is_known_key
 from ..utils import run_async
 
 app = typer.Typer(help="Configuration management")
@@ -40,7 +41,10 @@ def set_config(
     key: str = typer.Argument(..., help="Configuration key"),
     value: str = typer.Argument(..., help="Configuration value"),
 ) -> None:
-    """Set a configuration value."""
+    """Set a configuration value.
+
+    Tip: set `default_list_id` to skip --list-id on every task command.
+    """
     config = Config()
     try:
         config.set(key, value)
@@ -62,23 +66,134 @@ def get_config(key: str = typer.Argument(..., help="Configuration key")) -> None
 
 
 @app.command("show")
-def show_config() -> None:
-    """Show all configuration values."""
+def show_config(
+    show_all: bool = typer.Option(False, "--all", "-a", help="Include unknown/custom keys"),
+) -> None:
+    """Show all configuration values, grouped into sections.
+
+    By default, unknown/custom keys are hidden. Use --all to see them.
+    The api_token is always fully masked.
+    """
     config = Config()
+    data = config.config.model_dump(exclude_none=True)
 
-    table = Table(title="ClickUp Configuration")
+    # Build section buckets
+    credentials: dict[str, object] = {}
+    defaults: dict[str, object] = {}
+    other: dict[str, object] = {}
+    unknown: dict[str, object] = {}
+
+    for key, val in data.items():
+        if key in _CREDENTIAL_KEYS:
+            credentials[key] = val
+        elif key in _DEFAULT_KEYS:
+            defaults[key] = val
+        elif is_known_key(key):
+            other[key] = val
+        else:
+            unknown[key] = val
+
+    def _mask(key: str, val: object) -> str:
+        """Mask sensitive values for display."""
+        if key == "api_token":
+            return "********"  # fully masked
+        if key in ("client_secret",):
+            return "***"
+        if key == "client_id" and isinstance(val, str) and len(val) > 12:
+            return f"{val[:8]}...{val[-4:]}"
+        return str(val)
+
+    def _render_section(title: str, items: dict[str, object]) -> None:
+        if not items:
+            return
+        table = Table(title=title, show_header=True, title_style="bold")
+        table.add_column("Key", style="cyan")
+        table.add_column("Value", style="green")
+        for k, v in items.items():
+            table.add_row(k, _mask(k, v))
+        console.print(table)
+        console.print()
+
+    _render_section("Credentials", credentials)
+    _render_section("Defaults", defaults)
+    _render_section("Other", other)
+
+    if show_all and unknown:
+        _render_section("Unknown / Custom", unknown)
+    elif unknown:
+        console.print(f"[dim]{len(unknown)} unknown key(s) hidden. Use --all to show them.[/dim]")
+
+
+@app.command("set-default-list")
+def set_default_list(
+    name: str = typer.Argument(..., help="Alias name for the list (e.g. 'omegapoint')"),
+    list_id: str | None = typer.Argument(None, help="Numeric ClickUp list ID to map to"),
+    remove: bool = typer.Option(False, "--remove", "-r", help="Remove the alias instead of adding"),
+) -> None:
+    """Add or remove a named alias for a ClickUp list ID.
+
+    Examples:
+
+        clickup config set-default-list omegapoint 901315992466
+
+        clickup config set-default-list --remove omegapoint
+
+    Tip: set `default_list_id` to skip --list-id on every task command.
+    """
+    config = Config()
+    aliases: dict[str, str] = config.get("default_lists") or {}
+
+    if remove:
+        if name not in aliases:
+            console.print(f"[yellow]Alias '{name}' not found in default_lists.[/yellow]")
+            raise typer.Exit(1)
+        del aliases[name]
+        config.set("default_lists", aliases)
+        console.print(f"✅ Removed alias '{name}'")
+        return
+
+    if list_id is None:
+        console.print("[red]Error: list_id is required when adding an alias.[/red]")
+        raise typer.Exit(1)
+
+    aliases[name] = list_id
+    config.set("default_lists", aliases)
+    console.print(f"✅ Alias '{name}' -> {list_id}")
+
+
+@app.command("clean")
+def clean_config(
+    dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Preview keys that would be removed without writing"),
+) -> None:
+    """Prune unknown/garbage keys from the persisted config.
+
+    By default, removes any top-level keys not in the known-key list.
+    Use --dry-run to preview what would be removed.
+    """
+    config = Config()
+    unknown = config.unknown_keys()
+
+    if not unknown:
+        console.print("[green]Config is clean -- no unknown keys found.[/green]")
+        return
+
+    table = Table(title="Unknown keys to remove", show_header=True)
     table.add_column("Key", style="cyan")
-    table.add_column("Value", style="green")
-
-    for key, config_value in config.config.model_dump(exclude_none=True).items():
-        display_value = config_value
-        if key in ("client_secret", "api_token") and config_value:
-            display_value = "***"
-        elif key == "client_id" and config_value:
-            display_value = f"{config_value[:8]}...{config_value[-4:]}" if len(config_value) > 12 else "***"
-        table.add_row(key, str(display_value))
-
+    table.add_column("Value", style="yellow")
+    for k, v in unknown.items():
+        table.add_row(k, str(v))
     console.print(table)
+
+    if dry_run:
+        console.print(f"\n[dim]Dry run: {len(unknown)} key(s) would be removed.[/dim]")
+        return
+
+    if not typer.confirm(f"Remove {len(unknown)} unknown key(s)?"):
+        console.print("[yellow]Cancelled.[/yellow]")
+        return
+
+    config.remove_keys(set(unknown.keys()))
+    console.print(f"[green]✅ Removed {len(unknown)} key(s).[/green]")
 
 
 @app.command("reset")
@@ -131,3 +246,8 @@ def validate_auth() -> None:
             raise typer.Exit(1) from e
 
     run_async(_validate())
+
+
+# ---------------------------------------------------------------
+# OWNED BY E: Agent E may append a `whoami` command below this line.
+# ---------------------------------------------------------------
