@@ -1,7 +1,9 @@
 """Configuration management for ClickUp Toolkit."""
 
+import builtins
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +30,58 @@ def _load_dotenv_files() -> None:
 _load_dotenv_files()
 
 
+# Known top-level configuration keys (union of ClickUpConfig model fields
+# and other recognised names).  Used for validation warnings and the
+# ``clean`` command.
+KNOWN_CONFIG_KEYS: set[str] = {
+    "api_token",
+    "client_id",
+    "client_secret",
+    "base_url",
+    "default_team_id",
+    "default_space_id",
+    "default_list_id",
+    "default_lists",
+    "timeout",
+    "max_retries",
+    "output_format",
+    "colors",
+    "current_workspace",
+    # Nested namespaces — any key starting with these prefixes is allowed
+    # (handled separately in is_known_key)
+}
+
+# Nested prefixes that are always allowed (e.g. "ui.theme", "api.retry")
+KNOWN_NESTED_PREFIXES: set[str] = {"ui", "api"}
+
+
+def is_known_key(key: str) -> bool:
+    """Return True if *key* is a recognised configuration key."""
+    if key in KNOWN_CONFIG_KEYS:
+        return True
+    # Allow any nested key under known prefixes
+    if "." in key:
+        prefix = key.split(".")[0]
+        return prefix in KNOWN_NESTED_PREFIXES
+    # Top-level key that is also a nested namespace is allowed
+    if key in KNOWN_NESTED_PREFIXES:
+        return True
+    return False
+
+
+# Keys that classify as credentials (shown in the Credentials section)
+_CREDENTIAL_KEYS: set[str] = {"api_token", "client_id", "client_secret"}
+
+# Keys that classify as defaults (shown in the Defaults section)
+_DEFAULT_KEYS: set[str] = {
+    "default_team_id",
+    "default_space_id",
+    "default_list_id",
+    "default_lists",
+    "current_workspace",
+}
+
+
 class ClickUpConfig(BaseModel):
     """ClickUp configuration model."""
 
@@ -38,6 +92,7 @@ class ClickUpConfig(BaseModel):
     default_team_id: str | None = None
     default_space_id: str | None = None
     default_list_id: str | None = None
+    default_lists: dict[str, str] | None = None
     timeout: int = 30
     max_retries: int = 3
     output_format: str = "table"  # table, json, csv
@@ -136,12 +191,24 @@ class Config:
         return getattr(self._config, key, default)
 
     def set(self, key: str, value: Any) -> None:
-        """Set configuration value with support for nested keys."""
+        """Set configuration value with support for nested keys.
+
+        Prints a warning to stderr for unrecognised keys but does not error,
+        preserving backward compatibility.
+        """
         # Blacklist obviously invalid keys
         invalid_keys = {"invalid_key", "bad_key", "wrong_key"}
 
         if key in invalid_keys:
             raise ValueError(f"Unknown configuration key: {key}")
+
+        # Warn (but don't error) on unknown keys for forward compat
+        if not is_known_key(key):
+            print(
+                f"Warning: '{key}' is not a recognised config key. "
+                "It will be stored but may be removed by 'clickup config clean'.",
+                file=sys.stderr,
+            )
 
         # Handle nested keys like 'ui.theme'
         if "." in key:
@@ -165,6 +232,53 @@ class Config:
 
         # Handle direct keys - allow if not blacklisted
         setattr(self._config, key, value)
+        self.save_config()
+
+    # ------------------------------------------------------------------
+    # List-ID resolution (consumed by Agent D's task commands)
+    # ------------------------------------------------------------------
+
+    def resolve_list_id(self, value: str | None) -> str | None:
+        """Resolve a --list-id value to a numeric ClickUp list ID.
+
+        Resolution order:
+        1. If value is None -> return self.get('default_list_id')
+        2. If value is all-digits -> return value (already an ID)
+        3. If value is in self.get('default_lists', {}) -> return mapped ID
+        4. Else return value as-is (caller will error on bad ID via API)
+        """
+        if value is None:
+            return self.get("default_list_id")
+        if value.isdigit():
+            return value
+        aliases: dict[str, str] = self.get("default_lists") or {}
+        if value in aliases:
+            return aliases[value]
+        return value
+
+    # ------------------------------------------------------------------
+    # Known-key helpers (used by the ``clean`` command)
+    # ------------------------------------------------------------------
+
+    def known_keys(self) -> builtins.set[str]:
+        """Return the full set of known top-level config keys."""
+        return KNOWN_CONFIG_KEYS | KNOWN_NESTED_PREFIXES
+
+    def unknown_keys(self) -> dict[str, Any]:
+        """Return a dict of top-level keys in the persisted config that are not known."""
+        data = self._config.model_dump(exclude_none=True)
+        result: dict[str, Any] = {}
+        for k, v in data.items():
+            if not is_known_key(k):
+                result[k] = v
+        return result
+
+    def remove_keys(self, keys: builtins.set[str]) -> None:
+        """Remove the given top-level keys from the config and persist."""
+        data = self._config.model_dump(exclude_none=True)
+        for k in keys:
+            data.pop(k, None)
+        self._config = ClickUpConfig(**data)
         self.save_config()
 
     def get_client_id(self) -> str | None:
