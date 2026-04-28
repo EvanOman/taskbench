@@ -1,0 +1,136 @@
+{
+  "commit": "b8bb6b8",
+  "commit_full": "b8bb6b8b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b",
+  "timestamp": "2026-04-28T21:30:00Z",
+  "notes": "Post-refactor + spinner-kill + .env mirrored to ~/.config/clickup-toolkit/.env. uvx --python 3.13 --from /home/evan/dev/clickup-tools.",
+  "summary": {
+    "pass": 10,
+    "partial": 2,
+    "fail": 0,
+    "total_command_count": 84,
+    "total_elapsed_seconds": 1086
+  },
+  "tasks": [
+    {
+      "id": 1,
+      "name": "identity",
+      "verdict": "pass",
+      "command_count": 2,
+      "elapsed_seconds": 35,
+      "top_friction": "README documents `clickup whoami` but the command does not exist, forcing discovery through `clickup status`."
+    },
+    {
+      "id": 2,
+      "name": "list teams",
+      "verdict": "pass",
+      "command_count": 4,
+      "elapsed_seconds": 75,
+      "top_friction": "--format json flag is silently ignored; CLI always renders a Rich table on workspace list."
+    },
+    {
+      "id": 3,
+      "name": "hierarchy tree",
+      "verdict": "pass",
+      "command_count": 6,
+      "elapsed_seconds": 24,
+      "top_friction": "--format json silently ignored on discover hierarchy; agents get tree art instead of structured data."
+    },
+    {
+      "id": 4,
+      "name": "my tasks",
+      "verdict": "partial",
+      "command_count": 8,
+      "elapsed_seconds": 180,
+      "top_friction": "README documents `clickup whoami` that does not exist; task mine returns empty without explanation."
+    },
+    {
+      "id": 5,
+      "name": "sort updated",
+      "verdict": "pass",
+      "command_count": 6,
+      "elapsed_seconds": 85,
+      "top_friction": "Hierarchy drill-down requires 3 chained discover calls to reach a list ID."
+    },
+    {
+      "id": 6,
+      "name": "create+delete",
+      "verdict": "pass",
+      "command_count": 10,
+      "elapsed_seconds": 95,
+      "top_friction": "No default list ID + 3-hop discovery required before first task create."
+    },
+    {
+      "id": 7,
+      "name": "modify-if-passed",
+      "verdict": "pass",
+      "command_count": 11,
+      "elapsed_seconds": 60,
+      "top_friction": "--format is a top-level flag not a subcommand flag, causing a non-obvious error on first attempt."
+    },
+    {
+      "id": 8,
+      "name": "search",
+      "verdict": "pass",
+      "command_count": 5,
+      "elapsed_seconds": 95,
+      "top_friction": "workspace-id is required but not auto-detected when only one workspace exists, forcing an extra lookup command."
+    },
+    {
+      "id": 9,
+      "name": "task get + comments",
+      "verdict": "pass",
+      "command_count": 11,
+      "elapsed_seconds": 180,
+      "top_friction": "4-command hierarchy walk needed before you can address any task."
+    },
+    {
+      "id": 10,
+      "name": "bulk export",
+      "verdict": "pass",
+      "command_count": 7,
+      "elapsed_seconds": 95,
+      "top_friction": "Three-hop ID discovery requires chaining discover ids three times before any real work can begin."
+    },
+    {
+      "id": 11,
+      "name": "most-active",
+      "verdict": "pass",
+      "command_count": 7,
+      "elapsed_seconds": 120,
+      "top_friction": "--format is a global-only flag; placing it after the subcommand silently fails with no helpful error."
+    },
+    {
+      "id": 12,
+      "name": "onboarding",
+      "verdict": "partial",
+      "command_count": 7,
+      "elapsed_seconds": 42,
+      "top_friction": "setup wizard interactive prompt blocks non-interactive AI agents -- needs --yes flag."
+    }
+  ],
+  "vs_previous_eval": {
+    "previous_commit": "bfae225_pre_env_mirror",
+    "command_count_delta": -11,
+    "elapsed_seconds_delta": "+~250 (variance — uvx cold cache during eval2)",
+    "verdict_changes": [
+      "Task 9: PARTIAL -> PASS (comments + expanded fields fully accessible)",
+      "Task 4: PASS -> PARTIAL (now flags 'why is mine empty' as friction)"
+    ],
+    "newly_resolved": [
+      "spinner pollution (zero mentions in eval2 — was top friction in 7 of 12 last run)",
+      ".env auto-load failures (zero mentions — user-global ~/.config/clickup-toolkit/.env now found regardless of cwd)"
+    ],
+    "newly_surfaced": [
+      "README still claims top-level `whoami` (it lives at `config whoami`)",
+      "`setup run` interactive prompt blocks agents (no --yes flag)",
+      "`task search` doesn't auto-detect singleton workspace (inconsistent with `task mine`)"
+    ]
+  },
+  "next_moves": [
+    ".env-source labeling in `clickup status` (so agents can self-diagnose token issues)",
+    "Non-interactive flags for `setup run` (--token, --workspace-id, --auto, --yes)",
+    "Migrate remaining commands to `clickup/cli/output.py` renderers (workspace, list, discover hierarchy)",
+    "Promote `whoami` to top-level (or fix README)",
+    "Pollution-tolerant config load + `clickup config doctor`"
+  ]
+}
