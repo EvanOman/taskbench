@@ -3,12 +3,60 @@
 import asyncio
 import concurrent.futures
 from collections.abc import Coroutine
+from contextlib import contextmanager
 from typing import Any, TypeVar
 
-from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
-
 T = TypeVar("T")
+
+
+class _NullProgress:
+    """No-op stand-in for rich.progress.Progress.
+
+    The CLI is consumed primarily by AI agents and pipes; spinner frames on
+    stdout corrupt --format json output and are useless to non-interactive
+    callers. This class lets existing `with Progress(...): progress.add_task(...)`
+    call sites compile and execute without producing any output.
+    """
+
+    def __enter__(self) -> "_NullProgress":
+        return self
+
+    def __exit__(self, *args: Any) -> None:
+        return None
+
+    def add_task(self, *args: Any, **kwargs: Any) -> int:
+        return 0
+
+    def update(self, *args: Any, **kwargs: Any) -> None:
+        return None
+
+    def advance(self, *args: Any, **kwargs: Any) -> None:
+        return None
+
+
+def Progress(*_args: Any, **_kwargs: Any) -> _NullProgress:  # noqa: N802
+    """Drop-in shim for rich.progress.Progress that does nothing."""
+    return _NullProgress()
+
+
+def SpinnerColumn(*_args: Any, **_kwargs: Any) -> None:  # noqa: N802
+    """Drop-in shim — accepts and discards any args."""
+    return None
+
+
+def TextColumn(*_args: Any, **_kwargs: Any) -> None:  # noqa: N802
+    """Drop-in shim — accepts and discards any args."""
+    return None
+
+
+def BarColumn(*_args: Any, **_kwargs: Any) -> None:  # noqa: N802
+    """Drop-in shim — accepts and discards any args."""
+    return None
+
+
+def TaskProgressColumn(*_args: Any, **_kwargs: Any) -> None:  # noqa: N802
+    """Drop-in shim — accepts and discards any args."""
+    return None
 
 
 def run_async(coro: Coroutine[Any, Any, T]) -> T:  # noqa: UP047
@@ -54,31 +102,7 @@ def run_async(coro: Coroutine[Any, Any, T]) -> T:  # noqa: UP047
                 raise
 
 
-# ---------------------------------------------------------------------------
-# Spinner helper — fixes bleed-through artifacts
-# ---------------------------------------------------------------------------
-
-# A stderr-only console so spinner frames never pollute stdout (where JSON
-# and table output goes).  ``transient=True`` on the Progress widget erases
-# the spinner line when the context manager exits, preventing leftover
-# artefacts even when stderr and stdout share the same terminal.
-
-_stderr_console = Console(stderr=True, force_terminal=True)
-
-
-def spinner(description: str = "Working...") -> Progress:
-    """Return a ``rich.progress.Progress`` spinner that writes to *stderr*
-    and auto-cleans on exit (``transient=True``).
-
-    Usage::
-
-        with spinner("Fetching tasks...") as progress:
-            progress.add_task("Fetching tasks...", total=None)
-            result = await do_work()
-    """
-    return Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        console=_stderr_console,
-        transient=True,
-    )
+@contextmanager
+def spinner(_description: str = "Working...") -> Any:
+    """No-op spinner shim, kept so callers don't break."""
+    yield _NullProgress()

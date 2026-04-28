@@ -6,12 +6,11 @@ from typing import Any
 
 import typer
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Prompt
 from rich.table import Table
 
 from ...core import ClickUpClient, ClickUpError, Config
-from ..utils import run_async
+from ..utils import Progress, SpinnerColumn, TextColumn, run_async
 
 app = typer.Typer(help="Template management")
 console = Console()

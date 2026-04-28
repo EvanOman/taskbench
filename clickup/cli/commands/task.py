@@ -4,11 +4,10 @@ from typing import Any
 
 import typer
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from ...core import ClickUpClient, ClickUpError, Config
 from ..output import render_comments, render_message, render_task, render_tasks
-from ..utils import run_async
+from ..utils import Progress, SpinnerColumn, TextColumn, run_async
 
 app = typer.Typer(help="Task management")
 console = Console()

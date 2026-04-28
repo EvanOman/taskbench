@@ -7,17 +7,17 @@ from typing import Any
 
 import typer
 from rich.console import Console
-from rich.progress import (
+from rich.table import Table
+
+from ...core import ClickUpClient, ClickUpError, Config
+from ..utils import (
     BarColumn,
     Progress,
     SpinnerColumn,
     TaskProgressColumn,
     TextColumn,
+    run_async,
 )
-from rich.table import Table
-
-from ...core import ClickUpClient, ClickUpError, Config
-from ..utils import run_async
 
 app = typer.Typer(help="Bulk operations and import/export")
 console = Console()

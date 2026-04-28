@@ -2,12 +2,11 @@
 
 import typer
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 from rich.tree import Tree
 
 from ...core import ClickUpClient, ClickUpError, Config
-from ..utils import run_async
+from ..utils import Progress, SpinnerColumn, TextColumn, run_async
 
 app = typer.Typer(help="Discover and navigate ClickUp hierarchy")
 console = Console()
