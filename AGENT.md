@@ -1,58 +1,158 @@
 # Agent Instructions
 
-## Technology Stack Requirements
+## Project goal in one line
 
-**IMPORTANT**: This project MUST use Python and uv for everything. Do not use TypeScript, Node.js, pnpm, or any JavaScript/Node.js tooling.
+A Python CLI for ClickUp that an AI coding agent can drive end-to-end through stdin/stdout — no MCP, no UI, no skills required for basic use. Linear MCP's "modify if passed" semantics for writes.
 
-### Required Stack:
-- **Runtime**: Python 3.12+
-- **Package Manager**: uv (https://github.com/astral-sh/uv)
-- **CLI Framework**: Typer
-- **HTTP Client**: httpx
-- **Testing**: pytest
-- **Code Quality**: ruff (linting + formatting)
-- **Type Checking**: ty (https://docs.astral.sh/ty/)
+## Technology stack (required)
 
-### Project Architecture:
+| Tool | Purpose |
+|---|---|
+| Python 3.12+ | Runtime |
+| uv | Package manager, virtual envs |
+| Typer | CLI framework |
+| httpx | HTTP client (async) |
+| pydantic | Data models + validation |
+| rich | Terminal output (sparingly — agents are the primary consumer) |
+| pytest | Tests |
+| ruff | Lint + format |
+| ty | Type checking |
+
+**Do not introduce JavaScript/Node tooling.** Do not add MCP server code (lived briefly, removed in commit `81c42c9`).
+
+## Distribution
+
+The CLI ships as a single Python package. Real-world install paths, in priority order:
+
+1. **One-shot via uvx** (the agent default):
+   ```bash
+   uvx --from git+https://github.com/EvanOman/clickup-tools.git clickup ...
+   ```
+2. **Persistent install** (faster, daily use):
+   ```bash
+   uv tool install git+https://github.com/EvanOman/clickup-tools.git
+   clickup ...        # full name
+   cup ...            # short alias (same binary, registered in pyproject.toml)
+   ```
+3. **Local dev:** `uv sync && uv run clickup ...`
+
+`pyproject.toml` registers both `clickup` and `cup` entry points; treat them as equivalent.
+
+## Project layout
+
 ```
 clickup-toolkit/
-├── pyproject.toml          # Root config
+├── pyproject.toml          # both `clickup` and `cup` entry points
+├── justfile                # dev commands (`just fc` = format+lint+type+test)
 ├── clickup/
-│   ├── core/              # Shared ClickUp API client
-│   └── cli/               # CLI interface
-└── README.md
+│   ├── core/               # API client, config, models, exceptions
+│   ├── cli/
+│   │   ├── main.py         # Typer root, --format callback, status, version
+│   │   ├── output.py       # ALL output rendering (see "Output contract")
+│   │   ├── utils.py        # run_async + no-op spinner shim
+│   │   └── commands/       # per-feature subcommands
+│   └── nlp/                # PARKED — see "Parked features"
+├── tests/
+│   ├── unit/               # mocked
+│   ├── integration/        # mocked end-to-end CLI
+│   └── live/               # marked @pytest.mark.live, hits real API
+└── .claude/skills/cli-agent-eval/   # the regression eval (see below)
 ```
 
-### Development Commands:
-**IMPORTANT**: All commands must be run from the project root directory.
+## Architecture decisions (load-bearing — don't undo without reason)
 
-**CRITICAL RULES**:
-- DO NOT use `cd` commands to change directories
-- NEVER use absolute paths in code - they are ALWAYS UNACCEPTABLE
-- All relative paths should be relative to the project root
+### 1. Output goes through `clickup/cli/output.py`
 
-- `uv sync` - Install dependencies
-- `uv run pytest` - Run tests
-- `uv run ruff check` - Lint code
-- `uv run ty check` - Type check
-- `uv build` - Build packages
-- `uv run clickup` - Run the ClickUp CLI
+Every user-visible output is rendered via functions in `clickup/cli/output.py`:
+`render_user`, `render_team(s)`, `render_space(s)`, `render_list(s)`, `render_task(s)`, `render_comments`, `render_kv`, `render_message`. They read the global format setting via `get_format()` and emit either a Rich table or structured JSON.
 
-## Key Implementation Notes:
-1. Use pydantic for data models and validation
-2. Use rich for CLI output formatting
-3. Use typer or click for CLI framework
-4. Use httpx for async HTTP requests
-5. Use pytest for testing with fixtures
-6. Use ruff for both linting and formatting
-7. Use ty for type checking
+Direct `console.print` of structured data is a regression — route it through a renderer instead. Some legacy commands (`discover hierarchy`, `workspace list`) still bypass this; migrating them is a known follow-up.
 
-This ensures all agents working on this project use the same Python-based toolchain.
+JSON shape:
+- Collections: `{"data": [...], "count": N}`
+- Singletons: `model.model_dump(mode="json")` (gives ISO 8601 timestamps via pydantic)
 
-## PRD
+### 2. `--format` is a GLOBAL flag, not per-command
 
-- The app and its features are described in the PRD
-- Each PRD item should be marked with the following labels:
-    - [INCOMPLETE]
-    - [COMPLETE_UNTESTED]
-    - [COMPLETE_TESTED]
+Wired on the root Typer callback in `main.py`. Set with `clickup --format json <subcommand> ...`. Per-subcommand `--format` would conflict and confuse agents. The `bulk export-tasks` command's pre-existing `--format` (for output FILE format) is the one exception and is unrelated.
+
+### 3. Modify-if-passed update semantics
+
+`task update` (and any future update command) checks `if value is not None` — never truthy. This lets agents pass `--description ""` to clear a field. Only fields explicitly passed are sent to the API; the rest stay as ClickUp had them.
+
+### 4. No spinner, no Progress widgets
+
+`clickup/cli/utils.py` exports no-op shims for `Progress`, `SpinnerColumn`, `TextColumn`, `BarColumn`, `TaskProgressColumn`. Existing `with Progress(...) as progress: progress.add_task(...)` blocks compile and run but emit nothing. Reason: spinner frames on stdout corrupt `--format json` pipelines. Agents don't benefit from animation.
+
+If you need user feedback for a slow operation, write a one-line message to **stderr**, not stdout.
+
+### 5. Rich markup is dangerous on user data
+
+Rich interprets `[bold]`, `[red]`, etc. inside printed strings — and silently strips brackets in unrecognized markup. Task names like `[bug] foo` get destroyed without `rich.markup.escape()`. The renderers in `output.py` escape; new rendering code MUST do the same.
+
+### 6. Config priority
+
+`get_api_token()` priority: `CLICKUP_API_KEY` env var (or `CLICKUP_API_TOKEN`) > persisted config (`~/.config/clickup-toolkit/config.json`).
+`.env` files are loaded at module import time from:
+1. `~/.config/clickup-toolkit/.env` (user-global)
+2. `.env` in current working directory (project-local; uses `find_dotenv` walk)
+
+For users invoking via uvx from outside the project root, recommend the user-global `.env`.
+
+### 7. Test isolation
+
+`tests/conftest.py` has an autouse fixture that:
+- Strips `CLICKUP_*` env vars
+- Redirects `Config._get_default_config_path` to a per-test tmpdir
+
+This was added because tests instantiating bare `Config()` were silently writing to the real user config. Don't undo it. Tests marked `@pytest.mark.live` opt out so they can hit the real API.
+
+The setup wizard's interactive prompts (in `clickup/cli/commands/setup.py`) can still pollute the real config when human-tested. Treat that as a known caveat.
+
+## Parked features
+
+Branch `parked/incomplete-features` holds:
+- OAuth flow + auth command
+- Webhook server + webhook command
+- NLP task parsing module + nlp command
+- Dark-mode theme spec
+
+These were 100% incomplete and outside the agent-CLI core. They're checked in on the parked branch so they're not lost. Don't merge them back without explicit user direction; if revisited, redo the design (likely simpler).
+
+## Eval skill (regression checking)
+
+`.claude/skills/cli-agent-eval/SKILL.md` is a fixed 12-task swarm that exercises agent-usability paths against a live ClickUp account. Run it after non-trivial CLI changes:
+
+> "Run the cli-agent-eval skill"
+
+Each task spawns an Opus sub-agent with no source-reading allowed; it tests via `uvx --python 3.13 --from <project> clickup ...`. Results saved to `evals/<short-sha>.json` so deltas can be tracked.
+
+Per-task metrics captured:
+- `verdict` ∈ {pass, partial, fail}
+- `command_count`
+- `elapsed_seconds`
+- `top_friction` (free text)
+
+The baseline (pre-refactor) had 16 friction items; post-refactor passes 11/12. The remaining gaps are tracked in the GitHub issue tracker (see "Next batch" issue).
+
+## Development commands
+
+All commands run from the project root.
+
+- `uv sync` — install deps
+- `just fc` — format + lint-fix + lint + type + test (run before every commit)
+- `just check` — same without auto-fix (for CI parity)
+- `just test-live` — run `tests/live/` against the real API (needs `CLICKUP_API_KEY`)
+- `just cli ...` — invoke the CLI under uv
+
+## Critical conventions
+
+- No `cd` in scripts; use absolute paths only when truly required
+- No absolute paths in code (config dir is computed via `Path.home()`)
+- Don't reintroduce mypy — replaced by ty
+- Don't push to `master` without `just fc` passing AND the CI green
+- New commands: register them in `clickup/cli/main.py` with `rich_help_panel` so they appear in the right `--help` group ("Get started", "Task workflow", "Workspace navigation", "Other")
+
+## CLAUDE.md
+
+`CLAUDE.md` just points here. Keep it that way — single source of truth.

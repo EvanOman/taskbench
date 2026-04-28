@@ -102,34 +102,65 @@ Captured before the 6-agent refactor (commits `9966d6c` and earlier). 15 frictio
 | timestamps | epoch-ms in all output | resolved (ISO in JSON, human in tables) |
 | help discoverability | flat command list, no grouping | resolved (rich panels) |
 
-## Synthesis report you produce
+## Synthesis report + JSON storage
 
-After all 12 sub-agents return, write a single report with:
+When you dispatch the swarm, **add this clause to each sub-agent's prompt** so the report is parseable:
+
+> "Last lines of your report MUST be a fenced JSON block of the form:
+> ```json
+> {\"verdict\":\"pass|partial|fail\", \"command_count\": <int>, \"elapsed_seconds\": <int>, \"top_friction\": \"<one sentence>\"}
+> ```
+> Use the start of your response and the end as your elapsed_seconds estimate (round to whole seconds). command_count is the count of CLI invocations you actually ran (not --help calls)."
+
+After all 12 return, write a markdown summary AND save a structured JSON to `evals/<short-sha>.json` (where `<short-sha>` = `git rev-parse --short HEAD` at eval time). JSON shape:
+
+```json
+{
+  "commit": "<short-sha>",
+  "commit_full": "<full-sha>",
+  "timestamp": "<ISO 8601>",
+  "summary": {
+    "pass": N, "partial": N, "fail": N,
+    "total_command_count": N,
+    "total_elapsed_seconds": N
+  },
+  "tasks": [
+    {
+      "id": 1, "name": "identity",
+      "verdict": "pass", "command_count": 7, "elapsed_seconds": 64,
+      "top_friction": "whoami at config not top-level"
+    },
+    ...
+  ]
+}
+```
+
+Markdown report sections (in addition to JSON):
 
 ```
-# CLI Agent-Usability Eval — <date>
+# CLI Agent-Usability Eval — <date> @ <short-sha>
 
 ## Summary
-- Tasks run: 12
-- Pass: N | Partial: N | Fail: N
-- vs baseline: <improved|regressed|same> on M of 16 tracked friction items
+- Tasks run: 12; Pass N · Partial N · Fail N
+- Total commands across all agents: N (delta vs last eval: ±N)
+- Total elapsed across all agents: N seconds (delta vs last eval: ±N)
 
 ## Per-task results
-| # | Task | Verdict | Commands used | Top friction (if any) |
-|---|------|---------|---------------|------------------------|
+| # | Task | Verdict | Cmds | Elapsed | Top friction |
+|---|------|---------|------|---------|--------------|
 ...
 
 ## Verdict on each baseline issue (comparison table)
-| Baseline issue | Expected | Observed | Verdict |
-|---|---|---|---|
 ...
 
-## New friction discovered (not in baseline)
-- ...
+## New friction discovered
+...
 
 ## Recommended next moves
 - ranked list of 3-5 items
 ```
+
+If a previous eval JSON exists in `evals/`, compare summary metrics and call out direction (improved / regressed / mixed).
 
 ## Cleanup
 
