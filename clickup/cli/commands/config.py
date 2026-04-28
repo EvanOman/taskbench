@@ -248,6 +248,42 @@ def validate_auth() -> None:
     run_async(_validate())
 
 
-# ---------------------------------------------------------------
-# OWNED BY E: Agent E may append a `whoami` command below this line.
-# ---------------------------------------------------------------
+@app.command("whoami")
+def whoami() -> None:
+    """Show current authenticated user and configured defaults."""
+
+    async def _whoami() -> None:
+        config = Config()
+        if not config.has_credentials():
+            console.print("[red]No API credentials configured.[/red]")
+            console.print("Set CLICKUP_API_KEY or run 'clickup setup run'.")
+            raise typer.Exit(1)
+
+        try:
+            async with ClickUpClient(config) as client:
+                user = await client.get_user()
+
+                table = Table(title="Who Am I", show_header=False)
+                table.add_column("Field", style="cyan", width=20)
+                table.add_column("Value", style="white")
+
+                table.add_row("User ID", str(user.id))
+                table.add_row("Username", user.username)
+                table.add_row("Email", user.email or "N/A")
+                table.add_row("Color", user.color or "N/A")
+
+                default_team = config.get("default_team_id")
+                default_space = config.get("default_space_id")
+                default_list = config.get("default_list_id")
+
+                table.add_row("Default Team ID", default_team or "[dim]Not set[/dim]")
+                table.add_row("Default Space ID", default_space or "[dim]Not set[/dim]")
+                table.add_row("Default List ID", default_list or "[dim]Not set[/dim]")
+
+                console.print(table)
+
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+            raise typer.Exit(1) from e
+
+    run_async(_whoami())
