@@ -12,24 +12,31 @@ from .commands import list as list_cmd
 
 app = typer.Typer(
     name="clickup",
-    help="🎯 ClickUp CLI - Powerful task management from the command line",
+    help="ClickUp CLI - Task management from the command line.",
     add_completion=False,
     rich_markup_mode="rich",
+    epilog="New here? Run [bold]clickup setup[/bold] to get started.",
 )
 
-# Add subcommands
-app.add_typer(task.app, name="task", help="Task management commands")
-app.add_typer(config.app, name="config", help="Configuration commands")
-app.add_typer(workspace.app, name="workspace", help="Workspace management commands")
-app.add_typer(list_cmd.app, name="list", help="List management commands")
-app.add_typer(bulk.app, name="bulk", help="Bulk operations and import/export")
-app.add_typer(templates.app, name="template", help="Template management")
-app.add_typer(discover.app, name="discover", help="Discover and navigate ClickUp hierarchy")
+# -- Get started --------------------------------------------------------
+app.add_typer(config.app, name="config", rich_help_panel="Get started")
+
+# -- Task workflow -------------------------------------------------------
+app.add_typer(task.app, name="task", rich_help_panel="Task workflow")
+
+# -- Workspace navigation ------------------------------------------------
+app.add_typer(workspace.app, name="workspace", rich_help_panel="Workspace navigation")
+app.add_typer(list_cmd.app, name="list", rich_help_panel="Workspace navigation")
+app.add_typer(discover.app, name="discover", rich_help_panel="Workspace navigation")
+
+# -- Other ---------------------------------------------------------------
+app.add_typer(bulk.app, name="bulk", rich_help_panel="Other")
+app.add_typer(templates.app, name="template", rich_help_panel="Other")
 
 console = Console()
 
 
-@app.command()
+@app.command(rich_help_panel="Get started")
 def status() -> None:
     """Show ClickUp connection status and current configuration."""
 
@@ -92,7 +99,7 @@ def status() -> None:
     asyncio.run(_status())
 
 
-@app.command()
+@app.command(rich_help_panel="Other")
 def version() -> None:
     """Show version information."""
     from . import __version__
