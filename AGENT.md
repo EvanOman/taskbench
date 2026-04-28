@@ -38,6 +38,12 @@ The CLI ships as a single Python package. Real-world install paths, in priority 
 
 `pyproject.toml` registers both `clickup` and `cup` entry points; treat them as equivalent.
 
+### Local dev caveat
+
+**Do not use `uvx --from .` or `uvx --from /path/to/clickup-tools` for local development.** uvx builds a wheel and caches it by package name+version; subsequent invocations at the same version silently serve the stale wheel, so source edits have no effect until the version is bumped or the cache is pruned. This bit us at v0.2.0 (spinner removal was invisible until v0.3.0).
+
+The fix is simple: always use `uv run clickup ...` (or `just cli ...`) from the project directory. `uv sync` installs the project as an editable package (via `.pth` file), so every invocation reads live source — no build, no cache, no surprises. Reserve `uvx` for end-users and agents consuming a pinned release from git.
+
 ## Project layout
 
 ```
@@ -156,3 +162,19 @@ All commands run from the project root.
 ## CLAUDE.md
 
 `CLAUDE.md` just points here. Keep it that way — single source of truth.
+
+## Decision log
+
+Non-obvious choices and why they were made, for future contributors.
+
+**Why no PyPI yet** — The package isn't stable enough for a public API contract; tight iteration without semver pressure is the priority. Distribution via `uvx --from git+...` gives the same end-user UX without committing to PyPI's release cadence and yank limitations. Revisit when the agent-CLI surface area stabilizes.
+
+**Why hatchling, not uv_build** — `pystd` recommends `uv_build` for new projects, but this project predates that recommendation and chose hatchling. Both work for `uv build` and `uvx --from <path>`. Switching incurs config churn for no observable benefit; keep hatchling.
+
+**Why the test-isolation fixture patches both `_get_default_config_path` and `_get_config_path`** — Discovered (commit `9966d6c`) that several legacy tests instantiate bare `Config()` and call `.set(...)`, which writes to `~/.config/clickup-toolkit/config.json` in production. Stripping `CLICKUP_*` env vars wasn't enough — the persisted file leaked test data into real user config. Patching both path-resolution methods routes those writes to a per-test tmp file. `@pytest.mark.live` tests opt out so they hit the real env.
+
+**Why a no-spinner shim instead of editing every call site** — `Progress`, `SpinnerColumn`, `TextColumn`, `BarColumn`, `TaskProgressColumn` are stubbed to no-ops in `clickup/cli/utils.py`. Existing `with Progress(...) as p: p.add_task(...)` blocks compile and run silently. This kept the change to one PR with low diff and zero risk of missing a call site. Trade-off: imports look like they use `rich.progress`, but they resolve to the local shim.
+
+**Why `cup` alongside `clickup`** — `clickup` is the canonical name (self-documenting in shell history); `cup` is the daily-driver short alias. Both registered as entry points in `pyproject.toml`. Adding `cup` was free; renaming `clickup` would be a breaking change.
+
+**uvx caching for local dev** — See "Distribution" section above for the local-dev mitigation.

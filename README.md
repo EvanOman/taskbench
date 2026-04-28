@@ -43,7 +43,7 @@ Choose the method that fits your workflow:
 |--------|---------|----------|
 | **One-shot (no install)** | `uvx --from git+https://github.com/EvanOman/clickup-tools.git clickup ...` | Agents, CI, quick checks |
 | **Persistent install** | `uv tool install git+https://github.com/EvanOman/clickup-tools.git` then `clickup ...` | Repeat use |
-| **Local development** | `git clone <repo> && cd clickup-tools && uv sync && uv run clickup ...` | Contributing |
+| **Local development** | `git clone <repo> && cd clickup-tools && uv sync && uv run clickup ...` | Contributing (always reflects latest source; no cache) |
 
 ## Features
 

@@ -14,9 +14,15 @@ When the user asks for an eval / benchmark / agent-usability check, or right aft
 ## Setup checks (do these first, in parallel)
 
 1. Confirm `.env` exists at project root with a real `CLICKUP_API_KEY`. If missing, stop and ask the user to provide one.
-2. Confirm uvx works for this project:
+2. **Isolate eval config from real user config.** Run:
+   ```bash
+   export CLICKUP_CONFIG_PATH="/tmp/clickup-eval-$(date +%s)/config.json"
+   mkdir -p "$(dirname "$CLICKUP_CONFIG_PATH")"
+   ```
+   This uses the `CLICKUP_CONFIG_PATH` env var (honoured by `Config()`) so the eval's setup wizard, `config set-token`, and any other config writes go to a disposable path instead of `~/.config/clickup-toolkit/config.json`. **Pass this env var to every sub-agent prompt** (see base prompt template below).
+3. Confirm uvx works for this project:
    `uvx --python 3.13 --from /home/evan/dev/clickup-tools clickup --help` (Python 3.13 is needed because uvx defaults to 3.14 which has a pydantic-core build issue).
-3. Confirm the user's workspace state. Real values for the eval:
+4. Confirm the user's workspace state. Real values for the eval:
    - User: Evan Oman, ID `150240437`, email `evan058@gmail.com`
    - Workspace: `90131945555` ("Evan Oman's Workspace") — singleton
    - Space: `90138201902` ("Team Space")
@@ -36,6 +42,8 @@ SETUP
 - A real CLICKUP_API_KEY is in .env there.
 - Invoke the CLI as a real user would: `uvx --python 3.13 --from /home/evan/dev/clickup-tools clickup ...` (Python 3.13 required — pydantic-core build fails on 3.14).
 - Both `clickup` and `cup` are valid binary names after install.
+- IMPORTANT: Before running any CLI command, export the isolated config path so your writes don't pollute the user's real config:
+  `export CLICKUP_CONFIG_PATH="{CLICKUP_CONFIG_PATH}"` (the dispatcher will substitute the actual path).
 
 HARD CONSTRAINTS
 - Do NOT read the CLI's source code. No Read on clickup/cli/* or clickup/core/*. No grep through those dirs.
@@ -166,7 +174,7 @@ If a previous eval JSON exists in `evals/`, compare summary metrics and call out
 
 After the eval, ensure:
 - All test tasks created (anything with `agent-test-eval-*` prefix) are deleted from list `901316076590` (Personal). Use `cup task delete <id> --force`.
-- `~/.config/clickup-toolkit/config.json` is **not** polluted with eval-leftover values. If task #12's wizard ran against the real config, restore from a backup taken at start, or accept the persisted defaults if they reflect real intent (Omega Point as default, etc.).
+- Remove the disposable eval config directory: `rm -rf "$(dirname "$CLICKUP_CONFIG_PATH")"`. Because the eval used `CLICKUP_CONFIG_PATH`, the user's real `~/.config/clickup-toolkit/config.json` was never touched.
 
 ## Why this exists
 

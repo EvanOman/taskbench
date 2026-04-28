@@ -110,18 +110,31 @@ class Config:
         """Initialize configuration manager.
 
         Args:
-            config_path: Optional custom config file path
+            config_path: Optional custom config file path.
+
+        When *config_path* is ``None``, resolution order is:
+
+        1. ``CLICKUP_CONFIG_PATH`` env var (absolute path to the JSON file).
+        2. ``~/.config/clickup-toolkit/config.json`` (default).
+
+        Setting ``CLICKUP_CONFIG_PATH`` is the recommended way for tests,
+        eval harnesses, and CI to isolate config writes from the real user
+        config.
         """
         if config_path is None:
-            # Check if _get_config_path method has been mocked/patched
-            try:
-                mocked_path = self._get_config_path()
-                if mocked_path != str(self._get_default_config_path()):
-                    self.config_path = Path(mocked_path)
-                else:
+            env_config = os.environ.get("CLICKUP_CONFIG_PATH")
+            if env_config:
+                self.config_path = Path(env_config)
+            else:
+                # Check if _get_config_path method has been mocked/patched
+                try:
+                    mocked_path = self._get_config_path()
+                    if mocked_path != str(self._get_default_config_path()):
+                        self.config_path = Path(mocked_path)
+                    else:
+                        self.config_path = self._get_default_config_path()
+                except Exception:
                     self.config_path = self._get_default_config_path()
-            except Exception:
-                self.config_path = self._get_default_config_path()
         else:
             self.config_path = Path(config_path) if isinstance(config_path, str) else config_path
         self._config = self._load_config()

@@ -197,9 +197,11 @@ def clean_config(
 
 
 @app.command("reset")
-def reset_config() -> None:
+def reset_config(
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt (for scripting)"),
+) -> None:
     """Reset configuration to defaults."""
-    if typer.confirm("Are you sure you want to reset all configuration?"):
+    if yes or typer.confirm("Are you sure you want to reset all configuration?"):
         config = Config()
         config.config_path.unlink(missing_ok=True)
         console.print("✅ Configuration reset to defaults")

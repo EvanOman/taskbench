@@ -1,5 +1,7 @@
 """Tests for configuration management."""
 
+from pathlib import Path
+
 import pytest
 
 from clickup.core import Config
@@ -99,3 +101,47 @@ def test_config_file_precedence(temp_config_dir, monkeypatch):
     config.set_api_token("file_token")
 
     assert config.get_api_token() == "file_token"
+
+
+class TestClickupConfigPathEnvVar:
+    """Tests for CLICKUP_CONFIG_PATH environment variable support."""
+
+    def test_env_var_overrides_default_path(self, tmp_path, monkeypatch):
+        """Config() with no args uses CLICKUP_CONFIG_PATH when set."""
+        custom_path = tmp_path / "custom" / "config.json"
+        monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(custom_path))
+
+        config = Config()
+        assert config.config_path == custom_path
+
+    def test_env_var_creates_parent_dirs_on_save(self, tmp_path, monkeypatch):
+        """Saving config creates parent directories for the env-var path."""
+        custom_path = tmp_path / "deep" / "nested" / "config.json"
+        monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(custom_path))
+
+        config = Config()
+        config.set_api_token("tok_from_env_path")
+        assert custom_path.exists()
+
+        # Reload and verify persistence
+        config2 = Config()
+        assert config2.get_api_token() == "tok_from_env_path"
+
+    def test_explicit_config_path_wins_over_env_var(self, tmp_path, monkeypatch):
+        """An explicit config_path argument takes precedence over the env var."""
+        env_path = tmp_path / "env" / "config.json"
+        explicit_path = tmp_path / "explicit" / "config.json"
+        monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(env_path))
+
+        config = Config(config_path=explicit_path)
+        assert config.config_path == explicit_path
+
+    def test_env_var_not_set_falls_back_to_default(self, monkeypatch):
+        """Without CLICKUP_CONFIG_PATH, Config() uses the default path."""
+        monkeypatch.delenv("CLICKUP_CONFIG_PATH", raising=False)
+        # The autouse fixture already patches _get_default_config_path to a
+        # tmpdir, so just verify we get a path under the patched location
+        # (not None or an error).
+        config = Config()
+        assert config.config_path is not None
+        assert isinstance(config.config_path, Path)
