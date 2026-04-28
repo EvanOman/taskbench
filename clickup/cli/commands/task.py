@@ -178,10 +178,11 @@ def my_tasks(
                     ws_id = await _resolve_workspace_id(client, workspace_id)
 
                     # Search for tasks assigned to this user across the workspace
+                    # ClickUp API expects assignees[] as repeated query params
                     tasks = await client.search_tasks(
                         ws_id,
                         "",
-                        assignees=[str(user.id)],
+                        **{"assignees[]": [str(user.id)]},
                     )
 
                 if not tasks:
