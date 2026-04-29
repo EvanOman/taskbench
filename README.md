@@ -45,6 +45,99 @@ Choose the method that fits your workflow:
 | **Persistent install** | `uv tool install git+https://github.com/EvanOman/clickup-tools.git` then `clickup ...` | Repeat use |
 | **Local development** | `git clone <repo> && cd clickup-tools && uv sync && uv run clickup ...` | Contributing (always reflects latest source; no cache) |
 
+## Wiring this up for an AI coding agent
+
+This CLI was built to be driven by AI agents. Setting it up so any Claude Code / Cursor / Codex / Aider session on your machine can capture follow-up tasks for you takes about three minutes.
+
+### 1. Install the CLI persistently
+
+Pick one (any of the methods above works, but for agent use `uv tool install` is friendliest):
+
+```bash
+uv tool install git+https://github.com/EvanOman/clickup-tools.git
+```
+
+Both `clickup` and `cup` are now on your `PATH`.
+
+### 2. Drop your API token in a cwd-independent location
+
+Put the token at `~/.config/clickup-toolkit/.env` so it loads regardless of where the agent invokes the CLI:
+
+```bash
+mkdir -p ~/.config/clickup-toolkit
+echo 'CLICKUP_API_KEY=pk_<your_token>' >> ~/.config/clickup-toolkit/.env
+chmod 600 ~/.config/clickup-toolkit/.env
+clickup status   # should print "Auth Status: Valid"
+```
+
+Get a personal token from **ClickUp → Settings → Apps → API Token**.
+
+### 3. Configure aliases for your spaces and a default status
+
+Agents shouldn't have to run discovery commands every time they create a task. Map your real list IDs to short aliases so the agent can route by name:
+
+```bash
+clickup setup run            # one-shot: picks default workspace/space/list interactively
+# or set the alias map by hand:
+clickup config set-default-list omegapoint <list-id>
+clickup config set-default-list overhead <list-id>
+clickup config set-default-list personal <list-id>
+clickup config set default_status on-deck   # tasks land in your "ready" column by default
+```
+
+Find the IDs with `clickup discover hierarchy --depth 5`.
+
+### 4. Add a shell alias (optional)
+
+Short one-liner so the agent (and you) can type `cup` instead of the full binary name:
+
+```bash
+# zsh (~/.zshrc) or bash (~/.bashrc)
+alias cup='clickup'
+# or, if you want local-source-on-edit (developer mode):
+# alias cup='uv run --project /path/to/clickup-tools clickup'
+```
+
+### 5. Teach your agent how to use it
+
+Drop this snippet into your agent's global instructions file. For Claude Code that's `~/.claude/CLAUDE.md`; for Cursor it's `.cursorrules` (project-level) or the user-level rules file; for Codex CLI it's `~/.codex/AGENTS.md` (project-level `AGENTS.md` works too); for Aider it's `~/.aider.conf.yml`'s `read` setting.
+
+```markdown
+## Capturing Follow-up Tasks (use `cup`)
+
+When you identify a real follow-up the user might lose track of, capture it
+as a ClickUp task via `cup`. The CLI is at `~/.local/bin/clickup` (installed
+via `uv tool install`); the alias `cup` is shorter.
+
+Available spaces (route by content; do NOT run discovery commands):
+
+| Alias | Use for |
+|---|---|
+| `omegapoint` | Default — active work, technical follow-ups, code reviews |
+| `overhead` | Admin / process / non-coding chores |
+| `personal` | Explicitly non-work |
+
+Default status: `on-deck` (the user's "ready to pick up" column) — applied
+automatically.
+
+Invocation:
+```
+cup task create "Short imperative title" --list-id omegapoint --description "Context."
+cup task create "Title" --list-id personal --priority 2 --status in-progress
+```
+
+When NOT to capture: anything you can resolve in the current turn, trivial
+todos, or active subtasks (use the agent's own todo tool for those).
+
+After creating, mention the task ID and URL so the user can find it.
+```
+
+Edit the alias table to match the spaces you set up in step 3. After this, any agent session can be told "add a todo for X" and it'll route to the right space automatically — no discovery, no asking.
+
+### Verifying the agent path works
+
+From a fresh shell, ask your agent: *"Add a todo to verify cup integration."* It should run a single `cup task create ...` and report the task ID and URL. If it asks discovery questions instead, your instructions snippet didn't load — check the file path your agent reads from.
+
 ## Features
 
 - **CLI Interface**: Command-line tool for ClickUp task management
