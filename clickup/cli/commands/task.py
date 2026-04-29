@@ -202,11 +202,17 @@ def my_tasks(
 @app.command("create")
 def create_task(
     name: str = typer.Argument(..., help="Task name"),
-    list_id: str | None = typer.Option(None, "--list-id", "-l", help="List ID to create task in"),
+    list_id: str | None = typer.Option(None, "--list-id", "-l", help="List ID or alias to create task in"),
     description: str | None = typer.Option(None, "--description", "-d", help="Task description"),
     priority: int | None = typer.Option(None, "--priority", "-p", help="Priority (1=urgent, 4=low)"),
     assignee: str | None = typer.Option(None, "--assignee", "-a", help="Assignee user ID"),
     due_date: str | None = typer.Option(None, "--due-date", help="Due date (YYYY-MM-DD)"),
+    status: str | None = typer.Option(
+        None,
+        "--status",
+        "-s",
+        help="Initial status (e.g. 'on-deck'). Falls back to config default_status, then list default.",
+    ),
 ) -> None:
     """Create a new task."""
 
@@ -218,6 +224,9 @@ def create_task(
             console.print("Use --list-id or set a default with 'clickup config set default_list_id <id>'")
             raise typer.Exit(1)
 
+        config = Config()
+        status_to_use = status or config.get("default_status")
+
         try:
             task_data: dict[str, Any] = {"name": name}
 
@@ -228,8 +237,9 @@ def create_task(
             if assignee:
                 task_data["assignees"] = [assignee]
             if due_date:
-                # Convert to timestamp (simplified)
                 task_data["due_date"] = due_date
+            if status_to_use:
+                task_data["status"] = status_to_use
 
             async with await get_client() as client:
                 with Progress(

@@ -42,6 +42,7 @@ KNOWN_CONFIG_KEYS: set[str] = {
     "default_space_id",
     "default_list_id",
     "default_lists",
+    "default_status",
     "timeout",
     "max_retries",
     "output_format",
@@ -93,6 +94,7 @@ class ClickUpConfig(BaseModel):
     default_space_id: str | None = None
     default_list_id: str | None = None
     default_lists: dict[str, str] | None = None
+    default_status: str | None = None
     timeout: int = 30
     max_retries: int = 3
     output_format: str = "table"  # table, json, csv
