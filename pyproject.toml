@@ -77,7 +77,7 @@ exclude = ["tests/**"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v --cov=clickup --cov-report=term-missing --ignore=tests/live"
+addopts = "-v --cov=clickup --cov-report=term-missing --cov-fail-under=90 --ignore=tests/live"
 asyncio_mode = "auto"
 markers = [
     "live: marks tests as requiring live ClickUp API access (deselect with '-m \"not live\"')",
