@@ -150,7 +150,7 @@ def test_bulk_import_json_actual(mock_get_client, sample_tasks_json):
         json.dump(sample_tasks_json, f)
         f.flush()
 
-        result = runner.invoke(app, ["bulk", "import-tasks", f.name, "--list-id", "123"], input="y\n")
+        result = runner.invoke(app, ["bulk", "import-tasks", f.name, "--list-id", "123", "--yes"])
 
         assert result.exit_code == 0
         assert "3 created" in result.stdout
@@ -181,7 +181,7 @@ def test_bulk_update_tasks(mock_get_client):
 
     mock_get_client.side_effect = create_mock_client
 
-    result = runner.invoke(app, ["bulk", "bulk-update", "--list-id", "123", "--status", "in progress"], input="y\n")
+    result = runner.invoke(app, ["bulk", "bulk-update", "--list-id", "123", "--status", "in progress", "--yes"])
 
     assert result.exit_code == 0
     assert "2 updated" in result.stdout
@@ -214,8 +214,7 @@ def test_bulk_update_with_filter(mock_get_client):
 
     result = runner.invoke(
         app,
-        ["bulk", "bulk-update", "--list-id", "123", "--filter-status", "to do", "--priority", "1"],
-        input="y\n",
+        ["bulk", "bulk-update", "--list-id", "123", "--filter-status", "to do", "--priority", "1", "--yes"],
     )
 
     assert result.exit_code == 0

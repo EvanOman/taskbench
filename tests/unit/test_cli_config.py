@@ -38,24 +38,33 @@ def test_config_get_nonexistent():
             assert "not set" in result.stdout
 
 
-def test_config_reset_cancelled():
-    """Test cancelling config reset."""
+def test_config_reset_without_flag_refuses():
+    """Reset without --yes/--force must error out (no interactive prompt)."""
     with tempfile.TemporaryDirectory() as tmpdir:
         with patch.dict("os.environ", {"HOME": tmpdir}):
-            # Answer 'n' to confirmation
-            result = runner.invoke(app, ["config", "reset"], input="n\n")
-            assert result.exit_code == 0
+            result = runner.invoke(app, ["config", "reset"])
+            assert result.exit_code == 2
+            assert "Refusing to reset" in result.stdout
 
 
-def test_config_reset_confirmed():
-    """Test confirming config reset."""
+def test_config_reset_with_yes():
+    """Reset with --yes proceeds non-interactively."""
     with tempfile.TemporaryDirectory() as tmpdir:
         with patch.dict("os.environ", {"HOME": tmpdir}):
-            # First set some config
             runner.invoke(app, ["config", "set-token", "test_token"])
 
-            # Answer 'y' to confirmation
-            result = runner.invoke(app, ["config", "reset"], input="y\n")
+            result = runner.invoke(app, ["config", "reset", "--yes"])
+            assert result.exit_code == 0
+            assert "reset to defaults" in result.stdout
+
+
+def test_config_reset_with_force():
+    """--force is an alias for --yes."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with patch.dict("os.environ", {"HOME": tmpdir}):
+            runner.invoke(app, ["config", "set-token", "test_token"])
+
+            result = runner.invoke(app, ["config", "reset", "--force"])
             assert result.exit_code == 0
             assert "reset to defaults" in result.stdout
 

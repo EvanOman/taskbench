@@ -150,6 +150,14 @@ def import_tasks(
     list_id: str | None = typer.Option(None, "--list-id", "-l", help="List ID to import tasks into"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview import without creating tasks"),
     batch_size: int = typer.Option(10, "--batch-size", help="Number of tasks to create in parallel"),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        "-f",
+        "--yes",
+        "-y",
+        help="Required to actually import. No interactive prompt.",
+    ),
 ) -> None:
     """Import tasks from CSV or JSON file."""
 
@@ -211,10 +219,12 @@ def import_tasks(
                 console.print("[yellow]This was a dry run. Use --no-dry-run to actually import.[/yellow]")
                 return
 
-            # Confirm import
-            if not typer.confirm(f"Import {len(tasks_data)} tasks into list {list_id_to_use}?"):
-                console.print("Import cancelled.")
-                return
+            if not force:
+                console.print(
+                    f"[red]Refusing to import {len(tasks_data)} tasks without --force/--yes "
+                    "(use --dry-run to preview).[/red]"
+                )
+                raise typer.Exit(2)
 
             async with await get_client() as client:
                 with Progress(
@@ -282,6 +292,14 @@ def bulk_update(
     new_priority: int | None = typer.Option(None, "--priority", help="New priority to set (1-4)"),
     new_assignee: str | None = typer.Option(None, "--assignee", help="New assignee user ID"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview changes without applying"),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        "-f",
+        "--yes",
+        "-y",
+        help="Required to actually apply updates. No interactive prompt.",
+    ),
 ) -> None:
     """Bulk update tasks matching criteria."""
 
@@ -356,9 +374,12 @@ def bulk_update(
                         console.print("[yellow]This was a dry run. Remove --dry-run to apply changes.[/yellow]")
                         return
 
-                    if not typer.confirm(f"Apply updates to {len(tasks)} tasks?"):
-                        console.print("Bulk update cancelled.")
-                        return
+                    if not force:
+                        console.print(
+                            f"[red]Refusing to update {len(tasks)} tasks without --force/--yes "
+                            "(use --dry-run to preview).[/red]"
+                        )
+                        raise typer.Exit(2)
 
                     # Apply updates
                     update_task = progress.add_task("Updating tasks...", total=len(tasks))

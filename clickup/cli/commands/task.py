@@ -352,15 +352,21 @@ def change_status(
 @app.command("delete")
 def delete_task(
     task_id: str = typer.Argument(..., help="Task ID"),
-    force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation"),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        "-f",
+        "--yes",
+        "-y",
+        help="Required to confirm deletion. No interactive prompt.",
+    ),
 ) -> None:
     """Delete a task."""
 
     async def _delete_task() -> None:
         if not force:
-            if not typer.confirm(f"Are you sure you want to delete task {task_id}?"):
-                console.print("Cancelled.")
-                return
+            console.print("[red]Refusing to delete without --force/--yes (this CLI never prompts).[/red]")
+            raise typer.Exit(2)
 
         try:
             async with await get_client() as client:

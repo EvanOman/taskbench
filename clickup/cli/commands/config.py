@@ -164,11 +164,19 @@ def set_default_list(
 @app.command("clean")
 def clean_config(
     dry_run: bool = typer.Option(False, "--dry-run", "-n", help="Preview keys that would be removed without writing"),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        "-f",
+        "--yes",
+        "-y",
+        help="Required to actually remove keys. No interactive prompt.",
+    ),
 ) -> None:
     """Prune unknown/garbage keys from the persisted config.
 
     By default, removes any top-level keys not in the known-key list.
-    Use --dry-run to preview what would be removed.
+    Use --dry-run to preview, then re-run with --force/--yes to apply.
     """
     config = Config()
     unknown = config.unknown_keys()
@@ -188,9 +196,11 @@ def clean_config(
         console.print(f"\n[dim]Dry run: {len(unknown)} key(s) would be removed.[/dim]")
         return
 
-    if not typer.confirm(f"Remove {len(unknown)} unknown key(s)?"):
-        console.print("[yellow]Cancelled.[/yellow]")
-        return
+    if not force:
+        console.print(
+            f"[red]Refusing to remove {len(unknown)} key(s) without --force/--yes (use --dry-run to preview).[/red]"
+        )
+        raise typer.Exit(2)
 
     config.remove_keys(set(unknown.keys()))
     console.print(f"[green]✅ Removed {len(unknown)} key(s).[/green]")
@@ -198,13 +208,22 @@ def clean_config(
 
 @app.command("reset")
 def reset_config(
-    yes: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation prompt (for scripting)"),
+    yes: bool = typer.Option(
+        False,
+        "--yes",
+        "-y",
+        "--force",
+        "-f",
+        help="Required to confirm reset. No interactive prompt.",
+    ),
 ) -> None:
     """Reset configuration to defaults."""
-    if yes or typer.confirm("Are you sure you want to reset all configuration?"):
-        config = Config()
-        config.config_path.unlink(missing_ok=True)
-        console.print("✅ Configuration reset to defaults")
+    if not yes:
+        console.print("[red]Refusing to reset without --yes/--force (this CLI never prompts).[/red]")
+        raise typer.Exit(2)
+    config = Config()
+    config.config_path.unlink(missing_ok=True)
+    console.print("✅ Configuration reset to defaults")
 
 
 @app.command("validate")
