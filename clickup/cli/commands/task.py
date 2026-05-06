@@ -6,7 +6,7 @@ import typer
 from rich.console import Console
 
 from ...core import ClickUpClient, ClickUpError, Config
-from ..output import render_comments, render_message, render_task, render_tasks
+from ..output import render_comments, render_error, render_message, render_task, render_tasks
 from ..utils import Progress, SpinnerColumn, TextColumn, run_async
 
 app = typer.Typer(help="Task management")
@@ -52,9 +52,9 @@ async def _resolve_workspace_id(client: ClickUpClient, workspace_id: str | None)
     if len(teams) == 1:
         return teams[0].id
     if not teams:
-        console.print("[red]Error: No workspaces found for this account.[/red]")
+        render_error("Error: No workspaces found for this account.")
         raise typer.Exit(1)
-    console.print("[red]Error: Multiple workspaces found. Please specify --workspace-id.[/red]")
+    render_error("Error: Multiple workspaces found. Please specify --workspace-id.")
     raise typer.Exit(1)
 
 
@@ -78,7 +78,7 @@ def list_tasks(
         list_id_to_use = _resolve_list_id(list_id)
 
         if not list_id_to_use:
-            console.print("[red]Error: No list ID provided and no default list configured.[/red]")
+            render_error("Error: No list ID provided and no default list configured.")
             console.print("Use --list-id or set a default with 'clickup config set default_list_id <id>'")
             raise typer.Exit(1)
 
@@ -112,7 +112,7 @@ def list_tasks(
                 render_tasks(tasks)
 
         except ClickUpError as e:
-            console.print(f"[red]ClickUp API Error: {e}[/red]")
+            render_error(f"ClickUp API Error: {e}")
             raise typer.Exit(1) from e
 
     run_async(_list_tasks())
@@ -140,7 +140,7 @@ def get_task(task_id: str = typer.Argument(..., help="Task ID")) -> None:
                 render_task(task)
 
         except ClickUpError as e:
-            console.print(f"[red]ClickUp API Error: {e}[/red]")
+            render_error(f"ClickUp API Error: {e}")
             raise typer.Exit(1) from e
 
     run_async(_get_task())
@@ -193,7 +193,7 @@ def my_tasks(
                 render_message(f"\nShowing {len(tasks)} task(s) assigned to {user.username}.", "info")
 
         except ClickUpError as e:
-            console.print(f"[red]ClickUp API Error: {e}[/red]")
+            render_error(f"ClickUp API Error: {e}")
             raise typer.Exit(1) from e
 
     run_async(_my_tasks())
@@ -220,7 +220,7 @@ def create_task(
         list_id_to_use = _resolve_list_id(list_id)
 
         if not list_id_to_use:
-            console.print("[red]Error: No list ID provided and no default list configured.[/red]")
+            render_error("Error: No list ID provided and no default list configured.")
             console.print("Use --list-id or set a default with 'clickup config set default_list_id <id>'")
             raise typer.Exit(1)
 
@@ -255,7 +255,7 @@ def create_task(
                     render_message(f"URL: {task.url}", "info")
 
         except ClickUpError as e:
-            console.print(f"[red]ClickUp API Error: {e}[/red]")
+            render_error(f"ClickUp API Error: {e}")
             raise typer.Exit(1) from e
 
     run_async(_create_task())
@@ -306,7 +306,7 @@ def update_task(
                 render_message(f"Updated task: {task.name} (ID: {task.id})", "success")
 
         except ClickUpError as e:
-            console.print(f"[red]ClickUp API Error: {e}[/red]")
+            render_error(f"ClickUp API Error: {e}")
             raise typer.Exit(1) from e
 
     run_async(_update_task())
@@ -321,12 +321,12 @@ def change_status(
 
     async def _change_status() -> None:
         if not task_id:
-            console.print("[red]Error: Task ID is required.[/red]")
+            render_error("Error: Task ID is required.")
             console.print("Use --task-id to specify the task")
             raise typer.Exit(1)
 
         if not status:
-            console.print("[red]Error: Status is required.[/red]")
+            render_error("Error: Status is required.")
             console.print("Use --status to specify the new status")
             raise typer.Exit(1)
 
@@ -343,7 +343,7 @@ def change_status(
                 render_message(f"Updated task status: {task.name} -> {status}", "success")
 
         except ClickUpError as e:
-            console.print(f"[red]ClickUp API Error: {e}[/red]")
+            render_error(f"ClickUp API Error: {e}")
             raise typer.Exit(1) from e
 
     run_async(_change_status())
@@ -352,15 +352,21 @@ def change_status(
 @app.command("delete")
 def delete_task(
     task_id: str = typer.Argument(..., help="Task ID"),
-    force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation"),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        "-f",
+        "--yes",
+        "-y",
+        help="Required to confirm deletion. No interactive prompt.",
+    ),
 ) -> None:
     """Delete a task."""
 
     async def _delete_task() -> None:
         if not force:
-            if not typer.confirm(f"Are you sure you want to delete task {task_id}?"):
-                console.print("Cancelled.")
-                return
+            render_error("Refusing to delete without --force/--yes (this CLI never prompts).")
+            raise typer.Exit(2)
 
         try:
             async with await get_client() as client:
@@ -375,7 +381,7 @@ def delete_task(
                 render_message(f"Deleted task {task_id}", "success")
 
         except ClickUpError as e:
-            console.print(f"[red]ClickUp API Error: {e}[/red]")
+            render_error(f"ClickUp API Error: {e}")
             raise typer.Exit(1) from e
 
     run_async(_delete_task())
@@ -396,7 +402,7 @@ def search_tasks(
 
     async def _search_tasks() -> None:
         if not query:
-            console.print("[red]Error: Search query is required.[/red]")
+            render_error("Error: Search query is required.")
             console.print("Use --query to specify the search terms")
             raise typer.Exit(1)
 
@@ -406,7 +412,7 @@ def search_tasks(
             config = Config()
             id_to_use = config.get("default_team_id")
         if not id_to_use:
-            console.print("[red]Error: Workspace ID is required for search.[/red]")
+            render_error("Error: Workspace ID is required for search.")
             console.print("Use --workspace-id or --team-id, or set default_team_id in config")
             raise typer.Exit(1)
 
@@ -428,7 +434,7 @@ def search_tasks(
                 render_message(f"\nFound {len(tasks)} task(s)", "info")
 
         except ClickUpError as e:
-            console.print(f"[red]ClickUp API Error: {e}[/red]")
+            render_error(f"ClickUp API Error: {e}")
             raise typer.Exit(1) from e
 
     run_async(_search_tasks())
@@ -447,7 +453,7 @@ def export_tasks(
         list_id_to_use = _resolve_list_id(list_id)
 
         if not list_id_to_use:
-            console.print("[red]Error: No list ID provided and no default list configured.[/red]")
+            render_error("Error: No list ID provided and no default list configured.")
             console.print("Use --list-id or set a default with 'clickup config set default_list_id <id>'")
             raise typer.Exit(1)
 
@@ -509,13 +515,13 @@ def export_tasks(
                                 }
                             )
                 else:
-                    console.print(f"[red]Unsupported format: {format}[/red]")
+                    render_error(f"Unsupported format: {format}")
                     raise typer.Exit(1)
 
                 render_message(f"Exported {len(tasks)} tasks to {output_file}", "success")
 
         except ClickUpError as e:
-            console.print(f"[red]ClickUp API Error: {e}[/red]")
+            render_error(f"ClickUp API Error: {e}")
             raise typer.Exit(1) from e
 
     run_async(_export_tasks())
@@ -549,7 +555,7 @@ def list_comments(
                 render_message(f"\n{len(comments)} comment(s)", "info")
 
         except ClickUpError as e:
-            console.print(f"[red]ClickUp API Error: {e}[/red]")
+            render_error(f"ClickUp API Error: {e}")
             raise typer.Exit(1) from e
 
     run_async(_list_comments())
@@ -576,7 +582,7 @@ def add_comment(
                 render_message(f"Comment added (ID: {comment.id})", "success")
 
         except ClickUpError as e:
-            console.print(f"[red]ClickUp API Error: {e}[/red]")
+            render_error(f"ClickUp API Error: {e}")
             raise typer.Exit(1) from e
 
     run_async(_add_comment())

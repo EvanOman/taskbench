@@ -182,6 +182,31 @@ def test_task_delete(mock_get_client):
     assert "Deleted task" in result.stdout
 
 
+def test_task_delete_without_flag_refuses():
+    """Delete must require --force/--yes — never prompts."""
+    result = runner.invoke(app, ["task", "delete", "task999"])
+    assert result.exit_code == 2
+    assert "Refusing to delete" in result.stderr
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_delete_with_yes(mock_get_client):
+    """--yes is an alias for --force on task delete."""
+    mock_client = AsyncMock()
+    mock_client.delete_task.return_value = True
+
+    def create_mock_client():
+        ctx_mgr = AsyncMock()
+        ctx_mgr.__aenter__.return_value = mock_client
+        return ctx_mgr
+
+    mock_get_client.side_effect = create_mock_client
+
+    result = runner.invoke(app, ["task", "delete", "task123", "--yes"])
+    assert result.exit_code == 0
+    assert "Deleted task" in result.stdout
+
+
 @patch("clickup.cli.commands.task.get_client")
 def test_task_status_change(mock_get_client):
     """Test changing task status."""

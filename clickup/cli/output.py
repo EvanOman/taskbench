@@ -12,6 +12,7 @@ from datetime import UTC, datetime
 from enum import Enum
 from typing import Any, Literal
 
+import typer
 from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
@@ -347,14 +348,39 @@ def render_kv(data: dict[str, object], title: str | None = None) -> None:
 
 def render_message(msg: str, level: Literal["info", "success", "warn", "error"] = "info") -> None:
     """Print a styled one-line message. Respects ``--format json`` by emitting
-    ``{"message": ..., "level": ...}``."""
+    ``{"message": ..., "level": ...}``.
+
+    Errors and warnings go to stderr (via :func:`typer.echo`) so stdout
+    pipelines (which expect data JSON in ``--format json``) stay clean.
+    """
+    err = level in ("error", "warn")
     if get_format() == "json":
-        _print_json({"message": msg, "level": level})
+        typer.echo(json.dumps({"message": msg, "level": level}), err=err)
+        return
+    if err:
+        # Plain text on stderr — keep it dependency-free and trivially
+        # capturable by test runners and shell pipelines.
+        typer.echo(msg, err=True)
         return
     style_map: dict[str, str] = {
         "info": "bold",
         "success": "bold green",
-        "warn": "bold yellow",
-        "error": "bold red",
     }
-    _console.print(f"[{style_map.get(level, 'bold')}]{escape(msg)}[/{style_map.get(level, 'bold')}]")
+    style = style_map.get(level, "bold")
+    _console.print(f"[{style}]{escape(msg)}[/{style}]")
+
+
+def render_error(msg: str) -> None:
+    """Emit an error to stderr.
+
+    In ``--format json`` mode emits ``{"error": ...}`` to stderr so stdout
+    pipelines (which expect data JSON) are not corrupted.
+
+    Caller is responsible for raising ``typer.Exit(code)`` after this returns.
+    Convention: ``code=1`` for runtime/API errors, ``code=2`` for usage errors
+    (missing required flags, invalid input, etc.).
+    """
+    if get_format() == "json":
+        typer.echo(json.dumps({"error": msg}), err=True)
+    else:
+        typer.echo(msg, err=True)

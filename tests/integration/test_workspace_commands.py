@@ -179,7 +179,7 @@ def test_workspace_members_missing_team_id():
     """Test members command without team ID."""
     result = runner.invoke(app, ["workspace", "members"])
     assert result.exit_code != 0
-    assert "no workspace id" in result.stdout.lower()
+    assert "no workspace id" in result.output.lower()
 
 
 @patch("clickup.cli.commands.workspace.get_client")
@@ -299,4 +299,4 @@ async def test_workspace_error_handling(mock_get_client):
     result = runner.invoke(app, ["workspace", "list"])
 
     assert result.exit_code != 0
-    assert "error" in result.stdout.lower() or "failed" in result.stdout.lower()
+    assert "error" in result.output.lower() or "failed" in result.output.lower()

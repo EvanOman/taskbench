@@ -207,7 +207,7 @@ async def test_list_get_not_found(mock_get_client):
     result = runner.invoke(app, ["list", "get", "--list-id", "nonexistent"])
 
     assert result.exit_code != 0
-    assert "error" in result.stdout.lower() or "not found" in result.stdout.lower()
+    assert "error" in result.output.lower() or "not found" in result.output.lower()
 
 
 @patch("clickup.cli.commands.list.get_client")

@@ -11,7 +11,7 @@ from ..core import ClickUpClient, Config
 from .commands import bulk, config, discover, task, templates, workspace
 from .commands import list as list_cmd
 from .commands import setup as setup_cmd
-from .output import FormatChoice, get_format, set_format
+from .output import FormatChoice, get_format, render_error, set_format
 
 app = typer.Typer(
     name="clickup",
@@ -245,7 +245,7 @@ def main() -> None:
         console.print("\n[yellow]Cancelled by user[/yellow]")
         raise typer.Exit(1) from None
     except Exception as e:
-        console.print(f"[red]Error: {e}[/red]")
+        render_error(f"Error: {e}")
         raise typer.Exit(1) from e
 
 

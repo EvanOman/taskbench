@@ -7,6 +7,7 @@ from rich.console import Console
 from rich.table import Table
 
 from ...core import ClickUpClient, ClickUpError, Config
+from ..output import render_error
 from ..utils import Progress, SpinnerColumn, TextColumn, run_async
 
 app = typer.Typer(help="List management")
@@ -34,7 +35,7 @@ def list_lists(
 
     async def _list_lists() -> None:
         if not folder_id and not space_id:
-            console.print("[red]Error: Either folder ID or space ID is required.[/red]")
+            render_error("Error: Either folder ID or space ID is required.")
             console.print("Use --folder-id for lists in a folder or --space-id for folderless lists")
             raise typer.Exit(1)
 
@@ -76,7 +77,7 @@ def list_lists(
                 console.print(table)
 
         except ClickUpError as e:
-            console.print(f"[red]ClickUp API Error: {e}[/red]")
+            render_error(f"ClickUp API Error: {e}")
             raise typer.Exit(1) from e
 
     run_async(_list_lists())
@@ -91,7 +92,7 @@ def get_list(list_id: str | None = typer.Option(None, "--list-id", "-l", help="L
         list_id_to_use = list_id or config.get("default_list_id")
 
         if not list_id_to_use:
-            console.print("[red]Error: No list ID provided and no default list configured.[/red]")
+            render_error("Error: No list ID provided and no default list configured.")
             console.print("Use --list-id or set a default with 'clickup config set default_list_id <id>'")
             raise typer.Exit(1)
 
@@ -131,7 +132,7 @@ def get_list(list_id: str | None = typer.Option(None, "--list-id", "-l", help="L
                 console.print(table)
 
         except ClickUpError as e:
-            console.print(f"[red]ClickUp API Error: {e}[/red]")
+            render_error(f"ClickUp API Error: {e}")
             raise typer.Exit(1) from e
 
     run_async(_get_list())
@@ -151,7 +152,7 @@ def create_list(
 
     async def _create_list() -> None:
         if not folder_id and not space_id:
-            console.print("[red]Error: Either folder ID or space ID is required.[/red]")
+            render_error("Error: Either folder ID or space ID is required.")
             console.print("Use --folder-id to create list in a folder or --space-id for folderless list")
             raise typer.Exit(1)
 
@@ -184,7 +185,7 @@ def create_list(
                 console.print(f"✅ Created list: {list_item.name} (ID: {list_item.id})")
 
         except ClickUpError as e:
-            console.print(f"[red]ClickUp API Error: {e}[/red]")
+            render_error(f"ClickUp API Error: {e}")
             raise typer.Exit(1) from e
 
     run_async(_create_list())

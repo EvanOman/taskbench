@@ -86,17 +86,36 @@ Wired on the root Typer callback in `main.py`. Set with `clickup --format json <
 
 `task update` (and any future update command) checks `if value is not None` — never truthy. This lets agents pass `--description ""` to clear a field. Only fields explicitly passed are sent to the API; the rest stay as ClickUp had them.
 
-### 4. No spinner, no Progress widgets
+### 4. Destructive ops never prompt; require `--force`/`--yes`
+
+The CLI is agent-first. Any operation that would destroy or mutate state at scale (`task delete`, `config reset`, `config clean`, `bulk import-tasks`, `bulk bulk-update`) requires an explicit `--force/-f` (alias `--yes/-y`) flag. Without the flag, the command exits 2 with a clear "Refusing to ..." message on stderr — it does not fall through to a `typer.confirm` prompt.
+
+The interactive flows that intentionally remain interactive (`clickup setup run` and `clickup template create --interactive`) are bootstrap / authoring tools meant for humans. `setup run` accepts `--token / --team-id / --space-id / --list-id / --non-interactive` for agent use; `template create` is gated behind `--interactive`. Neither is part of the destructive-op contract.
+
+Reasons:
+- Interactive prompts wedge agents that drive the CLI over stdio. They also break parallel/batch invocations (the prompt deadlocks while the harness waits for output).
+- A required flag is self-documenting in shell history and unambiguous in scripts.
+- `--yes` is the conventional alias users reach for first; `--force` is the existing flag. Both must be accepted everywhere.
+
+If you add a new command that mutates state irreversibly, follow the same pattern: declare the flag with all four spellings on a single Option, refuse to proceed without it, and exit 2 (not 1 — exit 2 is a usage error so it's distinct from API failures which exit 1).
+
+### 4a. Errors go to stderr
+
+All error and refusal messages route through `render_error()` in `clickup/cli/output.py`, which writes to **stderr** via `typer.echo(..., err=True)`. In `--format json` mode, errors emit `{"error": ...}` to stderr — never to stdout. This keeps stdout clean for data pipelines: a caller can do `cup --format json task list ... > data.json` and any failures land on stderr where they belong.
+
+Convention: `render_error(msg)` then `raise typer.Exit(code)` — `code=1` for runtime/API errors, `code=2` for usage errors.
+
+### 5. No spinner, no Progress widgets
 
 `clickup/cli/utils.py` exports no-op shims for `Progress`, `SpinnerColumn`, `TextColumn`, `BarColumn`, `TaskProgressColumn`. Existing `with Progress(...) as progress: progress.add_task(...)` blocks compile and run but emit nothing. Reason: spinner frames on stdout corrupt `--format json` pipelines. Agents don't benefit from animation.
 
 If you need user feedback for a slow operation, write a one-line message to **stderr**, not stdout.
 
-### 5. Rich markup is dangerous on user data
+### 6. Rich markup is dangerous on user data
 
 Rich interprets `[bold]`, `[red]`, etc. inside printed strings — and silently strips brackets in unrecognized markup. Task names like `[bug] foo` get destroyed without `rich.markup.escape()`. The renderers in `output.py` escape; new rendering code MUST do the same.
 
-### 6. Config priority
+### 7. Config priority
 
 `get_api_token()` priority: `CLICKUP_API_KEY` env var (or `CLICKUP_API_TOKEN`) > persisted config (`~/.config/clickup-toolkit/config.json`).
 `.env` files are loaded at module import time from:
@@ -105,7 +124,7 @@ Rich interprets `[bold]`, `[red]`, etc. inside printed strings — and silently 
 
 For users invoking via uvx from outside the project root, recommend the user-global `.env`.
 
-### 7. Test isolation
+### 8. Test isolation
 
 `tests/conftest.py` has an autouse fixture that:
 - Strips `CLICKUP_*` env vars
