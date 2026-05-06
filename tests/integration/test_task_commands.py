@@ -84,7 +84,7 @@ def test_task_list(mock_get_client, sample_tasks):
 
     mock_get_client.side_effect = create_mock_client
 
-    result = runner.invoke(app, ["task", "list", "--list-id", "list123"])
+    result = runner.invoke(app, ["--format", "table", "task", "list", "--list-id", "list123"])
 
     assert result.exit_code == 0
     assert "Test Task 1" in result.stdout
@@ -107,7 +107,7 @@ def test_task_get(mock_get_client, sample_task_detail):
 
     mock_get_client.side_effect = create_mock_client
 
-    result = runner.invoke(app, ["task", "get", "task123"])
+    result = runner.invoke(app, ["--format", "table", "task", "get", "task123"])
 
     assert result.exit_code == 0
     assert "Detailed Task" in result.stdout
@@ -243,7 +243,8 @@ def test_task_list_with_filters(mock_get_client, sample_tasks):
     mock_get_client.side_effect = create_mock_client
 
     result = runner.invoke(
-        app, ["task", "list", "--list-id", "list123", "--status", "in progress", "--assignee", "john.doe"]
+        app,
+        ["--format", "table", "task", "list", "--list-id", "list123", "--status", "in progress", "--assignee", "john.doe"],
     )
 
     assert result.exit_code == 0
@@ -369,7 +370,7 @@ def test_task_search(mock_get_client, sample_tasks):
 
     mock_get_client.side_effect = create_mock_client
 
-    result = runner.invoke(app, ["task", "search", "--query", "test", "--workspace-id", "workspace123"])
+    result = runner.invoke(app, ["--format", "table", "task", "search", "--query", "test", "--workspace-id", "workspace123"])
 
     assert result.exit_code == 0
     assert "Test Task" in result.stdout
