@@ -8,7 +8,7 @@ from rich.table import Table
 
 from ...core import ClickUpClient, ClickUpError, Config
 from ..output import render_error
-from ..utils import Progress, SpinnerColumn, TextColumn, run_async
+from ..utils import run_async
 
 app = typer.Typer(help="List management")
 console = Console()
@@ -41,19 +41,12 @@ def list_lists(
 
         try:
             async with await get_client() as client:
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    console=console,
-                ) as progress:
-                    progress.add_task("Fetching lists...", total=None)
-                    if folder_id:
-                        lists = await client.get_lists(folder_id)
-                    else:
-                        # space_id is guaranteed non-None here due to the check above
-                        assert space_id is not None
-                        lists = await client.get_folderless_lists(space_id)
-
+                if folder_id:
+                    lists = await client.get_lists(folder_id)
+                else:
+                    # space_id is guaranteed non-None here due to the check above
+                    assert space_id is not None
+                    lists = await client.get_folderless_lists(space_id)
                 if not lists:
                     console.print("[yellow]No lists found.[/yellow]")
                     return
@@ -98,14 +91,7 @@ def get_list(list_id: str | None = typer.Option(None, "--list-id", "-l", help="L
 
         try:
             async with await get_client() as client:
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    console=console,
-                ) as progress:
-                    progress.add_task("Fetching list...", total=None)
-                    list_item = await client.get_list(list_id_to_use)
-
+                list_item = await client.get_list(list_id_to_use)
                 # Create detailed list info table
                 table = Table(title=f"List: {list_item.name}", show_header=False)
                 table.add_column("Field", style="cyan", width=15)
@@ -169,19 +155,12 @@ def create_list(
                 list_data["assignee"] = assignee
 
             async with await get_client() as client:
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    console=console,
-                ) as progress:
-                    progress.add_task("Creating list...", total=None)
-                    if folder_id:
-                        list_item = await client.create_list(folder_id, **list_data)
-                    else:
-                        # space_id is guaranteed non-None here due to the check above
-                        assert space_id is not None
-                        list_item = await client.create_folderless_list(space_id, **list_data)
-
+                if folder_id:
+                    list_item = await client.create_list(folder_id, **list_data)
+                else:
+                    # space_id is guaranteed non-None here due to the check above
+                    assert space_id is not None
+                    list_item = await client.create_folderless_list(space_id, **list_data)
                 console.print(f"✅ Created list: {list_item.name} (ID: {list_item.id})")
 
         except ClickUpError as e:

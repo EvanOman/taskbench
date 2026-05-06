@@ -11,14 +11,7 @@ from rich.table import Table
 
 from ...core import ClickUpClient, ClickUpError, Config
 from ..output import render_error
-from ..utils import (
-    BarColumn,
-    Progress,
-    SpinnerColumn,
-    TaskProgressColumn,
-    TextColumn,
-    run_async,
-)
+from ..utils import run_async
 
 app = typer.Typer(help="Bulk operations and import/export")
 console = Console()
@@ -56,83 +49,70 @@ def export_tasks(
 
         try:
             async with await get_client() as client:
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    BarColumn(),
-                    TaskProgressColumn(),
-                    console=console,
-                ) as progress:
-                    task_id = progress.add_task("Fetching tasks...", total=None)
+                filters = {}
+                if not include_completed:
+                    filters["include_closed"] = False
 
-                    filters = {}
-                    if not include_completed:
-                        filters["include_closed"] = False
+                tasks = await client.get_tasks(list_id_to_use, **filters)
 
-                    tasks = await client.get_tasks(list_id_to_use, **filters)
-                    progress.update(task_id, description=f"Exporting {len(tasks)} tasks...")
+                if format.lower() == "csv":
+                    # Export to CSV
+                    with open(output_file, "w", newline="", encoding="utf-8") as csvfile:
+                        fieldnames = [
+                            "id",
+                            "name",
+                            "description",
+                            "status",
+                            "priority",
+                            "assignees",
+                            "due_date",
+                            "date_created",
+                            "date_updated",
+                            "url",
+                        ]
+                        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                        writer.writeheader()
 
-                    if format.lower() == "csv":
-                        # Export to CSV
-                        with open(output_file, "w", newline="", encoding="utf-8") as csvfile:
-                            fieldnames = [
-                                "id",
-                                "name",
-                                "description",
-                                "status",
-                                "priority",
-                                "assignees",
-                                "due_date",
-                                "date_created",
-                                "date_updated",
-                                "url",
-                            ]
-                            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                            writer.writeheader()
-
-                            for task in tasks:
-                                status = task.status.status if task.status else ""
-                                priority = task.priority.priority or "" if task.priority else ""
-                                assignees = ", ".join([a.username for a in task.assignees]) if task.assignees else ""
-
-                                writer.writerow(
-                                    {
-                                        "id": task.id,
-                                        "name": task.name,
-                                        "description": task.description or "",
-                                        "status": status,
-                                        "priority": priority,
-                                        "assignees": assignees,
-                                        "due_date": task.due_date or "",
-                                        "date_created": task.date_created or "",
-                                        "date_updated": task.date_updated or "",
-                                        "url": task.url or "",
-                                    }
-                                )
-
-                    elif format.lower() == "json":
-                        # Export to JSON
-                        task_data = []
                         for task in tasks:
-                            task_dict = task.model_dump()
-                            # Simplify complex fields for JSON export
-                            if task_dict.get("status"):
-                                task_dict["status"] = task_dict["status"].get("status", "")
-                            if task_dict.get("priority"):
-                                task_dict["priority"] = task_dict["priority"].get("priority", "")
-                            if task_dict.get("assignees"):
-                                task_dict["assignees"] = [a.get("username", "") for a in task_dict["assignees"]]
-                            task_data.append(task_dict)
+                            status = task.status.status if task.status else ""
+                            priority = task.priority.priority or "" if task.priority else ""
+                            assignees = ", ".join([a.username for a in task.assignees]) if task.assignees else ""
 
-                        with open(output_file, "w", encoding="utf-8") as jsonfile:
-                            json.dump(task_data, jsonfile, indent=2, ensure_ascii=False)
+                            writer.writerow(
+                                {
+                                    "id": task.id,
+                                    "name": task.name,
+                                    "description": task.description or "",
+                                    "status": status,
+                                    "priority": priority,
+                                    "assignees": assignees,
+                                    "due_date": task.due_date or "",
+                                    "date_created": task.date_created or "",
+                                    "date_updated": task.date_updated or "",
+                                    "url": task.url or "",
+                                }
+                            )
 
-                    else:
-                        render_error(f"Unsupported format: {format}")
-                        raise typer.Exit(1) from None
+                elif format.lower() == "json":
+                    # Export to JSON
+                    task_data = []
+                    for task in tasks:
+                        task_dict = task.model_dump()
+                        # Simplify complex fields for JSON export
+                        if task_dict.get("status"):
+                            task_dict["status"] = task_dict["status"].get("status", "")
+                        if task_dict.get("priority"):
+                            task_dict["priority"] = task_dict["priority"].get("priority", "")
+                        if task_dict.get("assignees"):
+                            task_dict["assignees"] = [a.get("username", "") for a in task_dict["assignees"]]
+                        task_data.append(task_dict)
 
-                    progress.update(task_id, description="✅ Export completed", completed=True)
+                    with open(output_file, "w", encoding="utf-8") as jsonfile:
+                        json.dump(task_data, jsonfile, indent=2, ensure_ascii=False)
 
+                else:
+                    render_error(f"Unsupported format: {format}")
+                    raise typer.Exit(1) from None
                 console.print(f"✅ Exported {len(tasks)} tasks to {output_file}")
 
         except ClickUpError as e:
@@ -229,50 +209,37 @@ def import_tasks(
                 raise typer.Exit(2)
 
             async with await get_client() as client:
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    BarColumn(),
-                    TaskProgressColumn(),
-                    console=console,
-                ) as progress:
-                    import_task = progress.add_task("Importing tasks...", total=len(tasks_data))
+                created_count = 0
+                failed_count = 0
 
-                    created_count = 0
-                    failed_count = 0
+                # Process in batches
+                for i in range(0, len(tasks_data), batch_size):
+                    batch = tasks_data[i : i + batch_size]
 
-                    # Process in batches
-                    for i in range(0, len(tasks_data), batch_size):
-                        batch = tasks_data[i : i + batch_size]
+                    for task_data in batch:
+                        try:
+                            # Prepare task creation data
+                            create_data: dict[str, Any] = {"name": task_data.get("name", "Untitled Task")}
 
-                        for task_data in batch:
-                            try:
-                                # Prepare task creation data
-                                create_data: dict[str, Any] = {"name": task_data.get("name", "Untitled Task")}
+                            if task_data.get("description"):
+                                create_data["description"] = task_data["description"]
+                            if task_data.get("priority"):
+                                try:
+                                    create_data["priority"] = int(task_data["priority"])
+                                except (ValueError, TypeError):
+                                    pass
+                            if task_data.get("due_date"):
+                                create_data["due_date"] = task_data["due_date"]
 
-                                if task_data.get("description"):
-                                    create_data["description"] = task_data["description"]
-                                if task_data.get("priority"):
-                                    try:
-                                        create_data["priority"] = int(task_data["priority"])
-                                    except (ValueError, TypeError):
-                                        pass
-                                if task_data.get("due_date"):
-                                    create_data["due_date"] = task_data["due_date"]
+                            # Create task
+                            await client.create_task(list_id_to_use, **create_data)
+                            created_count += 1
 
-                                # Create task
-                                await client.create_task(list_id_to_use, **create_data)
-                                created_count += 1
-
-                            except Exception as e:
-                                console.print(
-                                    f"[yellow]Failed to create task '{task_data.get('name', 'Unknown')}': {e}[/yellow]"
-                                )
-                                failed_count += 1
-
-                            progress.advance(import_task)
-
-                    progress.update(import_task, description="✅ Import completed")
+                        except Exception as e:
+                            console.print(
+                                f"[yellow]Failed to create task '{task_data.get('name', 'Unknown')}': {e}[/yellow]"
+                            )
+                            failed_count += 1
 
                 console.print(f"✅ Import completed: {created_count} created, {failed_count} failed")
 
@@ -322,84 +289,69 @@ def bulk_update(
 
         try:
             async with await get_client() as client:
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    BarColumn(),
-                    TaskProgressColumn(),
-                    console=console,
-                ) as progress:
-                    fetch_task = progress.add_task("Fetching tasks...", total=None)
+                filters = {}
+                if filter_status:
+                    filters["statuses"] = [filter_status]
 
-                    filters = {}
-                    if filter_status:
-                        filters["statuses"] = [filter_status]
+                tasks = await client.get_tasks(list_id_to_use, **filters)
 
-                    tasks = await client.get_tasks(list_id_to_use, **filters)
-                    progress.update(fetch_task, description=f"Found {len(tasks)} tasks")
+                if not tasks:
+                    console.print("[yellow]No tasks found matching criteria.[/yellow]")
+                    return
 
-                    if not tasks:
-                        console.print("[yellow]No tasks found matching criteria.[/yellow]")
-                        return
+                # Preview changes
+                table = Table(title="Bulk Update Preview", show_header=True)
+                table.add_column("Task", style="bold")
+                table.add_column("Current Status", style="blue")
+                table.add_column("New Status", style="green")
+                table.add_column("Current Priority", style="yellow")
+                table.add_column("New Priority", style="yellow")
 
-                    # Preview changes
-                    table = Table(title="Bulk Update Preview", show_header=True)
-                    table.add_column("Task", style="bold")
-                    table.add_column("Current Status", style="blue")
-                    table.add_column("New Status", style="green")
-                    table.add_column("Current Priority", style="yellow")
-                    table.add_column("New Priority", style="yellow")
+                updates: dict[str, Any] = {}
+                if new_status:
+                    updates["status"] = new_status
+                if new_priority:
+                    updates["priority"] = new_priority
+                if new_assignee:
+                    updates["assignees"] = [new_assignee]
 
-                    updates: dict[str, Any] = {}
-                    if new_status:
-                        updates["status"] = new_status
-                    if new_priority:
-                        updates["priority"] = new_priority
-                    if new_assignee:
-                        updates["assignees"] = [new_assignee]
+                for task in tasks[:10]:  # Show first 10
+                    current_status = task.status.get("status", "Unknown") if task.status else "Unknown"
+                    current_priority = task.priority.get("priority", "None") if task.priority else "None"
 
-                    for task in tasks[:10]:  # Show first 10
-                        current_status = task.status.get("status", "Unknown") if task.status else "Unknown"
-                        current_priority = task.priority.get("priority", "None") if task.priority else "None"
+                    table.add_row(
+                        task.name[:30] + "..." if len(task.name) > 30 else task.name,
+                        current_status,
+                        new_status or current_status,
+                        current_priority,
+                        str(new_priority) if new_priority else current_priority,
+                    )
 
-                        table.add_row(
-                            task.name[:30] + "..." if len(task.name) > 30 else task.name,
-                            current_status,
-                            new_status or current_status,
-                            current_priority,
-                            str(new_priority) if new_priority else current_priority,
-                        )
+                console.print(table)
+                if len(tasks) > 10:
+                    console.print(f"... and {len(tasks) - 10} more tasks")
 
-                    console.print(table)
-                    if len(tasks) > 10:
-                        console.print(f"... and {len(tasks) - 10} more tasks")
+                if dry_run:
+                    console.print("[yellow]This was a dry run. Remove --dry-run to apply changes.[/yellow]")
+                    return
 
-                    if dry_run:
-                        console.print("[yellow]This was a dry run. Remove --dry-run to apply changes.[/yellow]")
-                        return
+                if not force:
+                    render_error(
+                        f"Refusing to update {len(tasks)} tasks without --force/--yes (use --dry-run to preview)."
+                    )
+                    raise typer.Exit(2)
 
-                    if not force:
-                        render_error(
-                            f"Refusing to update {len(tasks)} tasks without --force/--yes (use --dry-run to preview)."
-                        )
-                        raise typer.Exit(2)
+                # Apply updates
+                updated_count = 0
+                failed_count = 0
 
-                    # Apply updates
-                    update_task = progress.add_task("Updating tasks...", total=len(tasks))
-                    updated_count = 0
-                    failed_count = 0
-
-                    for task in tasks:
-                        try:
-                            await client.update_task(task.id, **updates)
-                            updated_count += 1
-                        except Exception as e:
-                            console.print(f"[yellow]Failed to update task '{task.name}': {e}[/yellow]")
-                            failed_count += 1
-
-                        progress.advance(update_task)
-
-                    progress.update(update_task, description="✅ Bulk update completed")
+                for task in tasks:
+                    try:
+                        await client.update_task(task.id, **updates)
+                        updated_count += 1
+                    except Exception as e:
+                        console.print(f"[yellow]Failed to update task '{task.name}': {e}[/yellow]")
+                        failed_count += 1
 
                 console.print(f"✅ Bulk update completed: {updated_count} updated, {failed_count} failed")
 

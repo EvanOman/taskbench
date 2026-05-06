@@ -34,8 +34,10 @@ def _root_callback(
     output_format: FormatChoice | None = _FORMAT_OPTION,
 ) -> None:
     """ClickUp CLI - Task management from the command line."""
-    if output_format is not None:
-        set_format(output_format)
+    # Reset format every invocation so module-level state doesn't bleed across
+    # repeated CliRunner.invoke() calls in tests (and across long-running
+    # processes that re-enter the CLI).
+    set_format(output_format if output_format is not None else FormatChoice.table)
 
 
 # -- Get started --------------------------------------------------------

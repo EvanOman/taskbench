@@ -108,9 +108,9 @@ def test_workspace_list(mock_get_client, sample_teams):
     result = runner.invoke(app, ["workspace", "list"])
 
     assert result.exit_code == 0
-    assert "Engineering Team" in result.stdout
-    assert "Marketing Team" in result.stdout
-    assert "Sales Team" in result.stdout
+    assert "Engineering Team" in result.output
+    assert "Marketing Team" in result.output
+    assert "Sales Team" in result.output
 
 
 @patch("clickup.cli.commands.workspace.get_client")
@@ -123,9 +123,9 @@ def test_workspace_spaces(mock_get_client, sample_spaces):
     result = runner.invoke(app, ["workspace", "spaces", "--workspace-id", "team123"])
 
     assert result.exit_code == 0
-    assert "Development" in result.stdout
-    assert "QA Testing" in result.stdout
-    assert "Documentation" in result.stdout
+    assert "Development" in result.output
+    assert "QA Testing" in result.output
+    assert "Documentation" in result.output
 
 
 @patch("clickup.cli.commands.workspace.get_client")
@@ -138,9 +138,9 @@ def test_workspace_folders(mock_get_client, sample_folders):
     result = runner.invoke(app, ["workspace", "folders", "--space-id", "space123"])
 
     assert result.exit_code == 0
-    assert "Backend" in result.stdout
-    assert "Frontend" in result.stdout
-    assert "DevOps" in result.stdout
+    assert "Backend" in result.output
+    assert "Frontend" in result.output
+    assert "DevOps" in result.output
 
 
 @patch("clickup.cli.commands.workspace.get_client")
@@ -153,26 +153,26 @@ def test_workspace_members(mock_get_client, sample_members):
     result = runner.invoke(app, ["workspace", "members", "--workspace-id", "team123"])
 
     assert result.exit_code == 0
-    assert "john.doe" in result.stdout
-    assert "jane.smith" in result.stdout
-    assert "bob.wilson" in result.stdout
-    assert "owner" in result.stdout
-    assert "admin" in result.stdout
-    assert "member" in result.stdout
+    assert "john.doe" in result.output
+    assert "jane.smith" in result.output
+    assert "bob.wilson" in result.output
+    assert "owner" in result.output
+    assert "admin" in result.output
+    assert "member" in result.output
 
 
 def test_workspace_spaces_missing_team_id():
     """Test spaces command without team ID."""
     result = runner.invoke(app, ["workspace", "spaces"])
     assert result.exit_code != 0
-    assert "workspace" in result.stdout.lower()
+    assert "workspace" in result.output.lower()
 
 
 def test_workspace_folders_missing_space_id():
     """Test folders command without space ID."""
     result = runner.invoke(app, ["workspace", "folders"])
     assert result.exit_code != 0
-    assert "space-id" in result.stdout
+    assert "space-id" in result.output
 
 
 def test_workspace_members_missing_team_id():

@@ -10,14 +10,23 @@ from clickup.cli.main import app
 runner = CliRunner()
 
 
+def _named_mock(**kwargs):
+    """Build a Mock where `.name` is a real string (Mock(name=...) is special)."""
+    name = kwargs.pop("name", None)
+    m = Mock(**kwargs)
+    if name is not None:
+        m.name = name
+    return m
+
+
 @pytest.fixture
 def sample_hierarchy():
     """Sample workspace hierarchy for testing."""
     return {
-        "team": Mock(id="team123", name="Test Team", color="#FF0000", members=[]),
-        "spaces": [Mock(id="space123", name="Test Space", private=False, statuses=[])],
-        "folders": [Mock(id="folder123", name="Test Folder", task_count=10)],
-        "lists": [Mock(id="list123", name="Test List", task_count=5)],
+        "team": _named_mock(id="team123", name="Test Team", color="#FF0000", members=[]),
+        "spaces": [_named_mock(id="space123", name="Test Space", private=False, statuses=[])],
+        "folders": [_named_mock(id="folder123", name="Test Folder", task_count=10)],
+        "lists": [_named_mock(id="list123", name="Test List", task_count=5)],
     }
 
 
@@ -42,10 +51,10 @@ def test_discover_hierarchy(mock_get_client, sample_hierarchy):
     result = runner.invoke(app, ["discover", "hierarchy"])
 
     assert result.exit_code == 0
-    assert "Test Team" in result.stdout
-    assert "Test Space" in result.stdout
-    assert "Test Folder" in result.stdout
-    assert "Test List" in result.stdout
+    assert "Test Team" in result.output
+    assert "Test Space" in result.output
+    assert "Test Folder" in result.output
+    assert "Test List" in result.output
 
 
 @patch("clickup.cli.commands.discover.get_client")
@@ -61,7 +70,7 @@ async def test_discover_hierarchy_with_team_filter(mock_get_client, sample_hiera
     result = runner.invoke(app, ["discover", "hierarchy", "--team-id", "team123"])
 
     assert result.exit_code == 0
-    assert "Test Team" in result.stdout
+    assert "Test Team" in result.output
 
 
 @patch("clickup.cli.commands.discover.get_client")
