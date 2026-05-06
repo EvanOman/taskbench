@@ -3,11 +3,10 @@
 import typer
 from rich.console import Console
 from rich.table import Table
-from rich.tree import Tree
 
 from ...core import ClickUpClient, ClickUpError, Config
-from ..output import render_error
-from ..utils import Progress, SpinnerColumn, TextColumn, run_async
+from ..output import render_error, render_hierarchy
+from ..utils import run_async
 
 app = typer.Typer(help="Discover and navigate ClickUp hierarchy")
 console = Console()
@@ -17,11 +16,11 @@ async def get_client() -> ClickUpClient:
     """Get configured ClickUp client."""
     config = Config()
     if not config.has_credentials():
-        console.print(
-            "[red]Error: No ClickUp API token configured. Set CLICKUP_API_KEY in your "
-            "environment (or .env), or run 'clickup config set-token <token>'.[/red]"
+        render_error(
+            "No ClickUp API token configured. "
+            "Set CLICKUP_API_KEY in your environment (or .env), or run 'clickup config set-token <token>'."
         )
-        raise typer.Exit(1)
+        raise typer.Exit(2)
     return ClickUpClient(config, console)
 
 
@@ -38,76 +37,53 @@ def show_hierarchy(
     async def _show_hierarchy() -> None:
         try:
             async with await get_client() as client:
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    console=console,
-                ) as progress:
-                    progress.add_task("Building hierarchy...", total=None)
+                id_to_use = workspace_id or team_id
+                workspaces = [await client.get_team(id_to_use)] if id_to_use else await client.get_teams()
 
-                    tree = Tree("🏢 ClickUp Hierarchy")
-
-                    # Use either workspace_id or team_id (they're the same thing)
-                    id_to_use = workspace_id or team_id
-
-                    if id_to_use:
-                        workspaces = [await client.get_team(id_to_use)]
-                    else:
-                        workspaces = await client.get_teams()
-
-                    for workspace in workspaces:
-                        workspace_node = tree.add(
-                            f"🏢 [bold cyan]{workspace.name}[/bold cyan] ([dim]{workspace.id}[/dim])"
-                        )
-
-                        if max_depth >= 2:
-                            try:
-                                spaces = await client.get_spaces(workspace.id)
-                                for space in spaces:
-                                    space_node = workspace_node.add(
-                                        f"📁 [blue]{space.name}[/blue] ([dim]{space.id}[/dim])"
-                                    )
-
-                                    if max_depth >= 3:
-                                        # Get folders in space
+                data: dict = {"workspaces": []}
+                for workspace in workspaces:
+                    ws_dict: dict = {"id": workspace.id, "name": workspace.name, "spaces": []}
+                    if max_depth >= 2:
+                        try:
+                            spaces = await client.get_spaces(workspace.id)
+                        except ClickUpError:
+                            spaces = []
+                        for space in spaces:
+                            sp_dict: dict = {
+                                "id": space.id,
+                                "name": space.name,
+                                "folders": [],
+                                "folderless_lists": [],
+                            }
+                            if max_depth >= 3:
+                                try:
+                                    folders = await client.get_folders(space.id)
+                                except ClickUpError:
+                                    folders = []
+                                for folder in folders:
+                                    f_dict: dict = {"id": folder.id, "name": folder.name, "lists": []}
+                                    if max_depth >= 4:
                                         try:
-                                            folders = await client.get_folders(space.id)
-                                            for folder in folders:
-                                                folder_node = space_node.add(
-                                                    f"📂 [yellow]{folder.name}[/yellow] ([dim]{folder.id}[/dim])"
-                                                )
-
-                                                if max_depth >= 4:
-                                                    # Get lists in folder
-                                                    try:
-                                                        lists = await client.get_lists(folder.id)
-                                                        for lst in lists:
-                                                            folder_node.add(
-                                                                f"📋 [green]{lst.name}[/green] ([dim]{lst.id}[/dim]) - "
-                                                                f"{lst.task_count} tasks"
-                                                            )
-                                                    except ClickUpError:
-                                                        pass
+                                            lists = await client.get_lists(folder.id)
+                                            f_dict["lists"] = [
+                                                {"id": lst.id, "name": lst.name, "task_count": lst.task_count}
+                                                for lst in lists
+                                            ]
                                         except ClickUpError:
                                             pass
+                                    sp_dict["folders"].append(f_dict)
+                                try:
+                                    folderless = await client.get_folderless_lists(space.id)
+                                    sp_dict["folderless_lists"] = [
+                                        {"id": lst.id, "name": lst.name, "task_count": lst.task_count}
+                                        for lst in folderless
+                                    ]
+                                except ClickUpError:
+                                    pass
+                            ws_dict["spaces"].append(sp_dict)
+                    data["workspaces"].append(ws_dict)
 
-                                        # Get folderless lists in space
-                                        try:
-                                            folderless_lists = await client.get_folderless_lists(space.id)
-                                            if folderless_lists:
-                                                folderless_node = space_node.add("📂 [yellow]Folderless Lists[/yellow]")
-                                                for lst in folderless_lists:
-                                                    folderless_node.add(
-                                                        f"📋 [green]{lst.name}[/green] ([dim]{lst.id}[/dim]) - "
-                                                        f"{lst.task_count} tasks"
-                                                    )
-                                        except ClickUpError:
-                                            pass
-                            except ClickUpError as e:
-                                workspace_node.add(f"❌ [red]Error loading spaces: {e}[/red]")
-
-                    console.print(tree)
-
+                render_hierarchy(data)
         except ClickUpError as e:
             render_error(f"ClickUp API Error: {e}")
             raise typer.Exit(1) from e
@@ -221,80 +197,72 @@ def find_path(list_id: str = typer.Argument(..., help="List ID to find path for"
     async def _find_path() -> None:
         try:
             async with await get_client() as client:
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    console=console,
-                ) as progress:
-                    progress.add_task("Finding path...", total=None)
+                # Get list details
+                lst = await client.get_list(list_id)
 
-                    # Get list details
-                    lst = await client.get_list(list_id)
+                # Build path by working backwards
+                path_parts = []
+                path_parts.append(f"📋 [green]{lst.name}[/green] ([dim]{lst.id}[/dim])")
 
-                    # Build path by working backwards
-                    path_parts = []
-                    path_parts.append(f"📋 [green]{lst.name}[/green] ([dim]{lst.id}[/dim])")
+                # Find which folder/space contains this list
+                workspaces = await client.get_teams()
+                found_path = False
 
-                    # Find which folder/space contains this list
-                    workspaces = await client.get_teams()
-                    found_path = False
-
-                    for workspace in workspaces:
-                        if found_path:
-                            break
-
-                        try:
-                            spaces = await client.get_spaces(workspace.id)
-                            for space in spaces:
-                                if found_path:
-                                    break
-
-                                # Check folderless lists first
-                                try:
-                                    folderless_lists = await client.get_folderless_lists(space.id)
-                                    if any(lst.id == list_id for lst in folderless_lists):
-                                        path_parts.insert(0, f"📁 [blue]{space.name}[/blue] ([dim]{space.id}[/dim])")
-                                        path_parts.insert(
-                                            0, f"🏢 [cyan]{workspace.name}[/cyan] ([dim]{workspace.id}[/dim])"
-                                        )
-                                        found_path = True
-                                        break
-                                except ClickUpError:
-                                    pass
-
-                                # Check folders
-                                try:
-                                    folders = await client.get_folders(space.id)
-                                    for folder in folders:
-                                        try:
-                                            lists = await client.get_lists(folder.id)
-                                            if any(lst.id == list_id for lst in lists):
-                                                path_parts.insert(
-                                                    0, f"📂 [yellow]{folder.name}[/yellow] ([dim]{folder.id}[/dim])"
-                                                )
-                                                path_parts.insert(
-                                                    0, f"📁 [blue]{space.name}[/blue] ([dim]{space.id}[/dim])"
-                                                )
-                                                path_parts.insert(
-                                                    0, f"🏢 [cyan]{workspace.name}[/cyan] ([dim]{workspace.id}[/dim])"
-                                                )
-                                                found_path = True
-                                                break
-                                        except ClickUpError:
-                                            pass
-                                except ClickUpError:
-                                    pass
-                        except ClickUpError:
-                            pass
-
+                for workspace in workspaces:
                     if found_path:
-                        console.print("\n📍 [bold]Path to List:[/bold]")
-                        for i, part in enumerate(path_parts):
-                            indent = "  " * i
-                            console.print(f"{indent}{part}")
-                    else:
-                        console.print(f"[yellow]Could not find path for list {list_id}[/yellow]")
+                        break
 
+                    try:
+                        spaces = await client.get_spaces(workspace.id)
+                        for space in spaces:
+                            if found_path:
+                                break
+
+                            # Check folderless lists first
+                            try:
+                                folderless_lists = await client.get_folderless_lists(space.id)
+                                if any(lst.id == list_id for lst in folderless_lists):
+                                    path_parts.insert(0, f"📁 [blue]{space.name}[/blue] ([dim]{space.id}[/dim])")
+                                    path_parts.insert(
+                                        0, f"🏢 [cyan]{workspace.name}[/cyan] ([dim]{workspace.id}[/dim])"
+                                    )
+                                    found_path = True
+                                    break
+                            except ClickUpError:
+                                pass
+
+                            # Check folders
+                            try:
+                                folders = await client.get_folders(space.id)
+                                for folder in folders:
+                                    try:
+                                        lists = await client.get_lists(folder.id)
+                                        if any(lst.id == list_id for lst in lists):
+                                            path_parts.insert(
+                                                0, f"📂 [yellow]{folder.name}[/yellow] ([dim]{folder.id}[/dim])"
+                                            )
+                                            path_parts.insert(
+                                                0, f"📁 [blue]{space.name}[/blue] ([dim]{space.id}[/dim])"
+                                            )
+                                            path_parts.insert(
+                                                0, f"🏢 [cyan]{workspace.name}[/cyan] ([dim]{workspace.id}[/dim])"
+                                            )
+                                            found_path = True
+                                            break
+                                    except ClickUpError:
+                                        pass
+                            except ClickUpError:
+                                pass
+                    except ClickUpError:
+                        pass
+
+                if found_path:
+                    console.print("\n📍 [bold]Path to List:[/bold]")
+                    for i, part in enumerate(path_parts):
+                        indent = "  " * i
+                        console.print(f"{indent}{part}")
+                else:
+                    console.print(f"[yellow]Could not find path for list {list_id}[/yellow]")
         except ClickUpError as e:
             render_error(f"ClickUp API Error: {e}")
             raise typer.Exit(1) from e

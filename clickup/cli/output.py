@@ -17,7 +17,7 @@ from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
-from ..core.models import Comment, Space, Task, Team, User
+from ..core.models import Comment, Folder, Space, Task, Team, User
 from ..core.models import List as ClickUpList
 
 # ---------------------------------------------------------------------------
@@ -254,6 +254,94 @@ def render_lists(lists: list[ClickUpList]) -> None:
     for lst in lists:
         table.add_row(lst.id, escape(lst.name), str(lst.task_count) if lst.task_count is not None else "N/A")
     _console.print(table)
+
+
+def render_folders(folders: list[Folder]) -> None:
+    """Render a list of Folders."""
+    if get_format() == "json":
+        _print_json({"data": [f.model_dump(mode="json") for f in folders], "count": len(folders)})
+        return
+    table = Table(title="Folders", show_header=True)
+    table.add_column("ID", style="cyan")
+    table.add_column("Name", style="bold")
+    table.add_column("Hidden", style="yellow")
+    table.add_column("Task Count", style="green")
+    for folder in folders:
+        table.add_row(folder.id, escape(folder.name), "Yes" if folder.hidden else "No", str(folder.task_count))
+    _console.print(table)
+
+
+def render_users(users: list[User], *, title: str = "Users") -> None:
+    """Render a list of Users (e.g. workspace members)."""
+    if get_format() == "json":
+        _print_json({"data": [u.model_dump(mode="json") for u in users], "count": len(users)})
+        return
+    table = Table(title=title, show_header=True)
+    table.add_column("ID", style="cyan")
+    table.add_column("Username", style="bold")
+    table.add_column("Email", style="green")
+    table.add_column("Role", style="magenta")
+    table.add_column("Color", style="yellow")
+    for u in users:
+        table.add_row(
+            str(u.id),
+            escape(u.username),
+            escape(u.email),
+            str(u.role) if u.role is not None else "None",
+            u.color or "None",
+        )
+    _console.print(table)
+
+
+def render_hierarchy(data: dict[str, Any]) -> None:
+    """Render a nested workspace → space → folder → list hierarchy.
+
+    ``data`` shape::
+
+        {
+            "workspaces": [
+                {
+                    "id": ..., "name": ...,
+                    "spaces": [
+                        {
+                            "id": ..., "name": ...,
+                            "folders": [
+                                {"id": ..., "name": ..., "lists": [{"id": ..., "name": ..., "task_count": N}]}
+                            ],
+                            "folderless_lists": [{"id": ..., "name": ..., "task_count": N}]
+                        }
+                    ]
+                }
+            ]
+        }
+    """
+    if get_format() == "json":
+        _print_json(data)
+        return
+
+    from rich.tree import Tree
+
+    tree = Tree("🏢 ClickUp Hierarchy")
+    for workspace in data.get("workspaces", []):
+        ws_node = tree.add(f"🏢 [bold cyan]{escape(workspace['name'])}[/bold cyan] ([dim]{workspace['id']}[/dim])")
+        for space in workspace.get("spaces", []):
+            sp_node = ws_node.add(f"📁 [blue]{escape(space['name'])}[/blue] ([dim]{space['id']}[/dim])")
+            for folder in space.get("folders", []):
+                f_node = sp_node.add(f"📂 [yellow]{escape(folder['name'])}[/yellow] ([dim]{folder['id']}[/dim])")
+                for lst in folder.get("lists", []):
+                    f_node.add(
+                        f"📋 [green]{escape(lst['name'])}[/green] ([dim]{lst['id']}[/dim]) - "
+                        f"{lst.get('task_count', '?')} tasks"
+                    )
+            folderless = space.get("folderless_lists", [])
+            if folderless:
+                fl_node = sp_node.add("📂 [yellow]Folderless Lists[/yellow]")
+                for lst in folderless:
+                    fl_node.add(
+                        f"📋 [green]{escape(lst['name'])}[/green] ([dim]{lst['id']}[/dim]) - "
+                        f"{lst.get('task_count', '?')} tasks"
+                    )
+    _console.print(tree)
 
 
 def render_task(task: Task) -> None:

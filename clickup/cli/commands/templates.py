@@ -11,7 +11,7 @@ from rich.table import Table
 
 from ...core import ClickUpClient, ClickUpError, Config
 from ..output import render_error
-from ..utils import Progress, SpinnerColumn, TextColumn, run_async
+from ..utils import run_async
 
 app = typer.Typer(help="Template management")
 console = Console()
@@ -381,17 +381,9 @@ def create_from_template(
         # Create task
         try:
             async with await get_client() as client:
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    console=console,
-                ) as progress:
-                    progress.add_task("Creating task from template...", total=None)
+                task_data = {"name": name, "description": description, "priority": priority}
 
-                    task_data = {"name": name, "description": description, "priority": priority}
-
-                    task = await client.create_task(list_id_to_use, **task_data)
-
+                task = await client.create_task(list_id_to_use, **task_data)
                 console.print(f"✅ Created task from template: {task.name}")
                 console.print(f"🆔 Task ID: {task.id}")
                 if task.url:
@@ -433,14 +425,7 @@ def save_template(
     async def _save_template() -> None:
         try:
             async with await get_client() as client:
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    console=console,
-                ) as progress:
-                    progress.add_task("Fetching task...", total=None)
-                    task = await client.get_task(task_id)
-
+                task = await client.get_task(task_id)
                 template: dict[str, Any] = {
                     "name": task.name,
                     "description": task.description or "",

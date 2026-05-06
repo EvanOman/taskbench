@@ -7,7 +7,7 @@ from rich.console import Console
 
 from ...core import ClickUpClient, ClickUpError, Config
 from ..output import render_comments, render_error, render_message, render_task, render_tasks
-from ..utils import Progress, SpinnerColumn, TextColumn, run_async
+from ..utils import run_async
 
 app = typer.Typer(help="Task management")
 console = Console()
@@ -84,25 +84,17 @@ def list_tasks(
 
         try:
             async with await get_client() as client:
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    console=console,
-                ) as progress:
-                    progress.add_task("Fetching tasks...", total=None)
+                filters: dict[str, Any] = {}
+                if status:
+                    filters["statuses"] = [status]
+                if assignee:
+                    filters["assignees"] = [assignee]
+                if sort:
+                    filters["order_by"] = sort
+                if reverse:
+                    filters["reverse"] = "true"
 
-                    filters: dict[str, Any] = {}
-                    if status:
-                        filters["statuses"] = [status]
-                    if assignee:
-                        filters["assignees"] = [assignee]
-                    if sort:
-                        filters["order_by"] = sort
-                    if reverse:
-                        filters["reverse"] = "true"
-
-                    tasks = await client.get_tasks(list_id_to_use, **filters)
-
+                tasks = await client.get_tasks(list_id_to_use, **filters)
                 if not tasks:
                     render_message("No tasks found.", "warn")
                     return
@@ -129,14 +121,7 @@ def get_task(task_id: str = typer.Argument(..., help="Task ID")) -> None:
     async def _get_task() -> None:
         try:
             async with await get_client() as client:
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    console=console,
-                ) as progress:
-                    progress.add_task("Fetching task...", total=None)
-                    task = await client.get_task(task_id)
-
+                task = await client.get_task(task_id)
                 render_task(task)
 
         except ClickUpError as e:
@@ -165,25 +150,17 @@ def my_tasks(
     async def _my_tasks() -> None:
         try:
             async with await get_client() as client:
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    console=console,
-                ) as progress:
-                    progress.add_task("Fetching your tasks...", total=None)
+                # Get the authenticated user's ID
+                user = await client.get_user()
+                ws_id = await _resolve_workspace_id(client, workspace_id)
 
-                    # Get the authenticated user's ID
-                    user = await client.get_user()
-                    ws_id = await _resolve_workspace_id(client, workspace_id)
-
-                    # Search for tasks assigned to this user across the workspace
-                    # ClickUp API expects assignees[] as repeated query params
-                    tasks = await client.search_tasks(
-                        ws_id,
-                        "",
-                        **{"assignees[]": [str(user.id)]},
-                    )
-
+                # Search for tasks assigned to this user across the workspace
+                # ClickUp API expects assignees[] as repeated query params
+                tasks = await client.search_tasks(
+                    ws_id,
+                    "",
+                    **{"assignees[]": [str(user.id)]},
+                )
                 if not tasks:
                     render_message("No tasks assigned to you.", "warn")
                     return
@@ -242,14 +219,7 @@ def create_task(
                 task_data["status"] = status_to_use
 
             async with await get_client() as client:
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    console=console,
-                ) as progress:
-                    progress.add_task("Creating task...", total=None)
-                    task = await client.create_task(list_id_to_use, **task_data)
-
+                task = await client.create_task(list_id_to_use, **task_data)
                 render_message(f"Created task: {task.name} (ID: {task.id})", "success")
                 if task.url:
                     render_message(f"URL: {task.url}", "info")
@@ -295,14 +265,7 @@ def update_task(
 
         try:
             async with await get_client() as client:
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    console=console,
-                ) as progress:
-                    progress.add_task("Updating task...", total=None)
-                    task = await client.update_task(task_id, **updates)
-
+                task = await client.update_task(task_id, **updates)
                 render_message(f"Updated task: {task.name} (ID: {task.id})", "success")
 
         except ClickUpError as e:
@@ -332,14 +295,7 @@ def change_status(
 
         try:
             async with await get_client() as client:
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    console=console,
-                ) as progress:
-                    progress.add_task("Updating task status...", total=None)
-                    task = await client.update_task(task_id, status=status)
-
+                task = await client.update_task(task_id, status=status)
                 render_message(f"Updated task status: {task.name} -> {status}", "success")
 
         except ClickUpError as e:
@@ -370,14 +326,7 @@ def delete_task(
 
         try:
             async with await get_client() as client:
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    console=console,
-                ) as progress:
-                    progress.add_task("Deleting task...", total=None)
-                    await client.delete_task(task_id)
-
+                await client.delete_task(task_id)
                 render_message(f"Deleted task {task_id}", "success")
 
         except ClickUpError as e:
@@ -418,14 +367,7 @@ def search_tasks(
 
         try:
             async with await get_client() as client:
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    console=console,
-                ) as progress:
-                    progress.add_task("Searching tasks...", total=None)
-                    tasks = await client.search_tasks(id_to_use, query)
-
+                tasks = await client.search_tasks(id_to_use, query)
                 if not tasks:
                     render_message(f"No tasks found matching '{query}'", "warn")
                     return
@@ -459,19 +401,11 @@ def export_tasks(
 
         try:
             async with await get_client() as client:
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    console=console,
-                ) as progress:
-                    progress.add_task("Exporting tasks...", total=None)
+                filters: dict[str, Any] = {}
+                if not include_completed:
+                    filters["include_closed"] = False
 
-                    filters: dict[str, Any] = {}
-                    if not include_completed:
-                        filters["include_closed"] = False
-
-                    tasks = await client.get_tasks(list_id_to_use, **filters)
-
+                tasks = await client.get_tasks(list_id_to_use, **filters)
                 if format.lower() == "json":
                     import json
 
@@ -539,14 +473,7 @@ def list_comments(
     async def _list_comments() -> None:
         try:
             async with await get_client() as client:
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    console=console,
-                ) as progress:
-                    progress.add_task("Fetching comments...", total=None)
-                    comments = await client.get_task_comments(task_id)
-
+                comments = await client.get_task_comments(task_id)
                 if not comments:
                     render_message(f"No comments on task {task_id}.", "warn")
                     return
@@ -571,14 +498,7 @@ def add_comment(
     async def _add_comment() -> None:
         try:
             async with await get_client() as client:
-                with Progress(
-                    SpinnerColumn(),
-                    TextColumn("[progress.description]{task.description}"),
-                    console=console,
-                ) as progress:
-                    progress.add_task("Adding comment...", total=None)
-                    comment = await client.create_comment(task_id, text)
-
+                comment = await client.create_comment(task_id, text)
                 render_message(f"Comment added (ID: {comment.id})", "success")
 
         except ClickUpError as e:

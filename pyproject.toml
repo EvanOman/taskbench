@@ -72,6 +72,9 @@ indent-style = "space"
 [tool.ty.environment]
 python-version = "3.12"
 
+[tool.ty.src]
+exclude = ["tests/**"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-v --cov=clickup --cov-report=term-missing --ignore=tests/live"
