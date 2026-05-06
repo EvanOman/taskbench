@@ -44,7 +44,7 @@ def test_config_reset_without_flag_refuses():
         with patch.dict("os.environ", {"HOME": tmpdir}):
             result = runner.invoke(app, ["config", "reset"])
             assert result.exit_code == 2
-            assert "Refusing to reset" in result.stdout
+            assert "Refusing to reset" in result.stderr
 
 
 def test_config_reset_with_yes():
@@ -69,15 +69,34 @@ def test_config_reset_with_force():
             assert "reset to defaults" in result.stdout
 
 
+def test_config_clean_without_flag_refuses():
+    """Clean must require --force/--yes when there's something to remove."""
+    import json
+    from pathlib import Path
+
+    from clickup.core import Config
+
+    # The conftest fixture monkeypatches Config to a per-test tmp path —
+    # write the planted unknown key directly to that path.
+    cfg = Config()
+    cfg_path = Path(cfg._get_config_path())
+    cfg_path.parent.mkdir(parents=True, exist_ok=True)
+    cfg_path.write_text(json.dumps({"default_team_id": "real", "__bogus_key__": "xyz"}))
+
+    result = runner.invoke(app, ["config", "clean"])
+    assert result.exit_code == 2
+    assert "Refusing to remove" in result.stderr
+
+
 def test_config_validate_no_credentials():
     """Test validating auth without credentials."""
     with tempfile.TemporaryDirectory() as tmpdir:
         with patch.dict("os.environ", {"HOME": tmpdir}, clear=True):
             result = runner.invoke(app, ["config", "validate"])
-            # Without credentials, should show error and exit 1
-            has_creds_msg = "credentials" in result.stdout.lower()
-            has_config_msg = "configured" in result.stdout.lower()
-            assert result.exit_code == 1 or has_creds_msg or has_config_msg
+            # Without credentials, should show error on stderr and exit 2 (usage error)
+            has_creds_msg = "credentials" in result.output.lower()
+            has_config_msg = "configured" in result.output.lower()
+            assert result.exit_code in (1, 2) or has_creds_msg or has_config_msg
 
 
 def test_config_set_default_team_id():

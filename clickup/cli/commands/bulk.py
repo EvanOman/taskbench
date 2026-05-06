@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.table import Table
 
 from ...core import ClickUpClient, ClickUpError, Config
+from ..output import render_error
 from ..utils import (
     BarColumn,
     Progress,
@@ -49,7 +50,7 @@ def export_tasks(
         list_id_to_use = list_id or config.get("default_list_id")
 
         if not list_id_to_use:
-            console.print("[red]Error: No list ID provided and no default list configured.[/red]")
+            render_error("Error: No list ID provided and no default list configured.")
             console.print("Use --list-id or set a default with 'clickup config set default_list_id <id>'")
             raise typer.Exit(1)
 
@@ -127,7 +128,7 @@ def export_tasks(
                             json.dump(task_data, jsonfile, indent=2, ensure_ascii=False)
 
                     else:
-                        console.print(f"[red]Unsupported format: {format}[/red]")
+                        render_error(f"Unsupported format: {format}")
                         raise typer.Exit(1) from None
 
                     progress.update(task_id, description="✅ Export completed", completed=True)
@@ -135,10 +136,12 @@ def export_tasks(
                 console.print(f"✅ Exported {len(tasks)} tasks to {output_file}")
 
         except ClickUpError as e:
-            console.print(f"[red]ClickUp API Error: {e}[/red]")
+            render_error(f"ClickUp API Error: {e}")
             raise typer.Exit(1) from e
+        except typer.Exit:
+            raise
         except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
+            render_error(f"Error: {e}")
             raise typer.Exit(1) from e
 
     run_async(_export_tasks())
@@ -166,14 +169,14 @@ def import_tasks(
         list_id_to_use = list_id or config.get("default_list_id")
 
         if not list_id_to_use:
-            console.print("[red]Error: No list ID provided and no default list configured.[/red]")
+            render_error("Error: No list ID provided and no default list configured.")
             console.print("Use --list-id or set a default with 'clickup config set default_list_id <id>'")
             raise typer.Exit(1)
 
         try:
             file_path = Path(input_file)
             if not file_path.exists():
-                console.print(f"[red]File not found: {input_file}[/red]")
+                render_error(f"File not found: {input_file}")
                 raise typer.Exit(1)
 
             # Read and parse file
@@ -186,7 +189,7 @@ def import_tasks(
                 with open(file_path, encoding="utf-8") as jsonfile:
                     tasks_data = json.load(jsonfile)
             else:
-                console.print(f"[red]Unsupported file format: {file_path.suffix}[/red]")
+                render_error(f"Unsupported file format: {file_path.suffix}")
                 raise typer.Exit(1)
 
             if not tasks_data:
@@ -220,9 +223,8 @@ def import_tasks(
                 return
 
             if not force:
-                console.print(
-                    f"[red]Refusing to import {len(tasks_data)} tasks without --force/--yes "
-                    "(use --dry-run to preview).[/red]"
+                render_error(
+                    f"Refusing to import {len(tasks_data)} tasks without --force/--yes (use --dry-run to preview)."
                 )
                 raise typer.Exit(2)
 
@@ -275,10 +277,12 @@ def import_tasks(
                 console.print(f"✅ Import completed: {created_count} created, {failed_count} failed")
 
         except ClickUpError as e:
-            console.print(f"[red]ClickUp API Error: {e}[/red]")
+            render_error(f"ClickUp API Error: {e}")
             raise typer.Exit(1) from e
+        except typer.Exit:
+            raise
         except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
+            render_error(f"Error: {e}")
             raise typer.Exit(1) from e
 
     run_async(_import_tasks())
@@ -308,12 +312,12 @@ def bulk_update(
         list_id_to_use = list_id or config.get("default_list_id")
 
         if not list_id_to_use:
-            console.print("[red]Error: No list ID provided and no default list configured.[/red]")
+            render_error("Error: No list ID provided and no default list configured.")
             console.print("Use --list-id or set a default with 'clickup config set default_list_id <id>'")
             raise typer.Exit(1)
 
         if not any([new_status, new_priority, new_assignee]):
-            console.print("[red]Error: Must specify at least one update (--status, --priority, or --assignee)[/red]")
+            render_error("Error: Must specify at least one update (--status, --priority, or --assignee)")
             raise typer.Exit(1)
 
         try:
@@ -375,9 +379,8 @@ def bulk_update(
                         return
 
                     if not force:
-                        console.print(
-                            f"[red]Refusing to update {len(tasks)} tasks without --force/--yes "
-                            "(use --dry-run to preview).[/red]"
+                        render_error(
+                            f"Refusing to update {len(tasks)} tasks without --force/--yes (use --dry-run to preview)."
                         )
                         raise typer.Exit(2)
 
@@ -401,10 +404,12 @@ def bulk_update(
                 console.print(f"✅ Bulk update completed: {updated_count} updated, {failed_count} failed")
 
         except ClickUpError as e:
-            console.print(f"[red]ClickUp API Error: {e}[/red]")
+            render_error(f"ClickUp API Error: {e}")
             raise typer.Exit(1) from e
+        except typer.Exit:
+            raise
         except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
+            render_error(f"Error: {e}")
             raise typer.Exit(1) from e
 
     run_async(_bulk_update())

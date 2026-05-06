@@ -10,6 +10,7 @@ from rich.prompt import Prompt
 from rich.table import Table
 
 from ...core import ClickUpClient, ClickUpError, Config
+from ..output import render_error
 from ..utils import Progress, SpinnerColumn, TextColumn, run_async
 
 app = typer.Typer(help="Template management")
@@ -257,11 +258,11 @@ def show_template(name: str = typer.Argument(..., help="Template name")) -> None
                     template = json.load(f)
                 template_type = "Custom"
             except Exception as e:
-                console.print(f"[red]Error loading template: {e}[/red]")
+                render_error(f"Error loading template: {e}")
                 raise typer.Exit(1) from e
 
     if not template:
-        console.print(f"[red]Template '{name}' not found[/red]")
+        render_error(f"Template '{name}' not found")
         raise typer.Exit(1)
 
     # Display template details
@@ -303,12 +304,12 @@ def create_from_template(
         list_id_to_use = list_id or config.get("default_list_id")
 
         if not list_id_to_use:
-            console.print("[red]Error: No list ID provided and no default list configured.[/red]")
+            render_error("Error: No list ID provided and no default list configured.")
             console.print("Use --list-id or set a default with 'clickup config set default_list_id <id>'")
             raise typer.Exit(1)
 
         if not template_name and not template_file:
-            console.print("[red]Error: Either template name or template file is required.[/red]")
+            render_error("Error: Either template name or template file is required.")
             console.print("Use --template for built-in templates or --template-file for custom templates")
             raise typer.Exit(1)
 
@@ -324,7 +325,7 @@ def create_from_template(
                 with open(template_file, encoding="utf-8") as f:
                     template = json.load(f)
             except (FileNotFoundError, json.JSONDecodeError) as e:
-                console.print(f"[red]Error loading template file: {e}[/red]")
+                render_error(f"Error loading template file: {e}")
                 raise typer.Exit(1) from e
         elif template_name in built_in:
             template = built_in[template_name]
@@ -335,11 +336,11 @@ def create_from_template(
                     with open(template_file_path, encoding="utf-8") as f:
                         template = json.load(f)
                 except Exception as e:
-                    console.print(f"[red]Error loading template: {e}[/red]")
+                    render_error(f"Error loading template: {e}")
                     raise typer.Exit(1) from e
 
         if not template:
-            console.print(f"[red]Template '{template_name}' not found[/red]")
+            render_error(f"Template '{template_name}' not found")
             raise typer.Exit(1)
 
         # Get variable values
@@ -348,7 +349,7 @@ def create_from_template(
         # Process --var options first
         for var_assignment in var:
             if "=" not in var_assignment:
-                console.print(f"[red]Invalid variable format: {var_assignment}. Use key=value[/red]")
+                render_error(f"Invalid variable format: {var_assignment}. Use key=value")
                 raise typer.Exit(1)
             key, value = var_assignment.split("=", 1)
             variables[key.strip()] = value.strip()
@@ -360,7 +361,7 @@ def create_from_template(
                     file_variables = json.load(f)
                     variables.update(file_variables)
             except Exception as e:
-                console.print(f"[red]Error loading variables file: {e}[/red]")
+                render_error(f"Error loading variables file: {e}")
                 raise typer.Exit(1) from e
         elif interactive and not var:
             # Interactive mode
@@ -397,10 +398,10 @@ def create_from_template(
                     console.print(f"🔗 URL: {task.url}")
 
         except ClickUpError as e:
-            console.print(f"[red]ClickUp API Error: {e}[/red]")
+            render_error(f"ClickUp API Error: {e}")
             raise typer.Exit(1) from e
         except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
+            render_error(f"Error: {e}")
             raise typer.Exit(1) from e
 
     run_async(_create_from_template())
@@ -410,8 +411,24 @@ def create_from_template(
 def save_template(
     name: str = typer.Argument(..., help="Template name"),
     task_id: str = typer.Option(..., "--from-task", help="Create template from existing task"),
+    name_pattern: str | None = typer.Option(
+        None,
+        "--name-pattern",
+        help="Template name pattern (use {variable} syntax). Defaults to the source task name.",
+    ),
+    description_pattern: str | None = typer.Option(
+        None,
+        "--description-pattern",
+        help="Template description pattern (use {variable} syntax). Defaults to the source task description.",
+    ),
 ) -> None:
-    """Save a task as a template."""
+    """Save a task as a template.
+
+    Non-interactive: pass --name-pattern and --description-pattern to control
+    the saved template. Variables are extracted from any ``{variable}``
+    placeholders in either pattern. Without flags, the source task's literal
+    name/description are used as the patterns (no variables).
+    """
 
     async def _save_template() -> None:
         try:
@@ -424,7 +441,6 @@ def save_template(
                     progress.add_task("Fetching task...", total=None)
                     task = await client.get_task(task_id)
 
-                # Create template from task
                 template: dict[str, Any] = {
                     "name": task.name,
                     "description": task.description or "",
@@ -432,25 +448,9 @@ def save_template(
                     "variables": [],
                 }
 
-                # Ask user to identify variables in interactive mode
-                console.print(f"[bold]Creating template from task: {task.name}[/bold]")
-                console.print("Identify template variables in the task name and description.")
-                console.print("Variables should be marked with {variable_name} syntax.\n")
-
-                # Show current content
-                console.print(f"[cyan]Current Name:[/cyan] {task.name}")
-                console.print(f"[cyan]Current Description:[/cyan]\n{task.description or ''}")
-
-                # Get template name pattern
-                template_name = Prompt.ask(
-                    "\n[cyan]Template name pattern[/cyan] (use {variable} syntax)", default=task.name
-                )
+                template_name = name_pattern if name_pattern is not None else task.name
+                template_desc = description_pattern if description_pattern is not None else (task.description or "")
                 template["name"] = template_name
-
-                # Get template description
-                template_desc = Prompt.ask(
-                    "[cyan]Template description[/cyan] (use {variable} syntax)", default=task.description or ""
-                )
                 template["description"] = template_desc
 
                 # Extract variables from patterns
@@ -475,10 +475,10 @@ def save_template(
                 console.print(f"🔤 Variables: {', '.join(variables_list)}")
 
         except ClickUpError as e:
-            console.print(f"[red]ClickUp API Error: {e}[/red]")
+            render_error(f"ClickUp API Error: {e}")
             raise typer.Exit(1) from e
         except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
+            render_error(f"Error: {e}")
             raise typer.Exit(1) from e
 
     run_async(_save_template())

@@ -5,6 +5,7 @@ from rich.console import Console
 from rich.table import Table
 
 from ...core import ClickUpClient, ClickUpError, Config
+from ..output import render_error
 from ..utils import Progress, SpinnerColumn, TextColumn, run_async
 
 app = typer.Typer(help="Workspace management")
@@ -54,10 +55,10 @@ def list_workspaces() -> None:
                 console.print(table)
 
         except ClickUpError as e:
-            console.print(f"[red]ClickUp API Error: {e}[/red]")
+            render_error(f"ClickUp API Error: {e}")
             raise typer.Exit(1) from None
         except Exception as e:
-            console.print(f"[red]An unexpected error occurred: {e}[/red]")
+            render_error(f"An unexpected error occurred: {e}")
             raise typer.Exit(1) from e
 
     run_async(_list_workspaces())
@@ -76,7 +77,7 @@ def list_spaces(
         workspace_id_to_use = workspace_id or team_id or config.get("default_team_id")
 
         if not workspace_id_to_use:
-            console.print("[red]Error: No workspace ID provided and no default workspace configured.[/red]")
+            render_error("Error: No workspace ID provided and no default workspace configured.")
             console.print("Use --workspace-id or set a default with 'clickup config set default_team_id <id>'")
             raise typer.Exit(1) from None
 
@@ -106,10 +107,10 @@ def list_spaces(
                 console.print(table)
 
         except ClickUpError as e:
-            console.print(f"[red]ClickUp API Error: {e}[/red]")
+            render_error(f"ClickUp API Error: {e}")
             raise typer.Exit(1) from None
         except Exception as e:
-            console.print(f"[red]An unexpected error occurred: {e}[/red]")
+            render_error(f"An unexpected error occurred: {e}")
             raise typer.Exit(1) from e
 
     run_async(_list_spaces())
@@ -127,7 +128,7 @@ def list_folders(
         space_id_to_use = space_id or config.get("default_space_id")
 
         if not space_id_to_use:
-            console.print("[red]Error: No space ID provided and no default space configured.[/red]")
+            render_error("Error: No space ID provided and no default space configured.")
             console.print("Use --space-id or set a default with 'clickup config set default_space_id <id>'")
             raise typer.Exit(1) from None
 
@@ -157,10 +158,10 @@ def list_folders(
                 console.print(table)
 
         except ClickUpError as e:
-            console.print(f"[red]ClickUp API Error: {e}[/red]")
+            render_error(f"ClickUp API Error: {e}")
             raise typer.Exit(1) from None
         except Exception as e:
-            console.print(f"[red]An unexpected error occurred: {e}[/red]")
+            render_error(f"An unexpected error occurred: {e}")
             raise typer.Exit(1) from e
 
     run_async(_list_folders())
@@ -179,7 +180,7 @@ def list_members(
         workspace_id_to_use = workspace_id or team_id or config.get("default_team_id")
 
         if not workspace_id_to_use:
-            console.print("[red]Error: No workspace ID provided and no default workspace configured.[/red]")
+            render_error("Error: No workspace ID provided and no default workspace configured.")
             console.print("Use --workspace-id or set a default with 'clickup config set default_team_id <id>'")
             raise typer.Exit(1) from None
 
@@ -216,10 +217,10 @@ def list_members(
                 console.print(table)
 
         except ClickUpError as e:
-            console.print(f"[red]ClickUp API Error: {e}[/red]")
+            render_error(f"ClickUp API Error: {e}")
             raise typer.Exit(1) from None
         except Exception as e:
-            console.print(f"[red]An unexpected error occurred: {e}[/red]")
+            render_error(f"An unexpected error occurred: {e}")
             raise typer.Exit(1) from e
 
     run_async(_list_members())

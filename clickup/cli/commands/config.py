@@ -6,6 +6,7 @@ from rich.table import Table
 
 from ...core import ClickUpClient, Config
 from ...core.config import _CREDENTIAL_KEYS, _DEFAULT_KEYS, is_known_key
+from ..output import render_error
 from ..utils import run_async
 
 app = typer.Typer(help="Configuration management")
@@ -50,7 +51,7 @@ def set_config(
         config.set(key, value)
         console.print(f"✅ Set {key} = {value}")
     except ValueError as e:
-        console.print(f"[red]Error: {e}[/red]")
+        render_error(f"Error: {e}")
         raise typer.Exit(1) from e
 
 
@@ -153,7 +154,7 @@ def set_default_list(
         return
 
     if list_id is None:
-        console.print("[red]Error: list_id is required when adding an alias.[/red]")
+        render_error("Error: list_id is required when adding an alias.")
         raise typer.Exit(1)
 
     aliases[name] = list_id
@@ -197,9 +198,7 @@ def clean_config(
         return
 
     if not force:
-        console.print(
-            f"[red]Refusing to remove {len(unknown)} key(s) without --force/--yes (use --dry-run to preview).[/red]"
-        )
+        render_error(f"Refusing to remove {len(unknown)} key(s) without --force/--yes (use --dry-run to preview).")
         raise typer.Exit(2)
 
     config.remove_keys(set(unknown.keys()))
@@ -208,18 +207,18 @@ def clean_config(
 
 @app.command("reset")
 def reset_config(
-    yes: bool = typer.Option(
+    force: bool = typer.Option(
         False,
-        "--yes",
-        "-y",
         "--force",
         "-f",
+        "--yes",
+        "-y",
         help="Required to confirm reset. No interactive prompt.",
     ),
 ) -> None:
     """Reset configuration to defaults."""
-    if not yes:
-        console.print("[red]Refusing to reset without --yes/--force (this CLI never prompts).[/red]")
+    if not force:
+        render_error("Refusing to reset without --force/--yes (this CLI never prompts).")
         raise typer.Exit(2)
     config = Config()
     config.config_path.unlink(missing_ok=True)
@@ -233,7 +232,7 @@ def validate_auth() -> None:
     async def _validate() -> None:
         config = Config()
         if not config.has_credentials():
-            console.print("[red]❌ No API credentials configured[/red]")
+            render_error("❌ No API credentials configured")
             console.print(
                 "Set CLICKUP_API_KEY in your environment (or .env), or run 'clickup config set-token <token>'."
             )
@@ -259,11 +258,11 @@ def validate_auth() -> None:
 
                         console.print(table)
                 else:
-                    console.print(f"[red]{message}[/red]")
+                    render_error(f"{message}")
                     raise typer.Exit(1)
 
         except Exception as e:
-            console.print(f"[red]❌ Error validating credentials: {str(e)}[/red]")
+            render_error(f"❌ Error validating credentials: {str(e)}")
             raise typer.Exit(1) from e
 
     run_async(_validate())
@@ -276,7 +275,7 @@ def whoami() -> None:
     async def _whoami() -> None:
         config = Config()
         if not config.has_credentials():
-            console.print("[red]No API credentials configured.[/red]")
+            render_error("No API credentials configured.")
             console.print("Set CLICKUP_API_KEY or run 'clickup setup run'.")
             raise typer.Exit(1)
 
@@ -304,7 +303,7 @@ def whoami() -> None:
                 console.print(table)
 
         except Exception as e:
-            console.print(f"[red]Error: {e}[/red]")
+            render_error(f"Error: {e}")
             raise typer.Exit(1) from e
 
     run_async(_whoami())

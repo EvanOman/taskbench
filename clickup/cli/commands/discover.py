@@ -6,6 +6,7 @@ from rich.table import Table
 from rich.tree import Tree
 
 from ...core import ClickUpClient, ClickUpError, Config
+from ..output import render_error
 from ..utils import Progress, SpinnerColumn, TextColumn, run_async
 
 app = typer.Typer(help="Discover and navigate ClickUp hierarchy")
@@ -108,7 +109,7 @@ def show_hierarchy(
                     console.print(tree)
 
         except ClickUpError as e:
-            console.print(f"[red]ClickUp API Error: {e}[/red]")
+            render_error(f"ClickUp API Error: {e}")
             raise typer.Exit(1) from e
 
     run_async(_show_hierarchy())
@@ -207,7 +208,7 @@ def show_ids(
                         )
 
         except ClickUpError as e:
-            console.print(f"[red]ClickUp API Error: {e}[/red]")
+            render_error(f"ClickUp API Error: {e}")
             raise typer.Exit(1) from e
 
     run_async(_show_ids())
@@ -295,7 +296,7 @@ def find_path(list_id: str = typer.Argument(..., help="List ID to find path for"
                         console.print(f"[yellow]Could not find path for list {list_id}[/yellow]")
 
         except ClickUpError as e:
-            console.print(f"[red]ClickUp API Error: {e}[/red]")
+            render_error(f"ClickUp API Error: {e}")
             raise typer.Exit(1) from e
 
     run_async(_find_path())

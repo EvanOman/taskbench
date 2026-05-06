@@ -157,6 +157,44 @@ def test_bulk_import_json_actual(mock_get_client, sample_tasks_json):
 
 
 @patch("clickup.cli.commands.bulk.get_client")
+def test_bulk_import_without_flag_refuses(mock_get_client, sample_tasks_json):
+    """Bulk import must require --force/--yes."""
+    mock_get_client.return_value.__aenter__.return_value = AsyncMock()
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(sample_tasks_json, f)
+        f.flush()
+
+        result = runner.invoke(app, ["bulk", "import-tasks", f.name, "--list-id", "123"])
+        assert result.exit_code == 2
+        assert "Refusing to import" in result.stderr
+
+
+@patch("clickup.cli.commands.bulk.get_client")
+def test_bulk_update_without_flag_refuses(mock_get_client):
+    """Bulk update must require --force/--yes."""
+    mock_client = AsyncMock()
+    task_mock = Mock()
+    task_mock.id = "1"
+    task_mock.name = "T"
+    task_mock.status = Mock()
+    task_mock.status.get = Mock(return_value="to do")
+    task_mock.priority = Mock()
+    task_mock.priority.get = Mock(return_value="medium")
+    mock_client.get_tasks.return_value = [task_mock]
+
+    def create_mock_client():
+        ctx_mgr = AsyncMock()
+        ctx_mgr.__aenter__.return_value = mock_client
+        return ctx_mgr
+
+    mock_get_client.side_effect = create_mock_client
+
+    result = runner.invoke(app, ["bulk", "bulk-update", "--list-id", "123", "--status", "in progress"])
+    assert result.exit_code == 2
+    assert "Refusing to update" in result.stderr
+
+
+@patch("clickup.cli.commands.bulk.get_client")
 def test_bulk_update_tasks(mock_get_client):
     """Test bulk update of tasks."""
     mock_client = AsyncMock()
@@ -226,7 +264,7 @@ def test_bulk_export_no_list():
     """Test bulk export without list ID."""
     result = runner.invoke(app, ["bulk", "export-tasks"])
     assert result.exit_code != 0
-    assert "list-id" in result.stdout.lower()
+    assert "list-id" in result.output.lower()
 
 
 def test_bulk_import_invalid_file():

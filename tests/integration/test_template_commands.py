@@ -59,7 +59,7 @@ def test_template_show_nonexistent():
     result = runner.invoke(app, ["template", "show", "nonexistent_template"])
 
     assert result.exit_code != 0
-    assert "not found" in result.stdout.lower()
+    assert "not found" in result.output.lower()
 
 
 @patch("clickup.cli.commands.templates.get_client")
