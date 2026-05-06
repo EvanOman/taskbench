@@ -76,7 +76,7 @@ async def test_list_show_in_folder(mock_get_client, sample_lists):
     mock_client.get_lists.return_value = sample_lists
     mock_get_client.return_value.__aenter__.return_value = mock_client
 
-    result = runner.invoke(app, ["list", "show", "--folder-id", "folder123"])
+    result = runner.invoke(app, ["--format", "table", "list", "show", "--folder-id", "folder123"])
 
     assert result.exit_code == 0
     assert "Todo List" in result.stdout
@@ -91,7 +91,7 @@ async def test_list_show_in_space(mock_get_client, sample_lists):
     mock_client.get_folderless_lists.return_value = sample_lists
     mock_get_client.return_value.__aenter__.return_value = mock_client
 
-    result = runner.invoke(app, ["list", "show", "--space-id", "space123"])
+    result = runner.invoke(app, ["--format", "table", "list", "show", "--space-id", "space123"])
 
     assert result.exit_code == 0
     assert "Todo List" in result.stdout
@@ -111,7 +111,7 @@ async def test_list_get_details(mock_get_client, sample_list_detail):
 
     mock_get_client.side_effect = create_mock_client
 
-    result = runner.invoke(app, ["list", "get", "--list-id", "list123"])
+    result = runner.invoke(app, ["--format", "table", "list", "get", "--list-id", "list123"])
 
     assert result.exit_code == 0
     assert "Test List" in result.stdout
@@ -331,3 +331,19 @@ async def test_list_show_respects_format_json(mock_get_client, isolated_config):
     payload = json.loads(result.stdout)
     assert payload["count"] == 2
     assert {item["id"] for item in payload["data"]} == {"list1", "list2"}
+
+
+@patch("clickup.cli.commands.list.get_client")
+async def test_list_show_defaults_to_json(mock_get_client, isolated_config):
+    """Without an explicit --format flag, the CLI defaults to JSON."""
+    real_lists = [ClickUpList(id="list1", name="Todo List", task_count=5)]
+    mock_client = AsyncMock()
+    mock_client.get_lists.return_value = real_lists
+    mock_get_client.return_value.__aenter__.return_value = mock_client
+
+    result = runner.invoke(app, ["list", "show", "--folder-id", "folder123"])
+
+    assert result.exit_code == 0, result.stdout
+    payload = json.loads(result.stdout)
+    assert payload["count"] == 1
+    assert payload["data"][0]["id"] == "list1"

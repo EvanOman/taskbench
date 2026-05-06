@@ -24,7 +24,7 @@ app = typer.Typer(
 _FORMAT_OPTION = typer.Option(
     None,
     "--format",
-    help="Output format (table or json)",
+    help="Output format (json or table). Defaults to json; use --format table for human-friendly tables.",
     show_default=False,
 )
 
@@ -37,7 +37,7 @@ def _root_callback(
     # Reset format every invocation so module-level state doesn't bleed across
     # repeated CliRunner.invoke() calls in tests (and across long-running
     # processes that re-enter the CLI).
-    set_format(output_format if output_format is not None else FormatChoice.table)
+    set_format(output_format if output_format is not None else FormatChoice.json)
 
 
 # -- Get started --------------------------------------------------------

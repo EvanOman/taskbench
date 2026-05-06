@@ -80,7 +80,7 @@ JSON shape:
 
 ### 2. `--format` is a GLOBAL flag, not per-command
 
-Wired on the root Typer callback in `main.py`. Set with `clickup --format json <subcommand> ...`. Per-subcommand `--format` would conflict and confuse agents. The `bulk export-tasks` command's pre-existing `--format` (for output FILE format) is the one exception and is unrelated.
+Wired on the root Typer callback in `main.py`. **JSON is the default** — agents are first-class consumers, so the unflagged path emits structured data. Pass `clickup --format table <subcommand> ...` for human-readable output. Per-subcommand `--format` would conflict and confuse agents. The `bulk export-tasks` command's pre-existing `--format` (for output FILE format) is the one exception and is unrelated.
 
 ### 3. Modify-if-passed update semantics
 

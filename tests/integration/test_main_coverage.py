@@ -42,7 +42,7 @@ def test_status_no_token():
     """Status without a token reports it cleanly."""
     with tempfile.TemporaryDirectory() as tmpdir:
         with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
-            result = runner.invoke(app, ["status"])
+            result = runner.invoke(app, ["--format", "table", "status"])
             assert result.exit_code == 0
             assert "No API token" in result.output
 
@@ -58,7 +58,7 @@ def test_status_with_valid_token(mock_client_cls):
     with tempfile.TemporaryDirectory() as tmpdir:
         with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
             runner.invoke(app, ["config", "set-token", "pk_test"])
-            result = runner.invoke(app, ["status"])
+            result = runner.invoke(app, ["--format", "table", "status"])
             assert result.exit_code == 0
             assert "evan" in result.output
 
@@ -80,7 +80,7 @@ def test_status_with_full_defaults(mock_client_cls):
             runner.invoke(app, ["config", "set", "default_space_id", "S1"])
             runner.invoke(app, ["config", "set", "default_list_id", "L1"])
 
-            result = runner.invoke(app, ["status"])
+            result = runner.invoke(app, ["--format", "table", "status"])
             assert result.exit_code == 0
             assert "Acme" in result.output
             assert "Eng" in result.output
@@ -115,7 +115,7 @@ def test_status_invalid_token(mock_client_cls):
     with tempfile.TemporaryDirectory() as tmpdir:
         with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
             runner.invoke(app, ["config", "set-token", "pk_bogus"])
-            result = runner.invoke(app, ["status"])
+            result = runner.invoke(app, ["--format", "table", "status"])
             assert result.exit_code == 0
             assert "bad token" in result.output
 
@@ -131,7 +131,7 @@ def test_status_auto_detects_single_workspace(mock_client_cls):
     with tempfile.TemporaryDirectory() as tmpdir:
         with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
             runner.invoke(app, ["config", "set-token", "pk_test"])
-            result = runner.invoke(app, ["status"])
+            result = runner.invoke(app, ["--format", "table", "status"])
             assert result.exit_code == 0
             assert "Solo" in result.output
             assert "auto-detected" in result.output
@@ -150,7 +150,7 @@ def test_status_partial_defaults(mock_client_cls):
         with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
             runner.invoke(app, ["config", "set-token", "pk_test"])
             runner.invoke(app, ["config", "set", "default_team_id", "T1"])
-            result = runner.invoke(app, ["status"])
+            result = runner.invoke(app, ["--format", "table", "status"])
             assert result.exit_code == 0
             assert "setup run" in result.output  # hint to finish setup
 

@@ -177,7 +177,7 @@ def test_discover_hierarchy_empty_workspace(mock_get_client):
 
     mock_get_client.side_effect = create_mock_client
 
-    result = runner.invoke(app, ["discover", "hierarchy"])
+    result = runner.invoke(app, ["--format", "table", "discover", "hierarchy"])
 
     assert result.exit_code == 0
     assert "ClickUp Hierarchy" in result.stdout

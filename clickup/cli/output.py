@@ -34,7 +34,7 @@ class FormatChoice(str, Enum):
     json = "json"
 
 
-_current_format: Format = "table"
+_current_format: Format = "json"
 
 _console = Console()
 

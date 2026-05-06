@@ -105,7 +105,7 @@ def test_workspace_list(mock_get_client, sample_teams):
     mock_client.get_teams.return_value = sample_teams
     mock_get_client.return_value.__aenter__.return_value = mock_client
 
-    result = runner.invoke(app, ["workspace", "list"])
+    result = runner.invoke(app, ["--format", "table", "workspace", "list"])
 
     assert result.exit_code == 0
     assert "Engineering Team" in result.output
@@ -120,7 +120,7 @@ def test_workspace_spaces(mock_get_client, sample_spaces):
     mock_client.get_spaces.return_value = sample_spaces
     mock_get_client.return_value.__aenter__.return_value = mock_client
 
-    result = runner.invoke(app, ["workspace", "spaces", "--workspace-id", "team123"])
+    result = runner.invoke(app, ["--format", "table", "workspace", "spaces", "--workspace-id", "team123"])
 
     assert result.exit_code == 0
     assert "Development" in result.output
@@ -135,7 +135,7 @@ def test_workspace_folders(mock_get_client, sample_folders):
     mock_client.get_folders.return_value = sample_folders
     mock_get_client.return_value.__aenter__.return_value = mock_client
 
-    result = runner.invoke(app, ["workspace", "folders", "--space-id", "space123"])
+    result = runner.invoke(app, ["--format", "table", "workspace", "folders", "--space-id", "space123"])
 
     assert result.exit_code == 0
     assert "Backend" in result.output
@@ -150,7 +150,7 @@ def test_workspace_members(mock_get_client, sample_members):
     mock_client.get_team_members.return_value = sample_members
     mock_get_client.return_value.__aenter__.return_value = mock_client
 
-    result = runner.invoke(app, ["workspace", "members", "--workspace-id", "team123"])
+    result = runner.invoke(app, ["--format", "table", "workspace", "members", "--workspace-id", "team123"])
 
     assert result.exit_code == 0
     assert "john.doe" in result.output
@@ -241,7 +241,7 @@ async def test_workspace_spaces_with_privacy_filter(mock_get_client, sample_spac
     mock_client.get_spaces.return_value = sample_spaces
     mock_get_client.return_value.__aenter__.return_value = mock_client
 
-    result = runner.invoke(app, ["workspace", "spaces", "--team-id", "team123", "--show-private"])
+    result = runner.invoke(app, ["--format", "table", "workspace", "spaces", "--team-id", "team123", "--show-private"])
 
     assert result.exit_code == 0
     assert "Development" in result.stdout
@@ -256,7 +256,10 @@ async def test_workspace_folders_with_task_counts(mock_get_client, sample_folder
     mock_client.get_folders.return_value = sample_folders
     mock_get_client.return_value.__aenter__.return_value = mock_client
 
-    result = runner.invoke(app, ["workspace", "folders", "--space-id", "space123", "--show-counts"])
+    result = runner.invoke(
+        app,
+        ["--format", "table", "workspace", "folders", "--space-id", "space123", "--show-counts"],
+    )
 
     assert result.exit_code == 0
     assert "Backend" in result.stdout
@@ -272,7 +275,10 @@ async def test_workspace_members_with_role_filter(mock_get_client, sample_member
     mock_client.get_team_members.return_value = sample_members
     mock_get_client.return_value.__aenter__.return_value = mock_client
 
-    result = runner.invoke(app, ["workspace", "members", "--team-id", "team123", "--role", "admin"])
+    result = runner.invoke(
+        app,
+        ["--format", "table", "workspace", "members", "--team-id", "team123", "--role", "admin"],
+    )
 
     assert result.exit_code == 0
     # Should filter to only show admins and owners
