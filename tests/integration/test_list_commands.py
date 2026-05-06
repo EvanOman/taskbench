@@ -187,7 +187,8 @@ async def test_list_show_empty_folder(mock_get_client):
     result = runner.invoke(app, ["list", "show", "--folder-id", "empty_folder"])
 
     assert result.exit_code == 0
-    assert "No lists found" in result.stdout or len(result.stdout.strip()) == 0
+    # Empty result renders an empty Lists table (no list names appear)
+    assert "Todo List" not in result.stdout
 
 
 @patch("clickup.cli.commands.list.get_client")
@@ -257,3 +258,78 @@ def test_list_help():
     assert "show" in result.stdout
     assert "get" in result.stdout
     assert "create" in result.stdout
+
+
+@patch("clickup.cli.commands.list.get_client")
+async def test_list_get_resolves_alias(mock_get_client, sample_list_detail):
+    """`list get` should resolve list aliases via Config.resolve_list_id, like `task list` does."""
+    from clickup.core.config import Config
+
+    config = Config()
+    config.set("default_lists", {"omegapoint": "list123"})
+
+    mock_client = AsyncMock()
+    mock_client.get_list.return_value = sample_list_detail
+
+    def create_mock_client():
+        ctx_mgr = AsyncMock()
+        ctx_mgr.__aenter__.return_value = mock_client
+        return ctx_mgr
+
+    mock_get_client.side_effect = create_mock_client
+
+    result = runner.invoke(app, ["list", "get", "--list-id", "omegapoint"])
+
+    assert result.exit_code == 0, result.stdout
+    # The CLI must call the API with the resolved numeric ID, not the alias.
+    mock_client.get_list.assert_awaited_with("list123")
+
+
+@patch("clickup.cli.commands.list.get_client")
+async def test_list_get_respects_format_json(mock_get_client):
+    """`list get` should emit valid JSON when `--format json` is set."""
+    import json as _json
+
+    from clickup.core.models import List as ClickUpList
+
+    real_list = ClickUpList(id="list123", name="Test List", task_count=7)
+    mock_client = AsyncMock()
+    mock_client.get_list.return_value = real_list
+
+    def create_mock_client():
+        ctx_mgr = AsyncMock()
+        ctx_mgr.__aenter__.return_value = mock_client
+        return ctx_mgr
+
+    mock_get_client.side_effect = create_mock_client
+
+    result = runner.invoke(app, ["--format", "json", "list", "get", "--list-id", "list123"])
+
+    assert result.exit_code == 0, result.stdout
+    payload = _json.loads(result.stdout)
+    assert payload["id"] == "list123"
+    assert payload["name"] == "Test List"
+    assert payload["task_count"] == 7
+
+
+@patch("clickup.cli.commands.list.get_client")
+async def test_list_show_respects_format_json(mock_get_client):
+    """`list show` should emit valid JSON when `--format json` is set."""
+    import json as _json
+
+    from clickup.core.models import List as ClickUpList
+
+    real_lists = [
+        ClickUpList(id="list1", name="Todo List", task_count=5),
+        ClickUpList(id="list2", name="In Progress", task_count=3),
+    ]
+    mock_client = AsyncMock()
+    mock_client.get_lists.return_value = real_lists
+    mock_get_client.return_value.__aenter__.return_value = mock_client
+
+    result = runner.invoke(app, ["--format", "json", "list", "show", "--folder-id", "folder123"])
+
+    assert result.exit_code == 0, result.stdout
+    payload = _json.loads(result.stdout)
+    assert payload["count"] == 2
+    assert {item["id"] for item in payload["data"]} == {"list1", "list2"}

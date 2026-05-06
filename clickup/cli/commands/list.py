@@ -4,10 +4,9 @@ from typing import Any
 
 import typer
 from rich.console import Console
-from rich.table import Table
 
 from ...core import ClickUpClient, ClickUpError, Config
-from ..output import render_error
+from ..output import render_error, render_list, render_lists
 from ..utils import run_async
 
 app = typer.Typer(help="List management")
@@ -24,6 +23,16 @@ async def get_client() -> ClickUpClient:
         )
         raise typer.Exit(1)
     return ClickUpClient(config, console)
+
+
+def _resolve_list_id(list_id: str | None) -> str | None:
+    """Resolve a list ID, expanding configured aliases (mirrors task.py)."""
+    config = Config()
+    resolver = getattr(config, "resolve_list_id", None)
+    if callable(resolver):
+        result: str | None = resolver(list_id)
+        return result
+    return list_id or config.get("default_list_id")
 
 
 @app.command("show")
@@ -47,27 +56,7 @@ def list_lists(
                     # space_id is guaranteed non-None here due to the check above
                     assert space_id is not None
                     lists = await client.get_folderless_lists(space_id)
-                if not lists:
-                    console.print("[yellow]No lists found.[/yellow]")
-                    return
-
-                table = Table(title="Lists", show_header=True)
-                table.add_column("ID", style="cyan")
-                table.add_column("Name", style="bold")
-                table.add_column("Task Count", style="green")
-                table.add_column("Due Date", style="yellow")
-                table.add_column("Archived", style="red")
-
-                for list_item in lists:
-                    table.add_row(
-                        list_item.id,
-                        list_item.name,
-                        str(list_item.task_count or 0),
-                        list_item.due_date or "None",
-                        "Yes" if list_item.archived else "No",
-                    )
-
-                console.print(table)
+                render_lists(lists)
 
         except ClickUpError as e:
             render_error(f"ClickUp API Error: {e}")
@@ -81,8 +70,7 @@ def get_list(list_id: str | None = typer.Option(None, "--list-id", "-l", help="L
     """Get detailed information about a specific list."""
 
     async def _get_list() -> None:
-        config = Config()
-        list_id_to_use = list_id or config.get("default_list_id")
+        list_id_to_use = _resolve_list_id(list_id)
 
         if not list_id_to_use:
             render_error("Error: No list ID provided and no default list configured.")
@@ -92,30 +80,7 @@ def get_list(list_id: str | None = typer.Option(None, "--list-id", "-l", help="L
         try:
             async with await get_client() as client:
                 list_item = await client.get_list(list_id_to_use)
-                # Create detailed list info table
-                table = Table(title=f"List: {list_item.name}", show_header=False)
-                table.add_column("Field", style="cyan", width=15)
-                table.add_column("Value", style="white")
-
-                table.add_row("ID", list_item.id)
-                table.add_row("Name", list_item.name)
-                table.add_row("Content", list_item.content or "None")
-                table.add_row("Task Count", str(list_item.task_count or 0))
-                table.add_row("Order Index", str(list_item.orderindex))
-                table.add_row("Due Date", list_item.due_date or "None")
-                table.add_row("Start Date", list_item.start_date or "None")
-                table.add_row("Archived", "Yes" if list_item.archived else "No")
-
-                if list_item.assignee:
-                    table.add_row("Assignee", list_item.assignee.username)
-
-                if list_item.folder:
-                    table.add_row("Folder", list_item.folder.name or "Unknown")
-
-                if list_item.space:
-                    table.add_row("Space", list_item.space.name or "Unknown")
-
-                console.print(table)
+                render_list(list_item)
 
         except ClickUpError as e:
             render_error(f"ClickUp API Error: {e}")
