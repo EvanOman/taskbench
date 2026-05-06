@@ -27,12 +27,7 @@ async def get_client() -> ClickUpClient:
 
 def _resolve_list_id(list_id: str | None) -> str | None:
     """Resolve a list ID, expanding configured aliases (mirrors task.py)."""
-    config = Config()
-    resolver = getattr(config, "resolve_list_id", None)
-    if callable(resolver):
-        result: str | None = resolver(list_id)
-        return result
-    return list_id or config.get("default_list_id")
+    return Config().resolve_list_id(list_id)
 
 
 @app.command("show")

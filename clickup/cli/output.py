@@ -249,10 +249,11 @@ def render_list(lst: ClickUpList) -> None:
         table.add_row("Folder", escape(lst.folder.name))
     if lst.space is not None and lst.space.name:
         table.add_row("Space", escape(lst.space.name))
-    extra = lst.model_extra
-    statuses = extra.get("statuses") if isinstance(extra, dict) else None
+    statuses = (lst.model_extra or {}).get("statuses")
     if isinstance(statuses, list) and statuses:
-        names = ", ".join(escape(s.get("status", "")) if isinstance(s, dict) else escape(s.status) for s in statuses)
+        names = ", ".join(
+            escape(s.get("status", "") if isinstance(s, dict) else getattr(s, "status", str(s))) for s in statuses
+        )
         table.add_row("Statuses", names)
     _console.print(table)
 
