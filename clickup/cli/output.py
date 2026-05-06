@@ -231,14 +231,30 @@ def render_list(lst: ClickUpList) -> None:
     if get_format() == "json":
         _print_json(lst.model_dump(mode="json"))
         return
-    table = Table(title="List", show_header=False)
-    table.add_column("Field", style="cyan")
+    table = Table(title=f"List: {escape(lst.name)}", show_header=False)
+    table.add_column("Field", style="cyan", width=15)
     table.add_column("Value")
     table.add_row("ID", lst.id)
     table.add_row("Name", escape(lst.name))
+    table.add_row("Content", escape(lst.content) if lst.content else "None")
     table.add_row("Tasks", str(lst.task_count) if lst.task_count is not None else "N/A")
-    if lst.due_date:
-        table.add_row("Due Date", format_timestamp(lst.due_date))
+    if lst.orderindex is not None:
+        table.add_row("Order Index", str(lst.orderindex))
+    table.add_row("Due Date", format_timestamp(lst.due_date) if lst.due_date else "None")
+    table.add_row("Start Date", format_timestamp(lst.start_date) if lst.start_date else "None")
+    table.add_row("Archived", "Yes" if lst.archived else "No")
+    if lst.assignee is not None:
+        table.add_row("Assignee", escape(lst.assignee.username))
+    if lst.folder is not None and lst.folder.name:
+        table.add_row("Folder", escape(lst.folder.name))
+    if lst.space is not None and lst.space.name:
+        table.add_row("Space", escape(lst.space.name))
+    statuses = (lst.model_extra or {}).get("statuses")
+    if isinstance(statuses, list) and statuses:
+        names = ", ".join(
+            escape(s.get("status", "") if isinstance(s, dict) else getattr(s, "status", str(s))) for s in statuses
+        )
+        table.add_row("Statuses", names)
     _console.print(table)
 
 
@@ -251,8 +267,16 @@ def render_lists(lists: list[ClickUpList]) -> None:
     table.add_column("ID", style="cyan")
     table.add_column("Name", style="bold")
     table.add_column("Tasks", style="green")
+    table.add_column("Due Date", style="yellow")
+    table.add_column("Archived", style="red")
     for lst in lists:
-        table.add_row(lst.id, escape(lst.name), str(lst.task_count) if lst.task_count is not None else "N/A")
+        table.add_row(
+            lst.id,
+            escape(lst.name),
+            str(lst.task_count) if lst.task_count is not None else "N/A",
+            format_timestamp(lst.due_date) if lst.due_date else "None",
+            "Yes" if lst.archived else "No",
+        )
     _console.print(table)
 
 

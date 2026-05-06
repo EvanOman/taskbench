@@ -30,13 +30,8 @@ async def get_client() -> ClickUpClient:
 
 
 def _resolve_list_id(list_id: str | None) -> str | None:
-    """Resolve a list ID using Agent C's resolver if available, else fallback."""
-    config = Config()
-    resolver = getattr(config, "resolve_list_id", None)
-    if callable(resolver):
-        result: str | None = resolver(list_id)
-        return result
-    return list_id or config.get("default_list_id")
+    """Resolve a list ID, expanding configured aliases."""
+    return Config().resolve_list_id(list_id)
 
 
 async def _resolve_workspace_id(client: ClickUpClient, workspace_id: str | None) -> str:
