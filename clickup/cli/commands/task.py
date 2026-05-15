@@ -1,6 +1,6 @@
 """Task management commands."""
 
-from typing import Any
+from typing import Any, NoReturn
 
 import typer
 from rich.console import Console
@@ -64,22 +64,30 @@ def _parse_sort(sort: str | None, reverse_flag: bool) -> tuple[str | None, bool]
         -field         → (field, True)                 # git/jq-style
         +field         → (field, False)
 
-    Combining an explicit direction (``:asc/:desc/-/+``) with ``--reverse``
-    is a usage error (exit 2) so callers don't silently double-toggle.
+    Surrounding whitespace is trimmed. Direction tokens are case-insensitive.
+    Empty/whitespace-only input, empty field after prefix/colon, invalid
+    direction, and combining an explicit direction with ``--reverse`` are
+    all usage errors (exit 2) so an agent never gets silent input swallowing
+    or double-toggle behavior.
     """
     if sort is None:
         return None, reverse_flag
+
+    sort = sort.strip()
+    if not sort:
+        _usage_error("Error: --sort value is empty.")
 
     field: str
     explicit_desc: bool | None = None
 
     if sort.startswith("-"):
-        field, explicit_desc = sort[1:], True
+        field, explicit_desc = sort[1:].strip(), True
     elif sort.startswith("+"):
-        field, explicit_desc = sort[1:], False
+        field, explicit_desc = sort[1:].strip(), False
     elif ":" in sort:
-        field, _, direction = sort.partition(":")
-        direction = direction.lower()
+        raw_field, _, direction = sort.partition(":")
+        field = raw_field.strip()
+        direction = direction.strip().lower()
         if direction == "desc":
             explicit_desc = True
         elif direction == "asc":
@@ -92,11 +100,10 @@ def _parse_sort(sort: str | None, reverse_flag: bool) -> tuple[str | None, bool]
     if explicit_desc is None:
         return field, reverse_flag
 
-    if reverse_flag:
-        _usage_error("Error: --reverse can't be combined with an explicit direction in --sort.")
-
     if not field:
         _usage_error("Error: --sort field name is empty.")
+    if reverse_flag:
+        _usage_error("Error: --reverse can't be combined with an explicit direction in --sort.")
 
     return field, explicit_desc
 
@@ -338,8 +345,11 @@ async def _do_status_change(task_id: str, status: str) -> None:
         raise typer.Exit(1) from e
 
 
-def _usage_error(msg: str) -> None:
-    """Emit a usage error per AGENT.md §4a (render_error → stderr, exit 2)."""
+def _usage_error(msg: str) -> NoReturn:
+    """Emit a usage error per AGENT.md §4a (render_error → stderr, exit 2).
+
+    Declared ``NoReturn`` so the type checker treats call sites as terminating.
+    """
     render_error(msg)
     raise typer.Exit(2)
 
