@@ -1,12 +1,12 @@
 """ClickUp data models using pydantic."""
 
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
-class TaskStatusEnum(str, Enum):
+class TaskStatusEnum(StrEnum):
     """Task status enumeration."""
 
     OPEN = "open"
@@ -15,7 +15,7 @@ class TaskStatusEnum(str, Enum):
     CLOSED = "closed"
 
 
-class PriorityEnum(str, Enum):
+class PriorityEnum(StrEnum):
     """Task priority enumeration."""
 
     URGENT = "1"
