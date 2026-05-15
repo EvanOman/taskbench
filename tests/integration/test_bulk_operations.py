@@ -39,10 +39,8 @@ def create_task_mocks(sample_tasks_json):
         task_mock.id = f"task_{task['name']}"
         task_mock.name = task["name"]
         task_mock.description = task["description"]
-        task_mock.status = Mock()
-        task_mock.status.get = Mock(return_value=task["status"])
-        task_mock.priority = Mock()
-        task_mock.priority.get = Mock(return_value=task["priority"])
+        task_mock.status = Mock(status=task["status"])
+        task_mock.priority = Mock(priority=task["priority"])
         task_mock.assignees = []
         task_mock.due_date = None
         task_mock.date_created = None
@@ -176,10 +174,8 @@ def test_bulk_update_without_flag_refuses(mock_get_client):
     task_mock = Mock()
     task_mock.id = "1"
     task_mock.name = "T"
-    task_mock.status = Mock()
-    task_mock.status.get = Mock(return_value="to do")
-    task_mock.priority = Mock()
-    task_mock.priority.get = Mock(return_value="medium")
+    task_mock.status = Mock(status="to do")
+    task_mock.priority = Mock(priority="medium")
     mock_client.get_tasks.return_value = [task_mock]
 
     def create_mock_client():
@@ -203,10 +199,8 @@ def test_bulk_update_tasks(mock_get_client):
         task_mock = Mock()
         task_mock.id = str(i)
         task_mock.name = f"Task {i}"
-        task_mock.status = Mock()
-        task_mock.status.get = Mock(return_value=status)
-        task_mock.priority = Mock()
-        task_mock.priority.get = Mock(return_value="medium")
+        task_mock.status = Mock(status=status)
+        task_mock.priority = Mock(priority="medium")
         mock_tasks.append(task_mock)
     mock_client.get_tasks.return_value = mock_tasks
     mock_client.update_task.return_value = Mock(id="1")
@@ -234,10 +228,8 @@ def test_bulk_update_with_filter(mock_get_client):
         task_mock = Mock()
         task_mock.id = str(i)
         task_mock.name = f"Task {i}"
-        task_mock.status = Mock()
-        task_mock.status.get = Mock(return_value=status)
-        task_mock.priority = Mock()
-        task_mock.priority.get = Mock(return_value=priority)
+        task_mock.status = Mock(status=status)
+        task_mock.priority = Mock(priority=priority)
         mock_tasks.append(task_mock)
     mock_client.get_tasks.return_value = mock_tasks
     mock_client.update_task.return_value = Mock(id="1")
