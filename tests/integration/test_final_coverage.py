@@ -202,10 +202,8 @@ def test_bulk_update_dry_run(mock_get_client):
     task = Mock()
     task.id = "t1"
     task.name = "X"
-    task.status = Mock()
-    task.status.get = Mock(return_value="todo")
-    task.priority = Mock()
-    task.priority.get = Mock(return_value="medium")
+    task.status = Mock(status="todo")
+    task.priority = Mock(priority="medium")
     mock_client.get_tasks.return_value = [task]
     mock_get_client.return_value = _ctx(mock_client)
 

@@ -316,8 +316,8 @@ def bulk_update(
                     updates["assignees"] = [new_assignee]
 
                 for task in tasks[:10]:  # Show first 10
-                    current_status = task.status.get("status", "Unknown") if task.status else "Unknown"
-                    current_priority = task.priority.get("priority", "None") if task.priority else "None"
+                    current_status = task.status.status if task.status else "Unknown"
+                    current_priority = (task.priority.priority or "None") if task.priority else "None"
 
                     table.add_row(
                         task.name[:30] + "..." if len(task.name) > 30 else task.name,
