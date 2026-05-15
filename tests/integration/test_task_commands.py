@@ -250,9 +250,21 @@ def test_task_status_change_positional(mock_get_client):
 
 
 def test_task_status_missing_args_exits_2():
-    """No task_id / no status is a usage error (exit 2)."""
+    """No task_id / no status is a usage error (exit 2) with a Usage hint on stderr."""
     result = runner.invoke(app, ["task", "status"])
     assert result.exit_code == 2
+    assert "Task ID is required" in result.stderr
+    assert "Usage: clickup task status TASK_ID STATUS" in result.stderr
+
+
+def test_task_status_conflict_positional_and_flag_exits_2():
+    """Mixing positional + flag for the same param is a usage error (exit 2)."""
+    result = runner.invoke(
+        app,
+        ["task", "status", "task123", "in progress", "--task-id", "task456"],
+    )
+    assert result.exit_code == 2
+    assert "either as a positional argument OR via --task-id" in result.stderr
 
 
 @patch("clickup.cli.commands.task.get_client")

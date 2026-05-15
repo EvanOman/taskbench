@@ -281,6 +281,22 @@ async def _do_status_change(task_id: str, status: str) -> None:
         raise typer.Exit(1) from e
 
 
+def _usage_error(msg: str) -> None:
+    """Emit a usage error per AGENT.md §4a (render_error → stderr, exit 2)."""
+    render_error(msg)
+    raise typer.Exit(2)
+
+
+# Default status names for the short verb aliases. Intentionally raw strings,
+# not `TaskStatusEnum` values — that enum captures ClickUp's built-in API
+# statuses (open/in_progress/review/closed), but most real lists use custom
+# status names. These defaults match the common convention; users on lists
+# with different names override per-call with `--status STR`.
+_DONE_STATUS = "complete"
+_START_STATUS = "in progress"
+_PARK_STATUS = "on-deck"
+
+
 @app.command("status")
 def change_status(
     task_id_arg: str | None = typer.Argument(None, metavar="TASK_ID", help="Task ID (positional)"),
@@ -294,27 +310,32 @@ def change_status(
 
     Positional form: clickup task status TASK_ID STATUS
     Flag form (back-compat): clickup task status --task-id TASK_ID --status STATUS
+
+    Mixing positional + flag for the same parameter is rejected (exit 2) so
+    agents don't silently get one value when they thought they passed two.
     """
+    if task_id_arg is not None and task_id_flag is not None:
+        _usage_error("Error: pass TASK_ID either as a positional argument OR via --task-id, not both.")
+    if status_arg is not None and status_flag is not None:
+        _usage_error("Error: pass STATUS either as a positional argument OR via --status, not both.")
+
     task_id = task_id_arg or task_id_flag
     status = status_arg or status_flag
 
     if not task_id:
-        render_error("Error: Task ID is required.")
-        console.print("Usage: clickup task status TASK_ID STATUS  (or use --task-id/--status flags)")
-        raise typer.Exit(2)
-
+        _usage_error("Error: Task ID is required. Usage: clickup task status TASK_ID STATUS")
     if not status:
-        render_error("Error: Status is required.")
-        console.print("Usage: clickup task status TASK_ID STATUS  (or use --task-id/--status flags)")
-        raise typer.Exit(2)
+        _usage_error("Error: Status is required. Usage: clickup task status TASK_ID STATUS")
 
+    # Type-narrow for the type checker; the _usage_error calls above raise on None.
+    assert task_id is not None and status is not None
     run_async(_do_status_change(task_id, status))
 
 
 @app.command("done")
 def task_done(
     task_id: str = typer.Argument(..., help="Task ID"),
-    status: str = typer.Option("complete", "--status", "-s", help="Target status name (default: 'complete')"),
+    status: str = typer.Option(_DONE_STATUS, "--status", "-s", help=f"Target status name (default: '{_DONE_STATUS}')"),
 ) -> None:
     """Close a task. Sets status to 'complete' unless --status overrides."""
     run_async(_do_status_change(task_id, status))
@@ -323,16 +344,18 @@ def task_done(
 @app.command("close")
 def task_close(
     task_id: str = typer.Argument(..., help="Task ID"),
-    status: str = typer.Option("complete", "--status", "-s", help="Target status name (default: 'complete')"),
+    status: str = typer.Option(_DONE_STATUS, "--status", "-s", help=f"Target status name (default: '{_DONE_STATUS}')"),
 ) -> None:
     """Close a task. Alias for `task done`."""
-    run_async(_do_status_change(task_id, status))
+    task_done(task_id=task_id, status=status)
 
 
 @app.command("start")
 def task_start(
     task_id: str = typer.Argument(..., help="Task ID"),
-    status: str = typer.Option("in progress", "--status", "-s", help="Target status name (default: 'in progress')"),
+    status: str = typer.Option(
+        _START_STATUS, "--status", "-s", help=f"Target status name (default: '{_START_STATUS}')"
+    ),
 ) -> None:
     """Move a task to 'in progress' unless --status overrides."""
     run_async(_do_status_change(task_id, status))
@@ -341,7 +364,7 @@ def task_start(
 @app.command("park")
 def task_park(
     task_id: str = typer.Argument(..., help="Task ID"),
-    status: str = typer.Option("on-deck", "--status", "-s", help="Target status name (default: 'on-deck')"),
+    status: str = typer.Option(_PARK_STATUS, "--status", "-s", help=f"Target status name (default: '{_PARK_STATUS}')"),
 ) -> None:
     """Park a task on the on-deck queue unless --status overrides."""
     run_async(_do_status_change(task_id, status))
