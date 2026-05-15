@@ -367,6 +367,105 @@ def test_task_list_missing_list_id():
     assert "list" in result.stdout.lower() or "workspace" in result.stdout.lower()
 
 
+# --- task list: --sort direction-aware syntax ---
+
+
+def _sort_list_mock(mock_get_client, sample_tasks):
+    """Return the mock client wired to record get_tasks kwargs for sort tests."""
+    mock_client = AsyncMock()
+    mock_client.get_tasks.return_value = sample_tasks
+
+    def factory():
+        ctx_mgr = AsyncMock()
+        ctx_mgr.__aenter__.return_value = mock_client
+        return ctx_mgr
+
+    mock_get_client.side_effect = factory
+    return mock_client
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_list_sort_plain_field_no_reverse(mock_get_client, sample_tasks):
+    """`--sort updated` → order_by=updated, no reverse."""
+    mock_client = _sort_list_mock(mock_get_client, sample_tasks)
+    result = runner.invoke(app, ["--format", "table", "task", "list", "--list-id", "L", "--sort", "updated"])
+    assert result.exit_code == 0
+    kwargs = mock_client.get_tasks.await_args.kwargs
+    assert kwargs.get("order_by") == "updated"
+    assert "reverse" not in kwargs
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_list_sort_plain_field_with_reverse(mock_get_client, sample_tasks):
+    """Back-compat: `--sort updated --reverse` → order_by=updated, reverse=true."""
+    mock_client = _sort_list_mock(mock_get_client, sample_tasks)
+    result = runner.invoke(
+        app, ["--format", "table", "task", "list", "--list-id", "L", "--sort", "updated", "--reverse"]
+    )
+    assert result.exit_code == 0
+    kwargs = mock_client.get_tasks.await_args.kwargs
+    assert kwargs.get("order_by") == "updated"
+    assert kwargs.get("reverse") == "true"
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_list_sort_colon_desc(mock_get_client, sample_tasks):
+    """`--sort updated:desc` → descending."""
+    mock_client = _sort_list_mock(mock_get_client, sample_tasks)
+    result = runner.invoke(app, ["--format", "table", "task", "list", "--list-id", "L", "--sort", "updated:desc"])
+    assert result.exit_code == 0
+    kwargs = mock_client.get_tasks.await_args.kwargs
+    assert kwargs.get("order_by") == "updated"
+    assert kwargs.get("reverse") == "true"
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_list_sort_colon_asc(mock_get_client, sample_tasks):
+    """`--sort updated:asc` → ascending."""
+    mock_client = _sort_list_mock(mock_get_client, sample_tasks)
+    result = runner.invoke(app, ["--format", "table", "task", "list", "--list-id", "L", "--sort", "updated:asc"])
+    assert result.exit_code == 0
+    kwargs = mock_client.get_tasks.await_args.kwargs
+    assert kwargs.get("order_by") == "updated"
+    assert "reverse" not in kwargs
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_list_sort_minus_prefix(mock_get_client, sample_tasks):
+    """`--sort -updated` → descending (git/jq style)."""
+    mock_client = _sort_list_mock(mock_get_client, sample_tasks)
+    result = runner.invoke(app, ["--format", "table", "task", "list", "--list-id", "L", "--sort", "-updated"])
+    assert result.exit_code == 0
+    kwargs = mock_client.get_tasks.await_args.kwargs
+    assert kwargs.get("order_by") == "updated"
+    assert kwargs.get("reverse") == "true"
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_list_sort_plus_prefix(mock_get_client, sample_tasks):
+    """`--sort +updated` → ascending."""
+    mock_client = _sort_list_mock(mock_get_client, sample_tasks)
+    result = runner.invoke(app, ["--format", "table", "task", "list", "--list-id", "L", "--sort", "+updated"])
+    assert result.exit_code == 0
+    kwargs = mock_client.get_tasks.await_args.kwargs
+    assert kwargs.get("order_by") == "updated"
+    assert "reverse" not in kwargs
+
+
+def test_task_list_sort_explicit_direction_with_reverse_is_usage_error():
+    """`--sort updated:desc --reverse` is rejected (exit 2)."""
+    result = runner.invoke(app, ["task", "list", "--list-id", "L", "--sort", "updated:desc", "--reverse"])
+    assert result.exit_code == 2
+    assert "--reverse" in result.stderr
+
+
+def test_task_list_sort_invalid_direction_is_usage_error():
+    """`--sort updated:sideways` is rejected (exit 2)."""
+    result = runner.invoke(app, ["task", "list", "--list-id", "L", "--sort", "updated:sideways"])
+    assert result.exit_code == 2
+    assert "invalid sort direction" in result.stderr
+
+
 def test_task_get_missing_id():
     """Test task get without task ID."""
     result = runner.invoke(app, ["task", "get"])

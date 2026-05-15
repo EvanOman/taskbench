@@ -1,6 +1,6 @@
 """Task management commands."""
 
-from typing import Any
+from typing import Any, NoReturn
 
 import typer
 from rich.console import Console
@@ -53,6 +53,61 @@ async def _resolve_workspace_id(client: ClickUpClient, workspace_id: str | None)
     raise typer.Exit(1)
 
 
+def _parse_sort(sort: str | None, reverse_flag: bool) -> tuple[str | None, bool]:
+    """Parse ``--sort`` (with optional direction) and the ``--reverse`` flag.
+
+    Returns ``(field, descending)``. Accepted forms for ``sort``:
+
+        field          → (field, reverse_flag)        # plain, --reverse applies
+        field:asc      → (field, False)
+        field:desc     → (field, True)
+        -field         → (field, True)                 # git/jq-style
+        +field         → (field, False)
+
+    Surrounding whitespace is trimmed. Direction tokens are case-insensitive.
+    Empty/whitespace-only input, empty field after prefix/colon, invalid
+    direction, and combining an explicit direction with ``--reverse`` are
+    all usage errors (exit 2) so an agent never gets silent input swallowing
+    or double-toggle behavior.
+    """
+    if sort is None:
+        return None, reverse_flag
+
+    sort = sort.strip()
+    if not sort:
+        _usage_error("Error: --sort value is empty.")
+
+    field: str
+    explicit_desc: bool | None = None
+
+    if sort.startswith("-"):
+        field, explicit_desc = sort[1:].strip(), True
+    elif sort.startswith("+"):
+        field, explicit_desc = sort[1:].strip(), False
+    elif ":" in sort:
+        raw_field, _, direction = sort.partition(":")
+        field = raw_field.strip()
+        direction = direction.strip().lower()
+        if direction == "desc":
+            explicit_desc = True
+        elif direction == "asc":
+            explicit_desc = False
+        else:
+            _usage_error(f"Error: invalid sort direction '{direction}'. Use 'asc' or 'desc'.")
+    else:
+        field = sort
+
+    if explicit_desc is None:
+        return field, reverse_flag
+
+    if not field:
+        _usage_error("Error: --sort field name is empty.")
+    if reverse_flag:
+        _usage_error("Error: --reverse can't be combined with an explicit direction in --sort.")
+
+    return field, explicit_desc
+
+
 @app.command("list")
 def list_tasks(
     list_id: str | None = typer.Option(None, "--list-id", "-l", help="List ID to get tasks from"),
@@ -63,11 +118,20 @@ def list_tasks(
         None,
         "--sort",
         "--order-by",
-        help="Sort tasks by: created, updated, due_date, priority",
+        help=(
+            "Sort tasks by: created, updated, due_date, priority. "
+            "Direction syntax: 'updated:desc', '-updated' (desc), '+updated' or 'updated' (asc). "
+            "When direction is implicit, --reverse decides."
+        ),
     ),
-    reverse: bool = typer.Option(False, "--reverse", help="Reverse sort order (descending)"),
+    reverse: bool = typer.Option(
+        False,
+        "--reverse",
+        help="Sort descending. Illegal when --sort already has an explicit direction.",
+    ),
 ) -> None:
     """List tasks from a ClickUp list."""
+    order_by, descending = _parse_sort(sort, reverse)
 
     async def _list_tasks() -> None:
         list_id_to_use = _resolve_list_id(list_id)
@@ -84,9 +148,9 @@ def list_tasks(
                     filters["statuses"] = [status]
                 if assignee:
                     filters["assignees"] = [assignee]
-                if sort:
-                    filters["order_by"] = sort
-                if reverse:
+                if order_by:
+                    filters["order_by"] = order_by
+                if descending:
                     filters["reverse"] = "true"
 
                 tasks = await client.get_tasks(list_id_to_use, **filters)
@@ -281,8 +345,11 @@ async def _do_status_change(task_id: str, status: str) -> None:
         raise typer.Exit(1) from e
 
 
-def _usage_error(msg: str) -> None:
-    """Emit a usage error per AGENT.md §4a (render_error → stderr, exit 2)."""
+def _usage_error(msg: str) -> NoReturn:
+    """Emit a usage error per AGENT.md §4a (render_error → stderr, exit 2).
+
+    Declared ``NoReturn`` so the type checker treats call sites as terminating.
+    """
     render_error(msg)
     raise typer.Exit(2)
 
