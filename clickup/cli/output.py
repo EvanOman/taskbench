@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
-from enum import Enum
+from enum import StrEnum
 from typing import Any, Literal
 
 import typer
@@ -27,7 +27,7 @@ from ..core.models import List as ClickUpList
 Format = Literal["table", "json"]
 
 
-class FormatChoice(str, Enum):
+class FormatChoice(StrEnum):
     """Enum wrapper for Typer CLI option compatibility."""
 
     table = "table"
