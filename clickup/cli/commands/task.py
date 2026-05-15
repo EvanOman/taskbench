@@ -270,34 +270,81 @@ def update_task(
     run_async(_update_task())
 
 
+async def _do_status_change(task_id: str, status: str) -> None:
+    """Shared implementation for `task status` and short verb aliases."""
+    try:
+        async with await get_client() as client:
+            task = await client.update_task(task_id, status=status)
+            render_message(f"Updated task status: {task.name} -> {status}", "success")
+    except ClickUpError as e:
+        render_error(f"ClickUp API Error: {e}")
+        raise typer.Exit(1) from e
+
+
 @app.command("status")
 def change_status(
-    task_id: str | None = typer.Option(None, "--task-id", "-t", help="Task ID"),
-    status: str | None = typer.Option(None, "--status", "-s", help="New status"),
+    task_id_arg: str | None = typer.Argument(None, metavar="TASK_ID", help="Task ID (positional)"),
+    status_arg: str | None = typer.Argument(None, metavar="STATUS", help="New status (positional)"),
+    task_id_flag: str | None = typer.Option(None, "--task-id", "-t", help="Task ID (back-compat alias for positional)"),
+    status_flag: str | None = typer.Option(
+        None, "--status", "-s", help="New status (back-compat alias for positional)"
+    ),
 ) -> None:
-    """Change task status."""
+    """Change task status.
 
-    async def _change_status() -> None:
-        if not task_id:
-            render_error("Error: Task ID is required.")
-            console.print("Use --task-id to specify the task")
-            raise typer.Exit(1)
+    Positional form: clickup task status TASK_ID STATUS
+    Flag form (back-compat): clickup task status --task-id TASK_ID --status STATUS
+    """
+    task_id = task_id_arg or task_id_flag
+    status = status_arg or status_flag
 
-        if not status:
-            render_error("Error: Status is required.")
-            console.print("Use --status to specify the new status")
-            raise typer.Exit(1)
+    if not task_id:
+        render_error("Error: Task ID is required.")
+        console.print("Usage: clickup task status TASK_ID STATUS  (or use --task-id/--status flags)")
+        raise typer.Exit(2)
 
-        try:
-            async with await get_client() as client:
-                task = await client.update_task(task_id, status=status)
-                render_message(f"Updated task status: {task.name} -> {status}", "success")
+    if not status:
+        render_error("Error: Status is required.")
+        console.print("Usage: clickup task status TASK_ID STATUS  (or use --task-id/--status flags)")
+        raise typer.Exit(2)
 
-        except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}")
-            raise typer.Exit(1) from e
+    run_async(_do_status_change(task_id, status))
 
-    run_async(_change_status())
+
+@app.command("done")
+def task_done(
+    task_id: str = typer.Argument(..., help="Task ID"),
+    status: str = typer.Option("complete", "--status", "-s", help="Target status name (default: 'complete')"),
+) -> None:
+    """Close a task. Sets status to 'complete' unless --status overrides."""
+    run_async(_do_status_change(task_id, status))
+
+
+@app.command("close")
+def task_close(
+    task_id: str = typer.Argument(..., help="Task ID"),
+    status: str = typer.Option("complete", "--status", "-s", help="Target status name (default: 'complete')"),
+) -> None:
+    """Close a task. Alias for `task done`."""
+    run_async(_do_status_change(task_id, status))
+
+
+@app.command("start")
+def task_start(
+    task_id: str = typer.Argument(..., help="Task ID"),
+    status: str = typer.Option("in progress", "--status", "-s", help="Target status name (default: 'in progress')"),
+) -> None:
+    """Move a task to 'in progress' unless --status overrides."""
+    run_async(_do_status_change(task_id, status))
+
+
+@app.command("park")
+def task_park(
+    task_id: str = typer.Argument(..., help="Task ID"),
+    status: str = typer.Option("on-deck", "--status", "-s", help="Target status name (default: 'on-deck')"),
+) -> None:
+    """Park a task on the on-deck queue unless --status overrides."""
+    run_async(_do_status_change(task_id, status))
 
 
 @app.command("delete")

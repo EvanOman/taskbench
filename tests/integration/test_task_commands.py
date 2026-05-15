@@ -207,26 +207,112 @@ def test_task_delete_with_yes(mock_get_client):
     assert "Deleted task" in result.stdout
 
 
-@patch("clickup.cli.commands.task.get_client")
-def test_task_status_change(mock_get_client):
-    """Test changing task status."""
+def _status_mock_client():
+    """Build a mocked client that records update_task calls for status tests."""
     mock_client = AsyncMock()
     task_mock = Mock()
     task_mock.id = "task123"
     task_mock.name = "Test Task"
     mock_client.update_task.return_value = task_mock
 
-    def create_mock_client():
+    def create():
         ctx_mgr = AsyncMock()
         ctx_mgr.__aenter__.return_value = mock_client
         return ctx_mgr
 
-    mock_get_client.side_effect = create_mock_client
+    return mock_client, create
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_status_change_flag_form(mock_get_client):
+    """Back-compat: --task-id / --status flag form still works."""
+    mock_client, factory = _status_mock_client()
+    mock_get_client.side_effect = factory
 
     result = runner.invoke(app, ["task", "status", "--task-id", "task123", "--status", "in progress"])
 
     assert result.exit_code == 0
     assert "Updated task status" in result.stdout
+    mock_client.update_task.assert_awaited_once_with("task123", status="in progress")
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_status_change_positional(mock_get_client):
+    """`task status TASK_ID STATUS` positional form works."""
+    mock_client, factory = _status_mock_client()
+    mock_get_client.side_effect = factory
+
+    result = runner.invoke(app, ["task", "status", "task123", "in progress"])
+
+    assert result.exit_code == 0
+    assert "Updated task status" in result.stdout
+    mock_client.update_task.assert_awaited_once_with("task123", status="in progress")
+
+
+def test_task_status_missing_args_exits_2():
+    """No task_id / no status is a usage error (exit 2)."""
+    result = runner.invoke(app, ["task", "status"])
+    assert result.exit_code == 2
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_done_short_verb(mock_get_client):
+    """`task done <id>` sets status to 'complete'."""
+    mock_client, factory = _status_mock_client()
+    mock_get_client.side_effect = factory
+
+    result = runner.invoke(app, ["task", "done", "task123"])
+
+    assert result.exit_code == 0
+    mock_client.update_task.assert_awaited_once_with("task123", status="complete")
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_done_override_status(mock_get_client):
+    """`task done <id> --status closed` honors the override."""
+    mock_client, factory = _status_mock_client()
+    mock_get_client.side_effect = factory
+
+    result = runner.invoke(app, ["task", "done", "task123", "--status", "closed"])
+
+    assert result.exit_code == 0
+    mock_client.update_task.assert_awaited_once_with("task123", status="closed")
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_close_short_verb(mock_get_client):
+    """`task close <id>` is an alias for `task done`."""
+    mock_client, factory = _status_mock_client()
+    mock_get_client.side_effect = factory
+
+    result = runner.invoke(app, ["task", "close", "task123"])
+
+    assert result.exit_code == 0
+    mock_client.update_task.assert_awaited_once_with("task123", status="complete")
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_start_short_verb(mock_get_client):
+    """`task start <id>` sets status to 'in progress'."""
+    mock_client, factory = _status_mock_client()
+    mock_get_client.side_effect = factory
+
+    result = runner.invoke(app, ["task", "start", "task123"])
+
+    assert result.exit_code == 0
+    mock_client.update_task.assert_awaited_once_with("task123", status="in progress")
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_park_short_verb(mock_get_client):
+    """`task park <id>` sets status to 'on-deck'."""
+    mock_client, factory = _status_mock_client()
+    mock_get_client.side_effect = factory
+
+    result = runner.invoke(app, ["task", "park", "task123"])
+
+    assert result.exit_code == 0
+    mock_client.update_task.assert_awaited_once_with("task123", status="on-deck")
 
 
 @patch("clickup.cli.commands.task.get_client")
