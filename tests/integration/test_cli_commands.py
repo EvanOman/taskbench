@@ -1,5 +1,6 @@
 """Integration tests for CLI commands."""
 
+import json
 import tempfile
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -112,7 +113,9 @@ async def test_task_create_success(mock_get_client):
 
             result = runner.invoke(app, ["task", "create", "Test Task"])
             assert result.exit_code == 0
-            assert "Created task" in result.stdout
+            data = json.loads(result.stdout)
+            assert data["id"] == "task123"
+            assert data["name"] == "Test Task"
 
 
 def test_template_list():

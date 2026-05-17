@@ -6,7 +6,16 @@ import typer
 from rich.console import Console
 
 from ...core import ClickUpClient, ClickUpError, Config
-from ..output import render_comments, render_error, render_message, render_task, render_tasks
+from ..output import (
+    get_format,
+    render_comment,
+    render_comments,
+    render_error,
+    render_kv,
+    render_message,
+    render_task,
+    render_tasks,
+)
 from ..utils import run_async
 
 app = typer.Typer(help="Task management")
@@ -279,6 +288,9 @@ def create_task(
 
             async with await get_client() as client:
                 task = await client.create_task(list_id_to_use, **task_data)
+                if get_format() == "json":
+                    render_task(task)
+                    return
                 render_message(f"Created task: {task.name} (ID: {task.id})", "success")
                 if task.url:
                     render_message(f"URL: {task.url}", "info")
@@ -325,6 +337,9 @@ def update_task(
         try:
             async with await get_client() as client:
                 task = await client.update_task(task_id, **updates)
+                if get_format() == "json":
+                    render_task(task)
+                    return
                 render_message(f"Updated task: {task.name} (ID: {task.id})", "success")
 
         except ClickUpError as e:
@@ -339,6 +354,9 @@ async def _do_status_change(task_id: str, status: str) -> None:
     try:
         async with await get_client() as client:
             task = await client.update_task(task_id, status=status)
+            if get_format() == "json":
+                render_task(task)
+                return
             render_message(f"Updated task status: {task.name} -> {status}", "success")
     except ClickUpError as e:
         render_error(f"ClickUp API Error: {e}")
@@ -459,6 +477,9 @@ def delete_task(
         try:
             async with await get_client() as client:
                 await client.delete_task(task_id)
+                if get_format() == "json":
+                    render_kv({"id": task_id, "deleted": True})
+                    return
                 render_message(f"Deleted task {task_id}", "success")
 
         except ClickUpError as e:
@@ -631,6 +652,9 @@ def add_comment(
         try:
             async with await get_client() as client:
                 comment = await client.create_comment(task_id, text)
+                if get_format() == "json":
+                    render_comment(comment)
+                    return
                 render_message(f"Comment added (ID: {comment.id})", "success")
 
         except ClickUpError as e:

@@ -1,5 +1,6 @@
 """Tests for task management commands."""
 
+import json
 import tempfile
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -136,7 +137,9 @@ def test_task_create(mock_get_client):
     )
 
     assert result.exit_code == 0
-    assert "Created task" in result.stdout
+    data = json.loads(result.stdout)
+    assert data["id"] == "new_task"
+    assert data["name"] == "New Task"
 
 
 @patch("clickup.cli.commands.task.get_client")
@@ -160,7 +163,9 @@ def test_task_update(mock_get_client):
     )
 
     assert result.exit_code == 0
-    assert "Updated task" in result.stdout
+    data = json.loads(result.stdout)
+    assert data["id"] == "task123"
+    assert data["name"] == "Updated Task"
 
 
 @patch("clickup.cli.commands.task.get_client")
@@ -179,7 +184,8 @@ def test_task_delete(mock_get_client):
     result = runner.invoke(app, ["task", "delete", "task123", "--force"])
 
     assert result.exit_code == 0
-    assert "Deleted task" in result.stdout
+    data = json.loads(result.stdout)
+    assert data == {"id": "task123", "deleted": True}
 
 
 def test_task_delete_without_flag_refuses():
@@ -204,7 +210,8 @@ def test_task_delete_with_yes(mock_get_client):
 
     result = runner.invoke(app, ["task", "delete", "task123", "--yes"])
     assert result.exit_code == 0
-    assert "Deleted task" in result.stdout
+    data = json.loads(result.stdout)
+    assert data == {"id": "task123", "deleted": True}
 
 
 def _status_mock_client():
@@ -232,7 +239,9 @@ def test_task_status_change_flag_form(mock_get_client):
     result = runner.invoke(app, ["task", "status", "--task-id", "task123", "--status", "in progress"])
 
     assert result.exit_code == 0
-    assert "Updated task status" in result.stdout
+    data = json.loads(result.stdout)
+    assert data["id"] == "task123"
+    assert data["name"] == "Test Task"
     mock_client.update_task.assert_awaited_once_with("task123", status="in progress")
 
 
@@ -245,7 +254,9 @@ def test_task_status_change_positional(mock_get_client):
     result = runner.invoke(app, ["task", "status", "task123", "in progress"])
 
     assert result.exit_code == 0
-    assert "Updated task status" in result.stdout
+    data = json.loads(result.stdout)
+    assert data["id"] == "task123"
+    assert data["name"] == "Test Task"
     mock_client.update_task.assert_awaited_once_with("task123", status="in progress")
 
 
@@ -562,7 +573,9 @@ def test_task_create_with_all_options(mock_get_client):
     )
 
     assert result.exit_code == 0
-    assert "Created task" in result.stdout
+    data = json.loads(result.stdout)
+    assert data["id"] == "feature_task"
+    assert data["name"] == "Feature Task"
 
 
 @patch("clickup.cli.commands.task.get_client")

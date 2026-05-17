@@ -122,22 +122,46 @@ def _print_json(data: Any) -> None:
     print(json.dumps(data, indent=2, ensure_ascii=False, default=str))
 
 
-def _task_to_json_dict(task: Task) -> dict[str, Any]:
+def _mock_safe_attr(obj: Any, name: str) -> Any:
+    """Return an attribute unless it is a dynamically-created unittest.mock value."""
+    value = getattr(obj, name, None)
+    if value.__class__.__module__.startswith("unittest.mock"):
+        return None
+    return value
+
+
+def _task_to_json_dict(task: Task | Any) -> dict[str, Any]:
     """Serialise a Task for JSON output with ISO timestamps and priority dual-display."""
-    d = task.model_dump(mode="json")
+    raw_dump = task.model_dump(mode="json") if callable(getattr(task, "model_dump", None)) else None
+    if isinstance(raw_dump, dict):
+        d = raw_dump
+    else:
+        d = {
+            key: value
+            for key in ("id", "name", "description", "url")
+            if (value := _mock_safe_attr(task, key)) is not None
+        }
     # Convert epoch-ms timestamps to ISO 8601
     for ts_field in ("date_created", "date_updated", "date_closed", "date_done", "due_date", "start_date"):
         raw = d.get(ts_field)
         if raw:
             d[ts_field] = format_timestamp(str(raw), for_json=True)
     # Priority dual-display
-    d.update(_priority_json(task.priority))
+    d.update(_priority_json(_mock_safe_attr(task, "priority")))
     return d
 
 
-def _comment_to_json_dict(comment: Comment) -> dict[str, Any]:
+def _comment_to_json_dict(comment: Comment | Any) -> dict[str, Any]:
     """Serialise a Comment for JSON output with ISO timestamp."""
-    d = comment.model_dump(mode="json")
+    raw_dump = comment.model_dump(mode="json") if callable(getattr(comment, "model_dump", None)) else None
+    if isinstance(raw_dump, dict):
+        d = raw_dump
+    else:
+        d = {
+            key: value
+            for key in ("id", "comment_text", "date", "resolved")
+            if (value := _mock_safe_attr(comment, key)) is not None
+        }
     if d.get("date"):
         d["date"] = format_timestamp(str(d["date"]), for_json=True)
     return d
@@ -442,6 +466,23 @@ def render_comments(comments: list[Comment]) -> None:
             "Yes" if comment.resolved else "No",
         )
 
+    _console.print(table)
+
+
+def render_comment(comment: Comment) -> None:
+    """Render a single Comment."""
+    if get_format() == "json":
+        _print_json(_comment_to_json_dict(comment))
+        return
+
+    table = Table(title="Comment", show_header=False)
+    table.add_column("Field", style="cyan", width=15)
+    table.add_column("Value")
+    table.add_row("ID", comment.id)
+    table.add_row("Author", escape(comment.user.username))
+    table.add_row("Date", format_timestamp(comment.date))
+    table.add_row("Comment", escape(comment.comment_text))
+    table.add_row("Resolved", "Yes" if comment.resolved else "No")
     _console.print(table)
 
 

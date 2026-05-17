@@ -16,6 +16,7 @@ from clickup.cli.output import (
     FormatChoice,
     format_timestamp,
     get_format,
+    render_comment,
     render_comments,
     render_error,
     render_folders,
@@ -403,6 +404,45 @@ def test_render_comments_empty(capture_console):
     render_comments([])
     # Should still render, no crash
     assert capture_console.getvalue() is not None
+
+
+def test_render_comment_table(capture_console):
+    render_comment(_comment())
+    out = capture_console.getvalue()
+    assert "looks good" in out
+    assert "evan" in out
+
+
+def test_render_comment_json(capsys):
+    set_format("json")
+    render_comment(_comment())
+    data = json.loads(capsys.readouterr().out)
+    assert data["id"] == "C1"
+    assert data["comment_text"] == "looks good"
+
+
+def test_render_task_json_accepts_minimal_mock(capsys):
+    from unittest.mock import Mock
+
+    set_format("json")
+    task = Mock()
+    task.id = "mock-task"
+    task.name = "Mock Task"
+    render_task(task)
+    data = json.loads(capsys.readouterr().out)
+    assert data["id"] == "mock-task"
+    assert data["name"] == "Mock Task"
+
+
+def test_render_comment_json_accepts_minimal_mock(capsys):
+    from unittest.mock import Mock
+
+    set_format("json")
+    comment = Mock()
+    comment.id = "mock-comment"
+    render_comment(comment)
+    data = json.loads(capsys.readouterr().out)
+    assert data["id"] == "mock-comment"
 
 
 # ---------- render_hierarchy --------------------------------------------------

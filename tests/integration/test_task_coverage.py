@@ -37,7 +37,9 @@ def test_task_create_minimal(mock_get_client):
 
     result = runner.invoke(app, ["task", "create", "New", "--list-id", "L1"])
     assert result.exit_code == 0
-    assert "Created task" in result.output
+    data = json.loads(result.output)
+    assert data["id"] == "t1"
+    assert data["name"] == "New"
 
 
 @patch("clickup.cli.commands.task.get_client")
@@ -103,7 +105,9 @@ def test_task_update_name_and_description(mock_get_client):
 
     result = runner.invoke(app, ["task", "update", "t1", "--name", "Renamed", "--description", "d"])
     assert result.exit_code == 0
-    assert "Updated task" in result.output
+    data = json.loads(result.output)
+    assert data["id"] == "t1"
+    assert data["name"] == "Renamed"
 
 
 @patch("clickup.cli.commands.task.get_client")
@@ -151,7 +155,9 @@ def test_task_status_change(mock_get_client):
 
     result = runner.invoke(app, ["task", "status", "--task-id", "t1", "--status", "done"])
     assert result.exit_code == 0
-    assert "Updated task status" in result.output
+    data = json.loads(result.output)
+    assert data["id"] == "t1"
+    assert data["name"] == "X"
 
 
 def test_task_status_missing_id_errors():
@@ -353,4 +359,5 @@ def test_task_comments_add(mock_get_client):
 
     result = runner.invoke(app, ["task", "comments", "add", "t1", "hello"])
     assert result.exit_code == 0
-    assert "Comment added" in result.output
+    data = json.loads(result.output)
+    assert data["id"] == "c1"
