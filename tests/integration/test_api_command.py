@@ -25,7 +25,7 @@ def test_api_request_get_json(mock_get_client):
 
     result = runner.invoke(
         app,
-        ["api", "request", "GET", "/task/task123", "--param", "include_subtasks=true"],
+        ["api", "GET", "/task/task123", "--param", "include_subtasks=true"],
     )
 
     assert result.exit_code == 0
@@ -46,7 +46,7 @@ def test_api_request_repeated_params_become_list(mock_get_client):
 
     result = runner.invoke(
         app,
-        ["api", "request", "GET", "/list/L1/task", "--param", "statuses[]=open", "--param", "statuses[]=review"],
+        ["api", "GET", "/list/L1/task", "--param", "statuses[]=open", "--param", "statuses[]=review"],
     )
 
     assert result.exit_code == 0
@@ -65,7 +65,7 @@ def test_api_request_post_with_json_body(mock_get_client):
 
     result = runner.invoke(
         app,
-        ["api", "request", "POST", "/task/task123/comment", "--data", '{"comment_text":"hello"}'],
+        ["api", "POST", "/task/task123/comment", "--data", '{"comment_text":"hello"}'],
     )
 
     assert result.exit_code == 0
@@ -79,25 +79,25 @@ def test_api_request_post_with_json_body(mock_get_client):
 
 
 def test_api_request_rejects_invalid_method():
-    result = runner.invoke(app, ["api", "request", "TRACE", "/task/task123"])
+    result = runner.invoke(app, ["api", "TRACE", "/task/task123"])
     assert result.exit_code == 2
     assert "unsupported method" in result.stderr
 
 
 def test_api_request_rejects_invalid_json_data():
-    result = runner.invoke(app, ["api", "request", "POST", "/task/task123", "--data", "{bad"])
+    result = runner.invoke(app, ["api", "POST", "/task/task123", "--data", "{bad"])
     assert result.exit_code == 2
     assert "--data must be valid JSON" in result.stderr
 
 
 def test_api_request_rejects_invalid_param():
-    result = runner.invoke(app, ["api", "request", "GET", "/task/task123", "--param", "bad"])
+    result = runner.invoke(app, ["api", "GET", "/task/task123", "--param", "bad"])
     assert result.exit_code == 2
     assert "key=value" in result.stderr
 
 
 def test_api_request_rejects_empty_param_key():
-    result = runner.invoke(app, ["api", "request", "GET", "/task/task123", "--param", "=bad"])
+    result = runner.invoke(app, ["api", "GET", "/task/task123", "--param", "=bad"])
     assert result.exit_code == 2
     assert "key cannot be empty" in result.stderr
 
@@ -108,7 +108,7 @@ def test_api_request_handles_clickup_error(mock_get_client):
     mock_client.raw_request.side_effect = ClickUpError("boom")
     mock_get_client.return_value = _ctx(mock_client)
 
-    result = runner.invoke(app, ["api", "request", "GET", "/task/task123"])
+    result = runner.invoke(app, ["api", "GET", "/task/task123"])
 
     assert result.exit_code == 1
     assert "ClickUp API Error: boom" in result.stderr
@@ -122,7 +122,7 @@ def test_api_request_without_credentials_errors(monkeypatch):
 
         with tempfile.TemporaryDirectory() as tmpdir:
             m.setenv("CLICKUP_CONFIG_PATH", f"{tmpdir}/config.json")
-            result = runner.invoke(app, ["api", "request", "GET", "/task/task123"])
+            result = runner.invoke(app, ["api", "GET", "/task/task123"])
 
     assert result.exit_code == 1
     assert "No ClickUp API token configured" in result.stderr

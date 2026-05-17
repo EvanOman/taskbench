@@ -53,7 +53,7 @@ app.add_typer(list_cmd.app, name="list", rich_help_panel="Workspace navigation")
 app.add_typer(discover.app, name="discover", rich_help_panel="Workspace navigation")
 
 # -- Other ---------------------------------------------------------------
-app.add_typer(api.app, name="api", rich_help_panel="Other")
+app.command("api", rich_help_panel="Other")(api.request)
 app.add_typer(bulk.app, name="bulk", rich_help_panel="Other")
 app.add_typer(templates.app, name="template", rich_help_panel="Other")
 

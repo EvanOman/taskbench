@@ -10,7 +10,6 @@ from ...core import ClickUpClient, ClickUpError, Config
 from ..output import render_error, render_kv
 from ..utils import run_async
 
-app = typer.Typer(help="Raw ClickUp API requests")
 console = Console()
 
 _ALLOWED_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE"}
@@ -62,7 +61,6 @@ def _parse_params(params: list[str] | None) -> dict[str, Any]:
     return parsed
 
 
-@app.command("request")
 def request(
     method: str = typer.Argument(..., help="HTTP method: GET, POST, PUT, PATCH, DELETE"),
     endpoint: str = typer.Argument(..., help="ClickUp API path, e.g. /task/abc123"),
