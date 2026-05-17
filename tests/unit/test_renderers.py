@@ -27,6 +27,7 @@ from clickup.cli.output import (
     render_message,
     render_space,
     render_spaces,
+    render_statuses,
     render_task,
     render_tasks,
     render_team,
@@ -513,6 +514,30 @@ def test_render_kv_json(capsys):
     render_kv({"foo": "bar"}, title="Stats")
     data = json.loads(capsys.readouterr().out)
     assert data["foo"] == "bar"
+
+
+def test_render_statuses_table(capture_console):
+    render_statuses(
+        [{"status": "to do", "type": "open", "color": "#aaa", "orderindex": 0}],
+        list_id="L1",
+        list_name="Sprint",
+    )
+    out = capture_console.getvalue()
+    assert "to do" in out
+    assert "Sprint" in out
+
+
+def test_render_statuses_json(capsys):
+    set_format("json")
+    render_statuses(
+        [{"status": "to do", "type": "open", "color": "#aaa", "orderindex": 0}],
+        list_id="L1",
+        list_name="Sprint",
+    )
+    data = json.loads(capsys.readouterr().out)
+    assert data["list_id"] == "L1"
+    assert data["count"] == 1
+    assert data["data"][0]["status"] == "to do"
 
 
 # ---------- render_message ----------------------------------------------------

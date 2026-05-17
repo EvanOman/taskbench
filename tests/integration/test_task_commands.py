@@ -8,6 +8,7 @@ import pytest
 from typer.testing import CliRunner
 
 from clickup.cli.main import app
+from clickup.core.models import List as ClickUpList
 from clickup.core.models import PriorityInfo, StatusInfo
 
 runner = CliRunner()
@@ -369,6 +370,42 @@ def test_task_list_with_filters(mock_get_client, sample_tasks):
 
     assert result.exit_code == 0
     assert "Test Task" in result.stdout
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_statuses_json(mock_get_client):
+    """`task statuses` emits allowed list statuses in JSON mode."""
+    mock_client = AsyncMock()
+    mock_client.get_list.return_value = ClickUpList(
+        id="list123",
+        name="Sprint",
+        statuses=[
+            {"status": "to do", "type": "open", "color": "#aaa", "orderindex": 0},
+            {"status": "complete", "type": "closed", "color": "#0f0", "orderindex": 1},
+        ],
+    )
+
+    def create_mock_client():
+        ctx_mgr = AsyncMock()
+        ctx_mgr.__aenter__.return_value = mock_client
+        return ctx_mgr
+
+    mock_get_client.side_effect = create_mock_client
+
+    result = runner.invoke(app, ["task", "statuses", "--list-id", "list123"])
+
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["list_id"] == "list123"
+    assert data["list_name"] == "Sprint"
+    assert data["count"] == 2
+    assert data["data"][0]["status"] == "to do"
+
+
+def test_task_statuses_missing_list_errors():
+    result = runner.invoke(app, ["task", "statuses"])
+    assert result.exit_code == 1
+    assert "No list ID" in result.stderr
 
 
 def test_task_list_missing_list_id():

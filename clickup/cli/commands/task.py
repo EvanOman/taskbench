@@ -13,6 +13,7 @@ from ..output import (
     render_error,
     render_kv,
     render_message,
+    render_statuses,
     render_task,
     render_tasks,
 )
@@ -370,6 +371,60 @@ def _usage_error(msg: str) -> NoReturn:
     """
     render_error(msg)
     raise typer.Exit(2)
+
+
+def _normalise_status(status: Any) -> dict[str, Any]:
+    """Convert ClickUp status shapes into a stable JSON/table dict."""
+    if isinstance(status, dict):
+        return {
+            "status": status.get("status"),
+            "type": status.get("type"),
+            "color": status.get("color"),
+            "orderindex": status.get("orderindex"),
+        }
+    return {
+        "status": getattr(status, "status", str(status)),
+        "type": getattr(status, "type", None),
+        "color": getattr(status, "color", None),
+        "orderindex": getattr(status, "orderindex", None),
+    }
+
+
+def _statuses_from_list(list_obj: Any) -> list[dict[str, Any]]:
+    """Extract allowed statuses from list metadata returned by ClickUp."""
+    raw_statuses = (getattr(list_obj, "model_extra", None) or {}).get("statuses")
+    if isinstance(raw_statuses, list):
+        return [_normalise_status(status) for status in raw_statuses]
+    list_status = getattr(list_obj, "status", None)
+    if list_status is not None:
+        return [_normalise_status(list_status)]
+    return []
+
+
+@app.command("statuses")
+def list_task_statuses(
+    list_id: str | None = typer.Option(None, "--list-id", "-l", help="List ID or alias to inspect"),
+) -> None:
+    """Show statuses available for a ClickUp list."""
+
+    async def _list_task_statuses() -> None:
+        list_id_to_use = _resolve_list_id(list_id)
+        if not list_id_to_use:
+            render_error("Error: No list ID provided and no default list configured.")
+            console.print("Use --list-id or set a default with 'clickup config set default_list_id <id>'")
+            raise typer.Exit(1)
+
+        try:
+            async with await get_client() as client:
+                list_obj = await client.get_list(list_id_to_use)
+                statuses = _statuses_from_list(list_obj)
+                render_statuses(statuses, list_id=list_obj.id, list_name=list_obj.name)
+
+        except ClickUpError as e:
+            render_error(f"ClickUp API Error: {e}")
+            raise typer.Exit(1) from e
+
+    run_async(_list_task_statuses())
 
 
 # Default status names for the short verb aliases. Intentionally raw strings,

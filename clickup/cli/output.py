@@ -499,6 +499,35 @@ def render_kv(data: dict[str, object], title: str | None = None) -> None:
     _console.print(table)
 
 
+def render_statuses(statuses: list[dict[str, Any]], *, list_id: str, list_name: str | None = None) -> None:
+    """Render statuses available for a ClickUp list."""
+    if get_format() == "json":
+        _print_json(
+            {
+                "list_id": list_id,
+                "list_name": list_name,
+                "data": statuses,
+                "count": len(statuses),
+            }
+        )
+        return
+
+    title = f"Statuses: {list_name}" if list_name else "Statuses"
+    table = Table(title=title, show_header=True)
+    table.add_column("Status", style="cyan")
+    table.add_column("Type", style="green")
+    table.add_column("Color", style="yellow")
+    table.add_column("Order", style="blue")
+    for status in statuses:
+        table.add_row(
+            escape(str(status.get("status") or "")),
+            escape(str(status.get("type") or "")),
+            escape(str(status.get("color") or "")),
+            escape(str(status.get("orderindex") or "")),
+        )
+    _console.print(table)
+
+
 def render_message(msg: str, level: Literal["info", "success", "warn", "error"] = "info") -> None:
     """Print a styled one-line message. Respects ``--format json`` by emitting
     ``{"message": ..., "level": ...}``.
