@@ -8,7 +8,7 @@ from rich.console import Console
 from rich.table import Table
 
 from ..core import ClickUpClient, Config
-from .commands import bulk, config, discover, task, templates, workspace
+from .commands import api, bulk, config, discover, task, templates, workspace
 from .commands import list as list_cmd
 from .commands import setup as setup_cmd
 from .output import FormatChoice, get_format, render_error, set_format
@@ -53,6 +53,7 @@ app.add_typer(list_cmd.app, name="list", rich_help_panel="Workspace navigation")
 app.add_typer(discover.app, name="discover", rich_help_panel="Workspace navigation")
 
 # -- Other ---------------------------------------------------------------
+app.add_typer(api.app, name="api", rich_help_panel="Other")
 app.add_typer(bulk.app, name="bulk", rich_help_panel="Other")
 app.add_typer(templates.app, name="template", rich_help_panel="Other")
 

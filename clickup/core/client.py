@@ -101,6 +101,15 @@ class ClickUpClient:
 
         raise ClickUpError("Max retries exceeded")
 
+    async def raw_request(self, method: str, endpoint: str, **kwargs: Any) -> dict[str, Any]:
+        """Make an authenticated raw ClickUp API request.
+
+        This is the supported escape hatch for endpoints the typed client does
+        not wrap yet. It intentionally reuses the normal request path so auth,
+        base URL handling, retries, and error mapping stay consistent.
+        """
+        return await self._request(method.upper(), endpoint, **kwargs)
+
     # Teams/Workspaces
     async def get_teams(self) -> list[Team]:
         """Get all teams for the authenticated user."""

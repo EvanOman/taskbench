@@ -174,6 +174,18 @@ async def test_delete_task(mock_clickup_client):
 
 
 @pytest.mark.asyncio
+async def test_raw_request_reuses_request_path(mock_clickup_client):
+    """Raw API escape hatch delegates through the normal request helper."""
+    with patch.object(mock_clickup_client, "_request", new_callable=AsyncMock) as mock_request:
+        mock_request.return_value = {"ok": True}
+
+        result = await mock_clickup_client.raw_request("get", "/task/task123", params={"foo": "bar"})
+
+    assert result == {"ok": True}
+    mock_request.assert_awaited_once_with("GET", "/task/task123", params={"foo": "bar"})
+
+
+@pytest.mark.asyncio
 async def test_get_teams(mock_clickup_client, sample_team):
     """Test getting teams."""
     mock_response = Mock()
