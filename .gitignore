@@ -1,6 +1,7 @@
 # Custom
 .claude/*
 !.claude/skills/
+.worktrees/
 
 node_modules/
 dist/
