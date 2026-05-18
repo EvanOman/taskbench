@@ -12,6 +12,7 @@ from .config import Config
 from .json_provider import JsonProvider
 from .models import Comment, Folder, Space, Task, Team, User
 from .models import List as ClickUpList
+from .plane_provider import PlaneProvider
 
 
 class TaskProvider(Protocol):
@@ -74,7 +75,11 @@ def provider_name(config: Config) -> str:
 
 
 def provider_requires_credentials(config: Config) -> bool:
-    """Whether the selected provider needs ClickUp credentials."""
+    """Whether the selected provider needs ClickUp credentials.
+
+    Plane has its own credential check (PLANE_TOKEN env var), so
+    it does NOT require ClickUp credentials.
+    """
     return provider_name(config) == "clickup"
 
 
@@ -86,4 +91,6 @@ def get_provider(config: Config | None = None, console: Console | None = None) -
         return JsonProvider(config, console)
     if name == "clickup":
         return ClickUpClient(config, console)
-    raise ValueError(f"Unknown provider '{name}'. Use 'clickup' or 'json'.")
+    if name == "plane":
+        return PlaneProvider(config, console)
+    raise ValueError(f"Unknown provider '{name}'. Use 'clickup', 'json', or 'plane'.")

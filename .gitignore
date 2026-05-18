@@ -2,6 +2,7 @@
 .claude/*
 !.claude/skills/
 .worktrees/
+plane-stack/
 
 node_modules/
 dist/
