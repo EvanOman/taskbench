@@ -19,6 +19,8 @@ runner = CliRunner()
 def sample_tasks():
     """Sample tasks for testing."""
     tasks = []
+    # date_updated is strictly increasing so sort tests can assert ordering.
+    base_ts = 1_700_000_000_000
     for i, (name, status, priority) in enumerate(
         [
             ("Test Task 1", "to do", "high"),
@@ -35,6 +37,8 @@ def sample_tasks():
         task.assignees = []
         task.due_date = None
         task.description = f"Description for {name}"
+        task.date_created = str(base_ts + i * 1000)
+        task.date_updated = str(base_ts + i * 1000)
         # Fix the closure issue with lambda
         task.__str__ = lambda n=name: n
         task.__repr__ = lambda n=name: f"Task({n})"
@@ -532,6 +536,49 @@ def test_task_list_all_lists_uses_configured_default_lists(mock_get_client, samp
 
 
 @patch("clickup.cli.commands.task.get_client")
+def test_task_list_all_lists_sorts_globally_not_per_list(mock_get_client, sample_tasks, monkeypatch, tmp_path):
+    """--all-lists + --sort merges and sorts globally (issue #29 P0 #3).
+
+    Pre-fix the sort was applied per-list and the buckets were concatenated.
+    Now the merged list is sorted as one set, so the highest-priority task in
+    *any* list wins the top slot.
+    """
+    monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
+    Config().set("default_lists", {"work": "listA", "home": "listB"})
+
+    sample_tasks[0].priority = PriorityInfo(priority="4")  # task1 in listA
+    sample_tasks[1].priority = PriorityInfo(priority="1")  # task2 in listB
+    sample_tasks[2].priority = PriorityInfo(priority="2")  # task3 in listB
+
+    mock_client = AsyncMock()
+    mock_client.get_tasks.side_effect = [[sample_tasks[0]], [sample_tasks[1], sample_tasks[2]]]
+
+    def create_mock_client():
+        ctx_mgr = AsyncMock()
+        ctx_mgr.__aenter__.return_value = mock_client
+        return ctx_mgr
+
+    mock_get_client.side_effect = create_mock_client
+
+    result = runner.invoke(app, ["task", "list", "--all-lists", "--sort", "priority"])
+
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    # Global sort: priority 1, 2, 4. Pre-fix this came back in [listA-then-listB]
+    # concat order, i.e. task1, task2, task3 (priority 4, 1, 2).
+    assert [task["id"] for task in data["data"]] == ["task2", "task3", "task1"]
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_list_sort_unknown_field_is_usage_error(mock_get_client, sample_tasks):
+    """--sort fartfield is rejected (issue #29 P0 #4 / Agent 15)."""
+    _sort_list_mock(mock_get_client, sample_tasks)
+    result = runner.invoke(app, ["task", "list", "--list-id", "L", "--sort", "fartfield"])
+    assert result.exit_code == 2
+    assert "invalid --sort field" in result.stderr
+
+
+@patch("clickup.cli.commands.task.get_client")
 def test_task_statuses_json(mock_get_client):
     """`task statuses` emits allowed list statuses in JSON mode."""
     mock_client = AsyncMock()
@@ -592,72 +639,66 @@ def _sort_list_mock(mock_get_client, sample_tasks):
     return mock_client
 
 
+def _task_ids_in_order(stdout: str, all_ids: list[str]) -> list[str]:
+    """Return task IDs in the order they appear in the rendered table."""
+    positions = [(stdout.find(tid), tid) for tid in all_ids if tid in stdout]
+    return [tid for _, tid in sorted(positions)]
+
+
 @patch("clickup.cli.commands.task.get_client")
 def test_task_list_sort_plain_field_no_reverse(mock_get_client, sample_tasks):
-    """`--sort updated` → order_by=updated, no reverse."""
-    mock_client = _sort_list_mock(mock_get_client, sample_tasks)
+    """`--sort updated` sorts the merged result ascending by date_updated."""
+    _sort_list_mock(mock_get_client, sample_tasks)
     result = runner.invoke(app, ["--format", "table", "task", "list", "--list-id", "L", "--sort", "updated"])
     assert result.exit_code == 0
-    kwargs = mock_client.get_tasks.await_args.kwargs
-    assert kwargs.get("order_by") == "updated"
-    assert "reverse" not in kwargs
+    assert _task_ids_in_order(result.stdout, ["task1", "task2", "task3"]) == ["task1", "task2", "task3"]
 
 
 @patch("clickup.cli.commands.task.get_client")
 def test_task_list_sort_plain_field_with_reverse(mock_get_client, sample_tasks):
-    """Back-compat: `--sort updated --reverse` → order_by=updated, reverse=true."""
-    mock_client = _sort_list_mock(mock_get_client, sample_tasks)
+    """`--sort updated --reverse` sorts descending."""
+    _sort_list_mock(mock_get_client, sample_tasks)
     result = runner.invoke(
         app, ["--format", "table", "task", "list", "--list-id", "L", "--sort", "updated", "--reverse"]
     )
     assert result.exit_code == 0
-    kwargs = mock_client.get_tasks.await_args.kwargs
-    assert kwargs.get("order_by") == "updated"
-    assert kwargs.get("reverse") == "true"
+    assert _task_ids_in_order(result.stdout, ["task1", "task2", "task3"]) == ["task3", "task2", "task1"]
 
 
 @patch("clickup.cli.commands.task.get_client")
 def test_task_list_sort_colon_desc(mock_get_client, sample_tasks):
-    """`--sort updated:desc` → descending."""
-    mock_client = _sort_list_mock(mock_get_client, sample_tasks)
+    """`--sort updated:desc` sorts descending."""
+    _sort_list_mock(mock_get_client, sample_tasks)
     result = runner.invoke(app, ["--format", "table", "task", "list", "--list-id", "L", "--sort", "updated:desc"])
     assert result.exit_code == 0
-    kwargs = mock_client.get_tasks.await_args.kwargs
-    assert kwargs.get("order_by") == "updated"
-    assert kwargs.get("reverse") == "true"
+    assert _task_ids_in_order(result.stdout, ["task1", "task2", "task3"]) == ["task3", "task2", "task1"]
 
 
 @patch("clickup.cli.commands.task.get_client")
 def test_task_list_sort_colon_asc(mock_get_client, sample_tasks):
-    """`--sort updated:asc` → ascending."""
-    mock_client = _sort_list_mock(mock_get_client, sample_tasks)
+    """`--sort updated:asc` sorts ascending."""
+    _sort_list_mock(mock_get_client, sample_tasks)
     result = runner.invoke(app, ["--format", "table", "task", "list", "--list-id", "L", "--sort", "updated:asc"])
     assert result.exit_code == 0
-    kwargs = mock_client.get_tasks.await_args.kwargs
-    assert kwargs.get("order_by") == "updated"
-    assert "reverse" not in kwargs
+    assert _task_ids_in_order(result.stdout, ["task1", "task2", "task3"]) == ["task1", "task2", "task3"]
 
 
 @patch("clickup.cli.commands.task.get_client")
 def test_task_list_sort_minus_prefix(mock_get_client, sample_tasks):
-    """`--sort -updated` → descending (git/jq style)."""
-    mock_client = _sort_list_mock(mock_get_client, sample_tasks)
+    """`--sort -updated` sorts descending (git/jq style)."""
+    _sort_list_mock(mock_get_client, sample_tasks)
     result = runner.invoke(app, ["--format", "table", "task", "list", "--list-id", "L", "--sort", "-updated"])
     assert result.exit_code == 0
-    kwargs = mock_client.get_tasks.await_args.kwargs
-    assert kwargs.get("order_by") == "updated"
-    assert kwargs.get("reverse") == "true"
+    assert _task_ids_in_order(result.stdout, ["task1", "task2", "task3"]) == ["task3", "task2", "task1"]
 
 
 @patch("clickup.cli.commands.task.get_client")
 def test_task_list_sort_plus_prefix(mock_get_client, sample_tasks):
-    """`--sort +updated` → ascending."""
-    mock_client = _sort_list_mock(mock_get_client, sample_tasks)
+    """`--sort +updated` sorts ascending."""
+    _sort_list_mock(mock_get_client, sample_tasks)
     result = runner.invoke(app, ["--format", "table", "task", "list", "--list-id", "L", "--sort", "+updated"])
     assert result.exit_code == 0
-    kwargs = mock_client.get_tasks.await_args.kwargs
-    assert kwargs.get("order_by") == "updated"
-    assert "reverse" not in kwargs
+    assert _task_ids_in_order(result.stdout, ["task1", "task2", "task3"]) == ["task1", "task2", "task3"]
 
 
 def test_task_list_sort_explicit_direction_with_reverse_is_usage_error():

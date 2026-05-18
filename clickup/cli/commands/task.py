@@ -204,6 +204,55 @@ def _parse_sort(sort: str | None, reverse_flag: bool) -> tuple[str | None, bool]
     return field, explicit_desc
 
 
+# Fields we can sort tasks by client-side. Server-side sort isn't reliable
+# (priority in particular isn't natively orderable), and multi-list queries
+# need a global re-sort over the merged result set anyway, so we just sort
+# everything ourselves.
+_SORTABLE_FIELDS = {"created", "updated", "due_date", "priority"}
+
+
+def _task_sort_value(task: Any, field: str) -> int | None:
+    """Return the sortable int value for the chosen field, or None if missing.
+
+    All four sortable fields are epoch-ms strings (created/updated/due_date)
+    or priority strings ("1".."4"). Anything that doesn't coerce to int is
+    treated as missing — mixing types in the sort key would crash ``sorted``.
+    """
+    if field == "priority":
+        raw = task.priority.priority if task.priority is not None else None
+    elif field == "created":
+        raw = task.date_created
+    elif field == "updated":
+        raw = task.date_updated
+    elif field == "due_date":
+        raw = task.due_date
+    else:
+        return None
+    if raw is None:
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return None
+
+
+def _sort_tasks_locally(tasks: list[Any], field: str | None, descending: bool) -> list[Any]:
+    """Globally sort tasks client-side. No-op when ``field`` is None.
+
+    Tasks missing the field always sort last regardless of direction so a
+    pile of None entries never pushes the values an agent actually wants out
+    of the top of a `--reverse` view.
+    """
+    if not field:
+        return tasks
+    if field not in _SORTABLE_FIELDS:
+        _usage_error(f"Error: invalid --sort field '{field}'. Use one of: {', '.join(sorted(_SORTABLE_FIELDS))}.")
+    present = [t for t in tasks if _task_sort_value(t, field) is not None]
+    missing = [t for t in tasks if _task_sort_value(t, field) is None]
+    present.sort(key=lambda t: _task_sort_value(t, field), reverse=descending)
+    return present + missing
+
+
 @app.command("list")
 def list_tasks(
     list_id: str | None = typer.Option(None, "--list-id", "-l", help="List ID to get tasks from"),
@@ -253,10 +302,8 @@ def list_tasks(
                     filters["statuses"] = _split_csv(status)
                 if assignee:
                     filters["assignees"] = [assignee]
-                if order_by:
-                    filters["order_by"] = order_by
-                if descending:
-                    filters["reverse"] = "true"
+                # Sort is applied client-side after the merge so multi-list
+                # queries get a global order, not a per-list-then-concat one.
                 _set_exclusive_date_filter(
                     filters,
                     "date_created_gt",
@@ -277,7 +324,10 @@ def list_tasks(
                     if include_source:
                         list_tasks_result = [_annotate_source_list(task, list_id_to_use) for task in list_tasks_result]
                     tasks.extend(list_tasks_result)
-                # Apply limit
+                # Globally sort, then limit. Doing it in this order is what
+                # makes --sort priority --all-lists produce a true priority
+                # ranking instead of per-list batches.
+                tasks = _sort_tasks_locally(tasks, order_by, descending)
                 tasks = tasks[:limit]
                 render_tasks(tasks)
                 if not tasks:
