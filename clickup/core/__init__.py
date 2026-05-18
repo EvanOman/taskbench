@@ -16,9 +16,11 @@ from .exceptions import (
     ValidationError,
 )
 from .models import Comment, Folder, List, Space, Task, Team, User, Workspace
+from .providers import TaskProvider, get_provider, provider_name, provider_requires_credentials
 
 __all__ = [
     "ClickUpClient",
+    "TaskProvider",
     "Task",
     "Workspace",
     "List",
@@ -28,6 +30,9 @@ __all__ = [
     "Folder",
     "Comment",
     "Config",
+    "get_provider",
+    "provider_name",
+    "provider_requires_credentials",
     "ClickUpError",
     "AuthenticationError",
     "AuthorizationError",

@@ -8,7 +8,7 @@ from rich.console import Console
 from rich.table import Table
 
 from ..core import ClickUpClient, Config
-from .commands import api, bulk, config, discover, task, templates, workspace
+from .commands import api, bulk, config, discover, mock, task, templates, workspace
 from .commands import list as list_cmd
 from .commands import setup as setup_cmd
 from .output import FormatChoice, get_format, render_error, set_format
@@ -43,6 +43,7 @@ def _root_callback(
 # -- Get started --------------------------------------------------------
 app.add_typer(setup_cmd.app, name="setup", rich_help_panel="Get started")
 app.add_typer(config.app, name="config", rich_help_panel="Get started")
+app.add_typer(mock.app, name="mock", rich_help_panel="Get started")
 
 # -- Task workflow -------------------------------------------------------
 app.add_typer(task.app, name="task", rich_help_panel="Task workflow")

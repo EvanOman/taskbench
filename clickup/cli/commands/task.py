@@ -7,7 +7,7 @@ from typing import Any, NoReturn
 import typer
 from rich.console import Console
 
-from ...core import ClickUpClient, ClickUpError, Config
+from ...core import ClickUpError, Config, TaskProvider, get_provider, provider_requires_credentials
 from ..output import (
     get_format,
     render_comment,
@@ -29,16 +29,16 @@ comments_app = typer.Typer(help="Task comment operations")
 app.add_typer(comments_app, name="comments")
 
 
-async def get_client() -> ClickUpClient:
-    """Get configured ClickUp client."""
+async def get_client() -> TaskProvider:
+    """Get configured task provider."""
     config = Config()
-    if not config.has_credentials():
+    if provider_requires_credentials(config) and not config.has_credentials():
         console.print(
             "[red]Error: No ClickUp API token configured. Set CLICKUP_API_KEY in your "
             "environment (or .env), or run 'clickup config set-token <token>'.[/red]"
         )
         raise typer.Exit(1)
-    return ClickUpClient(config, console)
+    return get_provider(config, console)
 
 
 def _resolve_list_id(list_id: str | None) -> str | None:
@@ -130,7 +130,7 @@ def _annotate_source_list(task: Any, list_id: str) -> Any:
     return task
 
 
-async def _resolve_workspace_id(client: ClickUpClient, workspace_id: str | None) -> str:
+async def _resolve_workspace_id(client: TaskProvider, workspace_id: str | None) -> str:
     """Resolve workspace ID from arg, config, or single-workspace auto-detect."""
     if workspace_id:
         return workspace_id
