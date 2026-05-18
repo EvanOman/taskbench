@@ -568,10 +568,11 @@ def test_task_statuses_missing_list_errors():
 
 
 def test_task_list_missing_list_id():
-    """Test task list without list ID."""
+    """Test task list without list ID — error and hint both go to stderr now."""
     result = runner.invoke(app, ["task", "list"])
     assert result.exit_code != 0
-    assert "list" in result.stdout.lower() or "workspace" in result.stdout.lower()
+    # render_error + hint both write to stderr; CliRunner merges into .output by default.
+    assert "list" in result.output.lower() or "workspace" in result.output.lower()
 
 
 # --- task list: --sort direction-aware syntax ---
@@ -701,7 +702,11 @@ def test_task_list_empty(mock_get_client):
     result = runner.invoke(app, ["task", "list", "--list-id", "empty_list"])
 
     assert result.exit_code == 0
-    assert "No tasks found" in result.stdout or len(result.stdout.strip()) == 0
+    # New behavior: always emit an empty data envelope to stdout in JSON mode.
+    # The "No tasks found" warn message goes to stderr.
+    data = json.loads(result.stdout)
+    assert data == {"data": [], "count": 0}
+    assert "No tasks found" in result.output
 
 
 @patch("clickup.cli.commands.task.get_client")
@@ -813,7 +818,11 @@ def test_task_export_json(mock_get_client, sample_tasks):
         result = runner.invoke(app, ["task", "export", "--list-id", "list123", "--output", f.name, "--format", "json"])
 
         assert result.exit_code == 0
-        assert "Exported" in result.stdout
+        # New behavior: structured result envelope, not a success message.
+        data = json.loads(result.stdout)
+        assert data["exported"] >= 0
+        assert data["output_file"] == f.name
+        assert data["format"] == "json"
 
 
 @patch("clickup.cli.commands.task.get_client")

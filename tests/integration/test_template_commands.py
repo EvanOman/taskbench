@@ -156,11 +156,11 @@ def test_template_save_from_task():
 
 
 def test_template_create_missing_list():
-    """Test template create without list ID."""
+    """Test template create without list ID — error + hint go to stderr."""
     result = runner.invoke(app, ["template", "create", "--template", "bug_report"])
 
     assert result.exit_code != 0
-    assert "list-id" in result.stdout
+    assert "list-id" in result.output
 
 
 def test_template_create_missing_template():

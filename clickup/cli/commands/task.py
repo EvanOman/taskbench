@@ -33,9 +33,9 @@ async def get_client() -> TaskProvider:
     """Get configured task provider."""
     config = Config()
     if provider_requires_credentials(config) and not config.has_credentials():
-        console.print(
-            "[red]Error: No ClickUp API token configured. Set CLICKUP_API_KEY in your "
-            "environment (or .env), or run 'clickup config set-token <token>'.[/red]"
+        render_error(
+            "No ClickUp API token configured.",
+            hint="Set CLICKUP_API_KEY in your environment (or .env), or run 'clickup config set-token <token>'.",
         )
         raise typer.Exit(1)
     return get_provider(config, console)
@@ -240,8 +240,10 @@ def list_tasks(
         list_ids_to_use = _resolve_list_ids(list_id, all_lists=all_lists)
 
         if not list_ids_to_use:
-            render_error("Error: No list ID provided and no default list configured.")
-            console.print("Use --list-id or set a default with 'clickup config set default_list_id <id>'")
+            render_error(
+                "Error: No list ID provided and no default list configured.",
+                hint="Use --list-id or set a default with 'clickup config set default_list_id <id>'",
+            )
             raise typer.Exit(1)
 
         try:
@@ -275,13 +277,11 @@ def list_tasks(
                     if include_source:
                         list_tasks_result = [_annotate_source_list(task, list_id_to_use) for task in list_tasks_result]
                     tasks.extend(list_tasks_result)
-                if not tasks:
-                    render_message("No tasks found.", "warn")
-                    return
-
                 # Apply limit
                 tasks = tasks[:limit]
                 render_tasks(tasks)
+                if not tasks:
+                    render_message("No tasks found.", "warn")
 
         except ClickUpError as e:
             render_error(f"ClickUp API Error: {e}")
@@ -341,13 +341,12 @@ def my_tasks(
                     "",
                     **{"assignees[]": [str(user.id)]},
                 )
-                if not tasks:
-                    render_message("No tasks assigned to you.", "warn")
-                    return
-
                 tasks = tasks[:limit]
                 render_tasks(tasks)
-                render_message(f"\nShowing {len(tasks)} task(s) assigned to {user.username}.", "info")
+                if not tasks:
+                    render_message("No tasks assigned to you.", "warn")
+                else:
+                    render_message(f"Showing {len(tasks)} task(s) assigned to {user.username}.", "info")
 
         except ClickUpError as e:
             render_error(f"ClickUp API Error: {e}")
@@ -377,8 +376,10 @@ def create_task(
         list_id_to_use = _resolve_list_id(list_id)
 
         if not list_id_to_use:
-            render_error("Error: No list ID provided and no default list configured.")
-            console.print("Use --list-id or set a default with 'clickup config set default_list_id <id>'")
+            render_error(
+                "Error: No list ID provided and no default list configured.",
+                hint="Use --list-id or set a default with 'clickup config set default_list_id <id>'",
+            )
             raise typer.Exit(1)
 
         config = Config()
@@ -545,8 +546,10 @@ def list_task_statuses(
     async def _list_task_statuses() -> None:
         list_id_to_use = _resolve_list_id(list_id)
         if not list_id_to_use:
-            render_error("Error: No list ID provided and no default list configured.")
-            console.print("Use --list-id or set a default with 'clickup config set default_list_id <id>'")
+            render_error(
+                "Error: No list ID provided and no default list configured.",
+                hint="Use --list-id or set a default with 'clickup config set default_list_id <id>'",
+            )
             raise typer.Exit(1)
 
         try:
@@ -698,8 +701,7 @@ def search_tasks(
 
     async def _search_tasks() -> None:
         if not query:
-            render_error("Error: Search query is required.")
-            console.print("Use --query to specify the search terms")
+            render_error("Error: Search query is required.", hint="Use --query to specify the search terms")
             raise typer.Exit(1)
 
         # Use either workspace_id or team_id (they're the same thing)
@@ -708,19 +710,20 @@ def search_tasks(
             config = Config()
             id_to_use = config.get("default_team_id")
         if not id_to_use:
-            render_error("Error: Workspace ID is required for search.")
-            console.print("Use --workspace-id or --team-id, or set default_team_id in config")
+            render_error(
+                "Error: Workspace ID is required for search.",
+                hint="Use --workspace-id or --team-id, or set default_team_id in config",
+            )
             raise typer.Exit(1)
 
         try:
             async with await get_client() as client:
                 tasks = await client.search_tasks(id_to_use, query)
+                render_tasks(tasks)
                 if not tasks:
                     render_message(f"No tasks found matching '{query}'", "warn")
-                    return
-
-                render_tasks(tasks)
-                render_message(f"\nFound {len(tasks)} task(s)", "info")
+                else:
+                    render_message(f"Found {len(tasks)} task(s)", "info")
 
         except ClickUpError as e:
             render_error(f"ClickUp API Error: {e}")
@@ -742,8 +745,10 @@ def export_tasks(
         list_id_to_use = _resolve_list_id(list_id)
 
         if not list_id_to_use:
-            render_error("Error: No list ID provided and no default list configured.")
-            console.print("Use --list-id or set a default with 'clickup config set default_list_id <id>'")
+            render_error(
+                "Error: No list ID provided and no default list configured.",
+                hint="Use --list-id or set a default with 'clickup config set default_list_id <id>'",
+            )
             raise typer.Exit(1)
 
         try:
@@ -799,7 +804,7 @@ def export_tasks(
                     render_error(f"Unsupported format: {format}")
                     raise typer.Exit(1)
 
-                render_message(f"Exported {len(tasks)} tasks to {output_file}", "success")
+                render_kv({"exported": len(tasks), "output_file": output_file, "format": format.lower()})
 
         except ClickUpError as e:
             render_error(f"ClickUp API Error: {e}")
@@ -821,12 +826,11 @@ def list_comments(
         try:
             async with await get_client() as client:
                 comments = await client.get_task_comments(task_id)
+                render_comments(comments)
                 if not comments:
                     render_message(f"No comments on task {task_id}.", "warn")
-                    return
-
-                render_comments(comments)
-                render_message(f"\n{len(comments)} comment(s)", "info")
+                else:
+                    render_message(f"{len(comments)} comment(s)", "info")
 
         except ClickUpError as e:
             render_error(f"ClickUp API Error: {e}")

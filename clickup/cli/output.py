@@ -538,16 +538,15 @@ def render_statuses(statuses: list[dict[str, Any]], *, list_id: str, list_name: 
 
 def render_message(msg: str, level: Literal["info", "success", "warn", "error"] = "info") -> None:
     """Print a styled one-line message. Respects ``--format json`` by emitting
-    ``{"message": ..., "level": ...}``.
-
-    Errors and warnings go to stderr (via :func:`typer.echo`) so stdout
-    pipelines (which expect data JSON in ``--format json``) stay clean.
+    ``{"message": ..., "level": ...}`` on stderr (info/success/warn/error all
+    route to stderr in JSON mode so stdout stays a single data envelope).
     """
-    err = level in ("error", "warn")
     if get_format() == "json":
-        typer.echo(json.dumps({"message": msg, "level": level}), err=err)
+        # Commentary, warnings, and errors are all stderr-bound in JSON mode
+        # so the data envelope on stdout stays a single parseable JSON value.
+        typer.echo(json.dumps({"message": msg, "level": level}), err=True)
         return
-    if err:
+    if level in ("error", "warn"):
         # Plain text on stderr — keep it dependency-free and trivially
         # capturable by test runners and shell pipelines.
         typer.echo(msg, err=True)
@@ -560,17 +559,24 @@ def render_message(msg: str, level: Literal["info", "success", "warn", "error"] 
     _console.print(f"[{style}]{escape(msg)}[/{style}]")
 
 
-def render_error(msg: str) -> None:
+def render_error(msg: str, hint: str | None = None) -> None:
     """Emit an error to stderr.
 
-    In ``--format json`` mode emits ``{"error": ...}`` to stderr so stdout
-    pipelines (which expect data JSON) are not corrupted.
+    In ``--format json`` mode emits ``{"error": msg, "hint": hint}`` to stderr
+    (``hint`` omitted when ``None``) so stdout pipelines (which expect data
+    JSON) are not corrupted. In table mode emits the message and the hint
+    on separate stderr lines.
 
     Caller is responsible for raising ``typer.Exit(code)`` after this returns.
     Convention: ``code=1`` for runtime/API errors, ``code=2`` for usage errors
     (missing required flags, invalid input, etc.).
     """
     if get_format() == "json":
-        typer.echo(json.dumps({"error": msg}), err=True)
+        payload: dict[str, str] = {"error": msg}
+        if hint:
+            payload["hint"] = hint
+        typer.echo(json.dumps(payload), err=True)
     else:
         typer.echo(msg, err=True)
+        if hint:
+            typer.echo(hint, err=True)

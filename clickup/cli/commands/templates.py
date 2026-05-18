@@ -21,9 +21,9 @@ async def get_client() -> TaskProvider:
     """Get configured task provider."""
     config = Config()
     if provider_requires_credentials(config) and not config.has_credentials():
-        console.print(
-            "[red]Error: No ClickUp API token configured. Set CLICKUP_API_KEY in your "
-            "environment (or .env), or run 'clickup config set-token <token>'.[/red]"
+        render_error(
+            "No ClickUp API token configured.",
+            hint="Set CLICKUP_API_KEY in your environment (or .env), or run 'clickup config set-token <token>'.",
         )
         raise typer.Exit(1)
     return get_provider(config, console)
@@ -304,13 +304,17 @@ def create_from_template(
         list_id_to_use = list_id or config.get("default_list_id")
 
         if not list_id_to_use:
-            render_error("Error: No list ID provided and no default list configured.")
-            console.print("Use --list-id or set a default with 'clickup config set default_list_id <id>'")
+            render_error(
+                "Error: No list ID provided and no default list configured.",
+                hint="Use --list-id or set a default with 'clickup config set default_list_id <id>'",
+            )
             raise typer.Exit(1)
 
         if not template_name and not template_file:
-            render_error("Error: Either template name or template file is required.")
-            console.print("Use --template for built-in templates or --template-file for custom templates")
+            render_error(
+                "Error: Either template name or template file is required.",
+                hint="Use --template for built-in templates or --template-file for custom templates",
+            )
             raise typer.Exit(1)
 
         built_in = load_built_in_templates()

@@ -86,7 +86,8 @@ def test_bulk_export_csv(mock_get_client, sample_tasks_json):
         result = runner.invoke(app, ["bulk", "export-tasks", "--list-id", "123", "--format", "csv", "--output", f.name])
 
         assert result.exit_code == 0
-        assert "Exported 3 tasks" in result.stdout
+        data = json.loads(result.stdout)
+        assert data == {"exported": 3, "output_file": f.name, "format": "csv"}
 
 
 @patch("clickup.cli.commands.bulk.get_client")
@@ -110,7 +111,8 @@ def test_bulk_export_json(mock_get_client, sample_tasks_json):
         )
 
         assert result.exit_code == 0
-        assert "Exported 3 tasks" in result.stdout
+        data = json.loads(result.stdout)
+        assert data == {"exported": 3, "output_file": f.name, "format": "json"}
 
 
 @patch("clickup.cli.commands.bulk.get_client")
@@ -151,7 +153,9 @@ def test_bulk_import_json_actual(mock_get_client, sample_tasks_json):
         result = runner.invoke(app, ["bulk", "import-tasks", f.name, "--list-id", "123", "--yes"])
 
         assert result.exit_code == 0
-        assert "3 created" in result.stdout
+        # New behavior: structured counts envelope (render_kv), not a success message.
+        assert '"created": 3' in result.stdout
+        assert '"failed": 0' in result.stdout
 
 
 @patch("clickup.cli.commands.bulk.get_client")
@@ -216,7 +220,9 @@ def test_bulk_update_tasks(mock_get_client):
     result = runner.invoke(app, ["bulk", "bulk-update", "--list-id", "123", "--status", "in progress", "--yes"])
 
     assert result.exit_code == 0
-    assert "2 updated" in result.stdout
+    # New behavior: structured counts envelope, not a success message.
+    assert '"updated": 2' in result.stdout
+    assert '"failed": 0' in result.stdout
 
 
 @patch("clickup.cli.commands.bulk.get_client")

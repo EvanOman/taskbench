@@ -123,12 +123,7 @@ async def test_list_get_details(mock_get_client, sample_list_detail):
 async def test_list_create_in_folder(mock_get_client):
     """Test creating a list in a folder."""
     mock_client = AsyncMock()
-    created_list = Mock()
-    created_list.id = "new_list"
-    created_list.name = "New List"
-    created_list.__str__ = lambda self: "New List"
-    created_list.__repr__ = lambda self: "List(New List)"
-    mock_client.create_list.return_value = created_list
+    mock_client.create_list.return_value = ClickUpList(id="new_list", name="New List", task_count=0)
 
     # Create a new mock each time to avoid coroutine reuse
     def create_mock_client():
@@ -139,11 +134,12 @@ async def test_list_create_in_folder(mock_get_client):
     mock_get_client.side_effect = create_mock_client
 
     result = runner.invoke(
-        app, ["list", "create", "New List", "--folder-id", "folder123", "--content", "A new test list"]
+        app,
+        ["--format", "table", "list", "create", "New List", "--folder-id", "folder123", "--content", "A new test list"],
     )
 
     assert result.exit_code == 0
-    assert "Created list" in result.stdout
+    # New behavior: list create renders the new list as a data envelope, not a success message.
     assert "New List" in result.stdout
 
 
@@ -151,27 +147,30 @@ async def test_list_create_in_folder(mock_get_client):
 async def test_list_create_in_space(mock_get_client):
     """Test creating a folderless list in a space."""
     mock_client = AsyncMock()
-    mock_client.create_folderless_list.return_value = Mock(id="new_list", name="Folderless List")
+    mock_client.create_folderless_list.return_value = ClickUpList(id="new_list", name="Folderless List", task_count=0)
     mock_get_client.return_value.__aenter__.return_value = mock_client
 
-    result = runner.invoke(app, ["list", "create", "Folderless List", "--space-id", "space123"])
+    result = runner.invoke(app, ["--format", "table", "list", "create", "Folderless List", "--space-id", "space123"])
 
     assert result.exit_code == 0
-    assert "Created list" in result.stdout
+    # New behavior: rendered list (not success message).
+    assert "Folderless List" in result.stdout
 
 
 def test_list_show_missing_params():
     """Test list show command without required parameters."""
     result = runner.invoke(app, ["list", "show"])
     assert result.exit_code != 0
-    assert "folder-id" in result.stdout or "space-id" in result.stdout
+    # render_error + hint write to stderr (CliRunner.stderr would capture it,
+    # but mix_stderr=True merges both streams into .output).
+    assert "folder-id" in result.output or "space-id" in result.output
 
 
 def test_list_get_missing_id():
     """Test list get command without list ID."""
     result = runner.invoke(app, ["list", "get"])
     assert result.exit_code != 0
-    assert "list-id" in result.stdout
+    assert "list-id" in result.output
 
 
 def test_list_create_missing_params():
@@ -218,12 +217,7 @@ async def test_list_get_not_found(mock_get_client):
 async def test_list_create_with_all_options(mock_get_client):
     """Test creating a list with all available options."""
     mock_client = AsyncMock()
-    created_list = Mock()
-    created_list.id = "feature_list"
-    created_list.name = "Feature List"
-    created_list.__str__ = lambda self: "Feature List"
-    created_list.__repr__ = lambda self: "List(Feature List)"
-    mock_client.create_list.return_value = created_list
+    mock_client.create_list.return_value = ClickUpList(id="feature_list", name="Feature List", task_count=0)
 
     # Create a new mock each time to avoid coroutine reuse
     def create_mock_client():
@@ -236,6 +230,8 @@ async def test_list_create_with_all_options(mock_get_client):
     result = runner.invoke(
         app,
         [
+            "--format",
+            "table",
             "list",
             "create",
             "Feature List",
@@ -251,7 +247,8 @@ async def test_list_create_with_all_options(mock_get_client):
     )
 
     assert result.exit_code == 0
-    assert "Created list" in result.stdout
+    # New behavior: rendered list (not success message).
+    assert "Feature List" in result.stdout
 
 
 def test_list_help():

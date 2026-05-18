@@ -232,9 +232,9 @@ def validate_auth() -> None:
     async def _validate() -> None:
         config = Config()
         if provider_requires_credentials(config) and not config.has_credentials():
-            render_error("❌ No API credentials configured")
-            console.print(
-                "Set CLICKUP_API_KEY in your environment (or .env), or run 'clickup config set-token <token>'."
+            render_error(
+                "❌ No API credentials configured",
+                hint="Set CLICKUP_API_KEY in your environment (or .env), or run 'clickup config set-token <token>'.",
             )
             raise typer.Exit(1)
 
@@ -275,8 +275,10 @@ def whoami() -> None:
     async def _whoami() -> None:
         config = Config()
         if provider_requires_credentials(config) and not config.has_credentials():
-            render_error("No API credentials configured.")
-            console.print("Set CLICKUP_API_KEY or run 'clickup setup run'.")
+            render_error(
+                "No API credentials configured.",
+                hint="Set CLICKUP_API_KEY or run 'clickup setup run'.",
+            )
             raise typer.Exit(1)
 
         try:

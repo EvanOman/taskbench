@@ -10,7 +10,7 @@ from rich.console import Console
 from rich.table import Table
 
 from ...core import ClickUpError, Config, TaskProvider, get_provider, provider_requires_credentials
-from ..output import render_error
+from ..output import render_error, render_kv
 from ..utils import run_async
 
 app = typer.Typer(help="Bulk operations and import/export")
@@ -21,9 +21,9 @@ async def get_client() -> TaskProvider:
     """Get configured task provider."""
     config = Config()
     if provider_requires_credentials(config) and not config.has_credentials():
-        console.print(
-            "[red]Error: No ClickUp API token configured. Set CLICKUP_API_KEY in your "
-            "environment (or .env), or run 'clickup config set-token <token>'.[/red]"
+        render_error(
+            "No ClickUp API token configured.",
+            hint="Set CLICKUP_API_KEY in your environment (or .env), or run 'clickup config set-token <token>'.",
         )
         raise typer.Exit(1)
     return get_provider(config, console)
@@ -43,8 +43,10 @@ def export_tasks(
         list_id_to_use = list_id or config.get("default_list_id")
 
         if not list_id_to_use:
-            render_error("Error: No list ID provided and no default list configured.")
-            console.print("Use --list-id or set a default with 'clickup config set default_list_id <id>'")
+            render_error(
+                "Error: No list ID provided and no default list configured.",
+                hint="Use --list-id or set a default with 'clickup config set default_list_id <id>'",
+            )
             raise typer.Exit(1)
 
         try:
@@ -113,7 +115,7 @@ def export_tasks(
                 else:
                     render_error(f"Unsupported format: {format}")
                     raise typer.Exit(1) from None
-                console.print(f"✅ Exported {len(tasks)} tasks to {output_file}")
+                render_kv({"exported": len(tasks), "output_file": output_file, "format": format.lower()})
 
         except ClickUpError as e:
             render_error(f"ClickUp API Error: {e}")
@@ -149,8 +151,10 @@ def import_tasks(
         list_id_to_use = list_id or config.get("default_list_id")
 
         if not list_id_to_use:
-            render_error("Error: No list ID provided and no default list configured.")
-            console.print("Use --list-id or set a default with 'clickup config set default_list_id <id>'")
+            render_error(
+                "Error: No list ID provided and no default list configured.",
+                hint="Use --list-id or set a default with 'clickup config set default_list_id <id>'",
+            )
             raise typer.Exit(1)
 
         try:
@@ -241,7 +245,7 @@ def import_tasks(
                             )
                             failed_count += 1
 
-                console.print(f"✅ Import completed: {created_count} created, {failed_count} failed")
+                render_kv({"created": created_count, "failed": failed_count})
 
         except ClickUpError as e:
             render_error(f"ClickUp API Error: {e}")
@@ -279,8 +283,10 @@ def bulk_update(
         list_id_to_use = list_id or config.get("default_list_id")
 
         if not list_id_to_use:
-            render_error("Error: No list ID provided and no default list configured.")
-            console.print("Use --list-id or set a default with 'clickup config set default_list_id <id>'")
+            render_error(
+                "Error: No list ID provided and no default list configured.",
+                hint="Use --list-id or set a default with 'clickup config set default_list_id <id>'",
+            )
             raise typer.Exit(1)
 
         if not any([new_status, new_priority, new_assignee]):
@@ -353,7 +359,7 @@ def bulk_update(
                         console.print(f"[yellow]Failed to update task '{task.name}': {e}[/yellow]")
                         failed_count += 1
 
-                console.print(f"✅ Bulk update completed: {updated_count} updated, {failed_count} failed")
+                render_kv({"updated": updated_count, "failed": failed_count})
 
         except ClickUpError as e:
             render_error(f"ClickUp API Error: {e}")

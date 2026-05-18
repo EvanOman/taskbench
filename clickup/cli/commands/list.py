@@ -17,9 +17,9 @@ async def get_client() -> TaskProvider:
     """Get configured task provider."""
     config = Config()
     if provider_requires_credentials(config) and not config.has_credentials():
-        console.print(
-            "[red]Error: No ClickUp API token configured. Set CLICKUP_API_KEY in your "
-            "environment (or .env), or run 'clickup config set-token <token>'.[/red]"
+        render_error(
+            "No ClickUp API token configured.",
+            hint="Set CLICKUP_API_KEY in your environment (or .env), or run 'clickup config set-token <token>'.",
         )
         raise typer.Exit(1)
     return get_provider(config, console)
@@ -39,8 +39,10 @@ def list_lists(
 
     async def _list_lists() -> None:
         if not folder_id and not space_id:
-            render_error("Error: Either folder ID or space ID is required.")
-            console.print("Use --folder-id for lists in a folder or --space-id for folderless lists")
+            render_error(
+                "Error: Either folder ID or space ID is required.",
+                hint="Use --folder-id for lists in a folder or --space-id for folderless lists",
+            )
             raise typer.Exit(1)
 
         try:
@@ -68,8 +70,10 @@ def get_list(list_id: str | None = typer.Option(None, "--list-id", "-l", help="L
         list_id_to_use = _resolve_list_id(list_id)
 
         if not list_id_to_use:
-            render_error("Error: No list ID provided and no default list configured.")
-            console.print("Use --list-id or set a default with 'clickup config set default_list_id <id>'")
+            render_error(
+                "Error: No list ID provided and no default list configured.",
+                hint="Use --list-id or set a default with 'clickup config set default_list_id <id>'",
+            )
             raise typer.Exit(1)
 
         try:
@@ -98,8 +102,10 @@ def create_list(
 
     async def _create_list() -> None:
         if not folder_id and not space_id:
-            render_error("Error: Either folder ID or space ID is required.")
-            console.print("Use --folder-id to create list in a folder or --space-id for folderless list")
+            render_error(
+                "Error: Either folder ID or space ID is required.",
+                hint="Use --folder-id to create list in a folder or --space-id for folderless list",
+            )
             raise typer.Exit(1)
 
         try:
@@ -121,7 +127,7 @@ def create_list(
                     # space_id is guaranteed non-None here due to the check above
                     assert space_id is not None
                     list_item = await client.create_folderless_list(space_id, **list_data)
-                console.print(f"✅ Created list: {list_item.name} (ID: {list_item.id})")
+                render_list(list_item)
 
         except ClickUpError as e:
             render_error(f"ClickUp API Error: {e}")

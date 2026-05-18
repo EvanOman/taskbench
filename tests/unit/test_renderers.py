@@ -562,13 +562,14 @@ def test_render_message_error_to_stderr(capsys):
     assert "oops" in captured.err
 
 
-def test_render_message_json_info_to_stdout(capsys):
+def test_render_message_json_info_to_stderr(capsys):
+    """In JSON mode info messages go to stderr so stdout stays a single data envelope."""
     set_format("json")
     render_message("hi", "info")
     captured = capsys.readouterr()
-    data = json.loads(captured.out)
+    data = json.loads(captured.err)
     assert data == {"message": "hi", "level": "info"}
-    assert captured.err == ""
+    assert captured.out == ""
 
 
 def test_render_message_json_warn_to_stderr(capsys):
