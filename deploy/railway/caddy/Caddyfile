@@ -1,0 +1,78 @@
+# Caddy reverse proxy for Planka on Railway
+#
+# Architecture:
+#   [Internet] -> Railway edge (TLS) -> Caddy (port 80) -> planka.railway.internal:1337
+#
+# Caddy's role: inject security headers that Planka doesn't ship with, and
+# keep Planka itself private (no public domain on the planka service).
+#
+# Closes the following findings from the security audit:
+#   - Missing HSTS / CSP / X-Frame-Options / X-Content-Type-Options
+#   - Missing Referrer-Policy / Permissions-Policy
+#   - Missing Cross-Origin-* isolation headers
+#   - File-upload XSS hardening (nosniff + sandbox CSP on /attachments/*)
+
+{
+	# Railway terminates TLS at the edge; Caddy speaks plain HTTP behind it.
+	auto_https off
+
+	# Quiet the admin endpoint — we don't expose Caddy's admin API.
+	admin off
+
+	# Production logging
+	log {
+		output stdout
+		format console
+		level INFO
+	}
+
+	# Trust Railway's edge proxy so X-Forwarded-For / X-Forwarded-Proto are honored
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+# Listen on the port Railway routes to (default 80).
+:80 {
+	# Default security headers on every response.
+	header {
+		Strict-Transport-Security  "max-age=63072000; includeSubDomains; preload"
+		X-Frame-Options            "DENY"
+		X-Content-Type-Options     "nosniff"
+		Referrer-Policy            "strict-origin-when-cross-origin"
+		Permissions-Policy         "camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), accelerometer=(), gyroscope=(), interest-cohort=()"
+		Cross-Origin-Opener-Policy "same-origin"
+		Cross-Origin-Resource-Policy "same-site"
+
+		# CSP. 'unsafe-inline' for scripts is required because Planka injects an
+		# inline boot script (`<script>window.BASE_PATH=''</script>`). We could
+		# refine later with a hash or nonce after PRing upstream.
+		Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' wss: https:; media-src 'self' blob:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+
+		# Strip Planka/Railway fingerprinting that the audit flagged.
+		-Server
+		-X-Powered-By
+		-X-Exit
+	}
+
+	# Extra-strict headers on attachment downloads. The audit found that
+	# Planka serves user-uploaded HTML/SVG with the actual MIME type; the
+	# attachment Content-Disposition is the only safety. Belt + braces:
+	# enforce nosniff and an in-context CSP sandbox so any rendered content
+	# can't reach back to the origin.
+	@attachments path /attachments/* /api/cards/*/attachments*
+	header @attachments {
+		X-Content-Type-Options          "nosniff"
+		Content-Security-Policy         "sandbox; default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'"
+		Cross-Origin-Resource-Policy    "same-site"
+		Content-Disposition             "attachment"
+	}
+
+	# Reverse proxy to the internal Planka service.
+	# Caddy auto-detects Socket.io WebSocket upgrades and proxies them.
+	reverse_proxy http://planka.railway.internal:1337 {
+		header_up X-Real-IP         {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-Host  {host}
+	}
+}

@@ -4,7 +4,12 @@ Deploy the Planka Kanban board to [Railway](https://railway.com) for the clickup
 
 ## Deployed URL
 
-**Live:** [https://planka-production-1c15.up.railway.app](https://planka-production-1c15.up.railway.app)
+**Live:** [https://caddy-production-5cac.up.railway.app](https://caddy-production-5cac.up.railway.app)
+
+> The public entrypoint is a **Caddy reverse proxy** that injects security
+> headers. The Planka container itself is no longer publicly exposed — it only
+> answers traffic from Caddy via Railway's private network. See `caddy/` for
+> the proxy config and what it closes from the security audit.
 
 Admin login: `admin` / *(password lives in Railway env vars only — see `.secrets/railway-deploy.env` locally)*
 
@@ -19,12 +24,17 @@ To continue after the trial, add a credit card and upgrade to the Hobby plan ($5
 
 ## Architecture
 
-Two Railway services in a single project (`clickup-tools-planka`):
+Three Railway services in a single project (`clickup-tools-planka`):
 
-| Service | Type | Notes |
-|---------|------|-------|
-| **Postgres** | Railway managed add-on | Automatic backups, shared `DATABASE_URL` variable |
-| **Planka** | Docker image `ghcr.io/plankanban/planka:latest` | Persistent volume at `/app/private` for uploads |
+| Service | Type | Public? | Notes |
+|---------|------|---------|-------|
+| **caddy** | `caddy:2-alpine` | **Yes** (port 80) | Reverse proxy; injects security headers; only public entrypoint. Config in `caddy/Caddyfile`, shipped to Railway via `CADDYFILE_CONTENT` env var. |
+| **planka** | `ghcr.io/plankanban/planka@sha256:…` (digest-pinned) | No | Internal-only at `planka.railway.internal:1337`. Persistent volume at `/app/private`. |
+| **postgres** | `postgres:15-alpine` | No | Internal-only at `postgres.railway.internal:5432`. Persistent volume at `/var/lib/postgresql/data`. |
+
+Caddy is what closes the bulk of the security audit's medium-severity findings
+(see `caddy/README.md` for the full list). Planka being internal-only means the
+only attack surface is Caddy + Railway's edge.
 
 ## Bootstrap from scratch
 
@@ -79,9 +89,22 @@ Both services need volumes:
 
 Add via the `volumeCreate` GraphQL mutation, or in the Railway dashboard under each service's Settings → Volumes.
 
-### 6. Create a public domain for Planka
+### 6. Set up the Caddy reverse proxy
 
-Use `serviceDomainCreate` with `targetPort: 1337` (Planka's default). Then set `BASE_URL=https://<assigned-domain>` on the Planka service.
+Planka itself should NOT have a public domain — only Caddy. Create a `caddy`
+service from `caddy:2-alpine`, set `CADDYFILE_CONTENT` to the contents of
+`caddy/Caddyfile`, override `startCommand` to materialize the Caddyfile at
+runtime, then add a public domain at port 80 to the caddy service:
+
+```sh
+# startCommand
+sh -c 'echo "$CADDYFILE_CONTENT" > /etc/caddy/Caddyfile && caddy run --config /etc/caddy/Caddyfile --adapter caddyfile'
+```
+
+Finally, set `BASE_URL=https://<caddy-domain>` on the Planka service so its
+generated absolute URLs reference the public entrypoint.
+
+See `caddy/README.md` for what the proxy closes from the security audit.
 
 In the Railway dashboard, set these on the **Planka** service:
 
@@ -117,7 +140,7 @@ After the deployment is live, populate it with the 25-task TaskFlow dataset:
 
 ```bash
 # From the repo root (or adapter-planka worktree root)
-export PLANKA_URL=https://planka-production-1c15.up.railway.app
+export PLANKA_URL=https://caddy-production-5cac.up.railway.app
 export PLANKA_PASSWORD='<admin password from Railway env vars>'
 ./deploy/railway/seed-cloud.sh
 ```
@@ -132,7 +155,7 @@ PLANKA_URL=https://... PLANKA_PASSWORD='...' uv run python seed.py
 
 ```bash
 export CLICKUP_PROVIDER=planka
-export PLANKA_URL=https://planka-production-1c15.up.railway.app
+export PLANKA_URL=https://caddy-production-5cac.up.railway.app
 export PLANKA_EMAIL=admin@taskflow.cloud
 export PLANKA_PASSWORD='...'
 
@@ -148,7 +171,7 @@ Option B — Delete all Planka projects via the API:
 
 ```python
 from plankapy.v2 import Planka
-p = Planka("https://planka-production-1c15.up.railway.app")
+p = Planka("https://caddy-production-5cac.up.railway.app")
 p.login(username="admin", password="...", accept_terms=True)
 for proj in p.projects:
     proj.delete()
