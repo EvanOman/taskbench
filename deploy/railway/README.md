@@ -4,7 +4,9 @@ Deploy the Planka Kanban board to [Railway](https://railway.com) for the clickup
 
 ## Deployed URL
 
-> **TBD** — set after initial deployment (e.g. `https://planka-prod-xxxx.up.railway.app`)
+**Live:** [https://planka-production-1c15.up.railway.app](https://planka-production-1c15.up.railway.app)
+
+Admin login: `admin` / *(password lives in Railway env vars only — see `.secrets/railway-deploy.env` locally)*
 
 ## Cost expectations
 
@@ -28,45 +30,58 @@ Two Railway services in a single project (`clickup-tools-planka`):
 
 If you need to recreate the project (e.g. after deleting it):
 
-### 1. Sign up / log in
+### 1. Sign up at Railway
+
+Sign up at https://railway.com with GitHub OAuth (cleanest path — Railway gets your verified identity from GitHub and skips email/phone verification).
+
+> **Heads up:** Railway's login UI is protected by Cloudflare Turnstile, which defeats headless browser automation. Signup is a manual one-time step. The rest of provisioning is fully scriptable.
+
+### 2. Get an API token
+
+Go to https://railway.com/account/tokens and create a personal token. Note: the CLI's `railway login --browserless` requires an interactive TTY which isn't always available — the API token path is more reliable for automation.
 
 ```bash
-# Install Railway CLI
-curl -sSL https://railway.com/install.sh | sh
-
-# Browserless login (generates a code to enter at railway.com/activate)
-railway login --browserless
+export RAILWAY_API_TOKEN=<your-token>
 ```
 
-Or sign up at https://railway.com with GitHub or email.
+### 3. Create the project via API
 
-### 2. Create the project
+The CLI's `whoami` query may fail with some token types, but the GraphQL API works. Project creation:
 
 ```bash
-railway init --name clickup-tools-planka
+curl -sS -X POST https://backboard.railway.com/graphql/v2 \
+  -H "Authorization: Bearer $RAILWAY_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"mutation { projectCreate(input: {name: \"clickup-tools-planka\"}) { id name } }"}'
 ```
 
-### 3. Add Postgres
+Save the returned project ID.
 
-```bash
-railway add --database postgres
-```
+### 4. Add Postgres + Planka services with env vars inline
 
-### 4. Add Planka service from Docker image
+**Important:** Create services with all env variables set inline (in `ServiceCreateInput.variables`). Editing variables after creation triggers redeploys, and if Planka has already created the default admin user, the next redeploy will crash trying to re-insert it. Set everything in one shot.
 
-```bash
-railway add --image ghcr.io/plankanban/planka:latest --service planka
-```
+See `deploy/railway/bootstrap.sh` (or the seed script below) for the exact GraphQL calls. Required env vars per service:
 
-### 5. Add a persistent volume
+| Service | Env vars |
+|---------|----------|
+| Postgres | `POSTGRES_DB=planka`, `POSTGRES_USER=planka`, `POSTGRES_PASSWORD=<random>`, `PGDATA=/var/lib/postgresql/data/pgdata` |
+| Planka | All vars in `planka.env.example` |
 
-In the Railway dashboard, select the Planka service and add a volume:
-- **Mount path:** `/app/private`
-- **Size:** 1 GB (default)
+### 5. Add persistent volumes
 
-> Note: Volumes cannot be added via CLI as of Railway CLI v4.x.
+Both services need volumes:
 
-### 6. Configure environment variables
+| Service | Mount path |
+|---------|------------|
+| Postgres | `/var/lib/postgresql/data` |
+| Planka | `/app/private` |
+
+Add via the `volumeCreate` GraphQL mutation, or in the Railway dashboard under each service's Settings → Volumes.
+
+### 6. Create a public domain for Planka
+
+Use `serviceDomainCreate` with `targetPort: 1337` (Planka's default). Then set `BASE_URL=https://<assigned-domain>` on the Planka service.
 
 In the Railway dashboard, set these on the **Planka** service:
 
@@ -102,7 +117,7 @@ After the deployment is live, populate it with the 25-task TaskFlow dataset:
 
 ```bash
 # From the repo root (or adapter-planka worktree root)
-export PLANKA_URL=https://planka-prod-xxxx.up.railway.app
+export PLANKA_URL=https://planka-production-1c15.up.railway.app
 export PLANKA_PASSWORD='<admin password from Railway env vars>'
 ./deploy/railway/seed-cloud.sh
 ```
@@ -117,7 +132,7 @@ PLANKA_URL=https://... PLANKA_PASSWORD='...' uv run python seed.py
 
 ```bash
 export CLICKUP_PROVIDER=planka
-export PLANKA_URL=https://planka-prod-xxxx.up.railway.app
+export PLANKA_URL=https://planka-production-1c15.up.railway.app
 export PLANKA_EMAIL=admin@taskflow.cloud
 export PLANKA_PASSWORD='...'
 
@@ -133,7 +148,7 @@ Option B — Delete all Planka projects via the API:
 
 ```python
 from plankapy.v2 import Planka
-p = Planka("https://planka-prod-xxxx.up.railway.app")
+p = Planka("https://planka-production-1c15.up.railway.app")
 p.login(username="admin", password="...", accept_terms=True)
 for proj in p.projects:
     proj.delete()
