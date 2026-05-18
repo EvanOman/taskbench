@@ -75,7 +75,8 @@ def provider_name(config: Config) -> str:
 
 def provider_requires_credentials(config: Config) -> bool:
     """Whether the selected provider needs ClickUp credentials."""
-    return provider_name(config) == "clickup"
+    name = provider_name(config)
+    return name in {"clickup", "planka"}
 
 
 def get_provider(config: Config | None = None, console: Console | None = None) -> TaskProvider:
@@ -86,4 +87,8 @@ def get_provider(config: Config | None = None, console: Console | None = None) -
         return JsonProvider(config, console)
     if name == "clickup":
         return ClickUpClient(config, console)
-    raise ValueError(f"Unknown provider '{name}'. Use 'clickup' or 'json'.")
+    if name == "planka":
+        from .planka_provider import PlankaProvider
+
+        return PlankaProvider(config, console)
+    raise ValueError(f"Unknown provider '{name}'. Use 'clickup', 'json', or 'planka'.")

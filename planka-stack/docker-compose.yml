@@ -1,0 +1,37 @@
+services:
+  planka:
+    image: ghcr.io/plankanban/planka:latest
+    restart: on-failure
+    volumes:
+      - planka-data:/app/data
+    ports:
+      - "18920:1337"
+    environment:
+      - BASE_URL=http://localhost:18920
+      - DATABASE_URL=postgresql://postgres@postgres/planka
+      - SECRET_KEY=a3f8d2e1b9c7456089abcdef12345678fedcba9876543210
+      - DEFAULT_ADMIN_EMAIL=admin@local
+      - DEFAULT_ADMIN_PASSWORD=Planka!Admin2025#Secure
+      - DEFAULT_ADMIN_NAME=Admin
+      - DEFAULT_ADMIN_USERNAME=admin
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16-alpine
+    restart: on-failure
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=planka
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d planka"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  planka-data:
+  postgres-data:
