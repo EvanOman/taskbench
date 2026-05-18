@@ -1,5 +1,7 @@
 """Task management commands."""
 
+import re
+from datetime import UTC, datetime, timedelta
 from typing import Any, NoReturn
 
 import typer
@@ -42,6 +44,90 @@ async def get_client() -> ClickUpClient:
 def _resolve_list_id(list_id: str | None) -> str | None:
     """Resolve a list ID, expanding configured aliases."""
     return Config().resolve_list_id(list_id)
+
+
+def _split_csv(value: str | None) -> list[str]:
+    """Split a comma-separated CLI value, trimming whitespace and rejecting empties."""
+    if value is None:
+        return []
+    parts = [part.strip() for part in value.split(",")]
+    if not parts or any(not part for part in parts):
+        _usage_error(f"Error: empty value in comma-separated argument '{value}'.")
+    return parts
+
+
+def _resolve_list_ids(list_id: str | None, *, all_lists: bool = False) -> list[str]:
+    """Resolve one or more list IDs/aliases from CLI input."""
+    config = Config()
+    if all_lists:
+        aliases: dict[str, str] = config.get("default_lists") or {}
+        if not aliases:
+            _usage_error("Error: --all-lists requires configured default_lists aliases.")
+        return list(aliases.values())
+
+    raw_values = _split_csv(list_id)
+    if not raw_values:
+        resolved = config.resolve_list_id(None)
+        return [resolved] if resolved else []
+    return [resolved for raw in raw_values if (resolved := config.resolve_list_id(raw))]
+
+
+_RELATIVE_TIME_RE = re.compile(r"^(?P<count>\d+)(?P<unit>[dhw])$")
+
+
+def _epoch_ms(value: str) -> int:
+    """Parse an epoch-ms, ISO date/datetime, or relative duration into epoch milliseconds."""
+    trimmed = value.strip()
+    if not trimmed:
+        _usage_error("Error: date filter value is empty.")
+    if trimmed.isdigit():
+        return int(trimmed)
+
+    relative = _RELATIVE_TIME_RE.match(trimmed.lower())
+    if relative:
+        count = int(relative.group("count"))
+        unit = relative.group("unit")
+        delta = {
+            "d": timedelta(days=count),
+            "h": timedelta(hours=count),
+            "w": timedelta(weeks=count),
+        }[unit]
+        return int((datetime.now(tz=UTC) - delta).timestamp() * 1000)
+
+    try:
+        if len(trimmed) == 10 and trimmed[4] == "-" and trimmed[7] == "-":
+            dt = datetime.fromisoformat(trimmed).replace(tzinfo=UTC)
+        else:
+            dt = datetime.fromisoformat(trimmed.replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=UTC)
+            else:
+                dt = dt.astimezone(UTC)
+    except ValueError as exc:
+        _ = exc
+        _usage_error(
+            "Error: date filters accept epoch milliseconds, YYYY-MM-DD, ISO datetime, or relative values like 7d."
+        )
+    return int(dt.timestamp() * 1000)
+
+
+def _set_exclusive_date_filter(filters: dict[str, Any], key: str, values: list[tuple[str, str | None]]) -> None:
+    """Set a ClickUp date filter when exactly one of several aliases is provided."""
+    provided = [(name, value) for name, value in values if value is not None]
+    if len(provided) > 1:
+        names = ", ".join(name for name, _value in provided)
+        _usage_error(f"Error: conflicting date filters for {key}: {names}.")
+    if provided:
+        filters[key] = _epoch_ms(provided[0][1])
+
+
+def _annotate_source_list(task: Any, list_id: str) -> Any:
+    """Attach source list metadata when a fanout query merges multiple lists."""
+    try:
+        task.source_list_id = list_id
+    except (AttributeError, TypeError):
+        pass
+    return task
 
 
 async def _resolve_workspace_id(client: ClickUpClient, workspace_id: str | None) -> str:
@@ -121,9 +207,16 @@ def _parse_sort(sort: str | None, reverse_flag: bool) -> tuple[str | None, bool]
 @app.command("list")
 def list_tasks(
     list_id: str | None = typer.Option(None, "--list-id", "-l", help="List ID to get tasks from"),
-    status: str | None = typer.Option(None, "--status", "-s", help="Filter by status"),
+    all_lists: bool = typer.Option(False, "--all-lists", help="Query every configured default_lists alias"),
+    status: str | None = typer.Option(None, "--status", "-s", help="Filter by status; comma-separated values allowed"),
     assignee: str | None = typer.Option(None, "--assignee", "-a", help="Filter by assignee"),
     limit: int = typer.Option(50, "--limit", help="Maximum number of tasks to show"),
+    created_since: str | None = typer.Option(None, "--created-since", help="Created after relative time, e.g. 7d"),
+    created_after: str | None = typer.Option(None, "--created-after", help="Created after date/epoch-ms"),
+    created_before: str | None = typer.Option(None, "--created-before", help="Created before date/epoch-ms"),
+    updated_since: str | None = typer.Option(None, "--updated-since", help="Updated after relative time, e.g. 7d"),
+    updated_after: str | None = typer.Option(None, "--updated-after", help="Updated after date/epoch-ms"),
+    updated_before: str | None = typer.Option(None, "--updated-before", help="Updated before date/epoch-ms"),
     sort: str | None = typer.Option(
         None,
         "--sort",
@@ -144,9 +237,9 @@ def list_tasks(
     order_by, descending = _parse_sort(sort, reverse)
 
     async def _list_tasks() -> None:
-        list_id_to_use = _resolve_list_id(list_id)
+        list_ids_to_use = _resolve_list_ids(list_id, all_lists=all_lists)
 
-        if not list_id_to_use:
+        if not list_ids_to_use:
             render_error("Error: No list ID provided and no default list configured.")
             console.print("Use --list-id or set a default with 'clickup config set default_list_id <id>'")
             raise typer.Exit(1)
@@ -155,15 +248,33 @@ def list_tasks(
             async with await get_client() as client:
                 filters: dict[str, Any] = {}
                 if status:
-                    filters["statuses"] = [status]
+                    filters["statuses"] = _split_csv(status)
                 if assignee:
                     filters["assignees"] = [assignee]
                 if order_by:
                     filters["order_by"] = order_by
                 if descending:
                     filters["reverse"] = "true"
+                _set_exclusive_date_filter(
+                    filters,
+                    "date_created_gt",
+                    [("--created-since", created_since), ("--created-after", created_after)],
+                )
+                _set_exclusive_date_filter(filters, "date_created_lt", [("--created-before", created_before)])
+                _set_exclusive_date_filter(
+                    filters,
+                    "date_updated_gt",
+                    [("--updated-since", updated_since), ("--updated-after", updated_after)],
+                )
+                _set_exclusive_date_filter(filters, "date_updated_lt", [("--updated-before", updated_before)])
 
-                tasks = await client.get_tasks(list_id_to_use, **filters)
+                tasks = []
+                include_source = len(list_ids_to_use) > 1
+                for list_id_to_use in list_ids_to_use:
+                    list_tasks_result = await client.get_tasks(list_id_to_use, **filters)
+                    if include_source:
+                        list_tasks_result = [_annotate_source_list(task, list_id_to_use) for task in list_tasks_result]
+                    tasks.extend(list_tasks_result)
                 if not tasks:
                     render_message("No tasks found.", "warn")
                     return
@@ -305,7 +416,8 @@ def create_task(
 
 @app.command("update")
 def update_task(
-    task_id: str = typer.Argument(..., help="Task ID"),
+    task_id: str | None = typer.Argument(None, help="Task ID"),
+    task_ids: str | None = typer.Option(None, "--task-ids", help="Comma-separated task IDs to update"),
     name: str | None = typer.Option(None, "--name", "-n", help="New task name"),
     description: str | None = typer.Option(None, "--description", "-d", help="New description (pass '' to clear)"),
     status: str | None = typer.Option(None, "--status", "-s", help="New status"),
@@ -316,6 +428,12 @@ def update_task(
     """Update a task. Only fields you pass are changed; everything else stays the same."""
 
     async def _update_task() -> None:
+        if task_id is not None and task_ids is not None:
+            _usage_error("Error: pass TASK_ID either as a positional argument OR via --task-ids, not both.")
+        target_ids = [task_id] if task_id is not None else _split_csv(task_ids)
+        if not target_ids:
+            _usage_error("Error: Task ID or --task-ids is required.")
+
         updates: dict[str, Any] = {}
         # `is not None` so callers can pass '' to clear text fields.
         if name is not None:
@@ -337,11 +455,17 @@ def update_task(
 
         try:
             async with await get_client() as client:
-                task = await client.update_task(task_id, **updates)
+                tasks = [await client.update_task(target_id, **updates) for target_id in target_ids]
                 if get_format() == "json":
-                    render_task(task)
+                    if len(tasks) == 1:
+                        render_task(tasks[0])
+                    else:
+                        render_tasks(tasks)
                     return
-                render_message(f"Updated task: {task.name} (ID: {task.id})", "success")
+                if len(tasks) == 1:
+                    render_message(f"Updated task: {tasks[0].name} (ID: {tasks[0].id})", "success")
+                else:
+                    render_message(f"Updated {len(tasks)} tasks.", "success")
 
         except ClickUpError as e:
             render_error(f"ClickUp API Error: {e}")
@@ -350,18 +474,29 @@ def update_task(
     run_async(_update_task())
 
 
-async def _do_status_change(task_id: str, status: str) -> None:
+async def _do_status_change_many(task_ids: list[str], status: str) -> None:
     """Shared implementation for `task status` and short verb aliases."""
     try:
         async with await get_client() as client:
-            task = await client.update_task(task_id, status=status)
+            tasks = [await client.update_task(task_id, status=status) for task_id in task_ids]
             if get_format() == "json":
-                render_task(task)
+                if len(tasks) == 1:
+                    render_task(tasks[0])
+                else:
+                    render_tasks(tasks)
                 return
-            render_message(f"Updated task status: {task.name} -> {status}", "success")
+            if len(tasks) == 1:
+                render_message(f"Updated task status: {tasks[0].name} -> {status}", "success")
+            else:
+                render_message(f"Updated {len(tasks)} task statuses -> {status}", "success")
     except ClickUpError as e:
         render_error(f"ClickUp API Error: {e}")
         raise typer.Exit(1) from e
+
+
+async def _do_status_change(task_id: str, status: str) -> None:
+    """Shared single-task status update wrapper."""
+    await _do_status_change_many([task_id], status)
 
 
 def _usage_error(msg: str) -> NoReturn:
@@ -442,6 +577,7 @@ def change_status(
     task_id_arg: str | None = typer.Argument(None, metavar="TASK_ID", help="Task ID (positional)"),
     status_arg: str | None = typer.Argument(None, metavar="STATUS", help="New status (positional)"),
     task_id_flag: str | None = typer.Option(None, "--task-id", "-t", help="Task ID (back-compat alias for positional)"),
+    task_ids_flag: str | None = typer.Option(None, "--task-ids", help="Comma-separated task IDs"),
     status_flag: str | None = typer.Option(
         None, "--status", "-s", help="New status (back-compat alias for positional)"
     ),
@@ -456,20 +592,23 @@ def change_status(
     """
     if task_id_arg is not None and task_id_flag is not None:
         _usage_error("Error: pass TASK_ID either as a positional argument OR via --task-id, not both.")
+    if task_ids_flag is not None and (task_id_arg is not None or task_id_flag is not None):
+        _usage_error("Error: pass TASK_ID either as a single task ID OR via --task-ids, not both.")
     if status_arg is not None and status_flag is not None:
         _usage_error("Error: pass STATUS either as a positional argument OR via --status, not both.")
 
     task_id = task_id_arg or task_id_flag
+    task_ids = _split_csv(task_ids_flag) if task_ids_flag is not None else ([task_id] if task_id else [])
     status = status_arg or status_flag
 
-    if not task_id:
-        _usage_error("Error: Task ID is required. Usage: clickup task status TASK_ID STATUS")
+    if not task_ids:
+        _usage_error("Error: Task ID is required, or pass --task-ids. Usage: clickup task status TASK_ID STATUS")
     if not status:
         _usage_error("Error: Status is required. Usage: clickup task status TASK_ID STATUS")
 
     # Type-narrow for the type checker; the _usage_error calls above raise on None.
-    assert task_id is not None and status is not None
-    run_async(_do_status_change(task_id, status))
+    assert status is not None
+    run_async(_do_status_change_many(task_ids, status))
 
 
 @app.command("done")

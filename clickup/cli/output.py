@@ -132,15 +132,23 @@ def _mock_safe_attr(obj: Any, name: str) -> Any:
 
 def _task_to_json_dict(task: Task | Any) -> dict[str, Any]:
     """Serialise a Task for JSON output with ISO timestamps and priority dual-display."""
-    raw_dump = task.model_dump(mode="json") if callable(getattr(task, "model_dump", None)) else None
+    raw_dump = None
+    model_dump = getattr(task, "model_dump", None)
+    if callable(model_dump):
+        try:
+            raw_dump = model_dump(mode="json")
+        except TypeError:
+            raw_dump = None
     if isinstance(raw_dump, dict):
         d = raw_dump
     else:
         d = {
             key: value
-            for key in ("id", "name", "description", "url")
+            for key in ("id", "name", "description", "url", "source_list_id")
             if (value := _mock_safe_attr(task, key)) is not None
         }
+    if (source_list_id := _mock_safe_attr(task, "source_list_id")) is not None:
+        d["source_list_id"] = source_list_id
     # Convert epoch-ms timestamps to ISO 8601
     for ts_field in ("date_created", "date_updated", "date_closed", "date_done", "due_date", "start_date"):
         raw = d.get(ts_field)

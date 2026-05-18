@@ -8,6 +8,7 @@ import pytest
 from typer.testing import CliRunner
 
 from clickup.cli.main import app
+from clickup.core import Config
 from clickup.core.models import List as ClickUpList
 from clickup.core.models import PriorityInfo, StatusInfo
 
@@ -170,6 +171,34 @@ def test_task_update(mock_get_client):
 
 
 @patch("clickup.cli.commands.task.get_client")
+def test_task_update_task_ids_batch(mock_get_client):
+    """`task update --task-ids` updates an explicit computed ID set."""
+    mock_client = AsyncMock()
+    mock_client.update_task.side_effect = [
+        Mock(id="task1", name="One"),
+        Mock(id="task2", name="Two"),
+    ]
+
+    def create_mock_client():
+        ctx_mgr = AsyncMock()
+        ctx_mgr.__aenter__.return_value = mock_client
+        return ctx_mgr
+
+    mock_get_client.side_effect = create_mock_client
+
+    result = runner.invoke(app, ["task", "update", "--task-ids", "task1,task2", "--priority", "2"])
+
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["count"] == 2
+    assert [task["id"] for task in data["data"]] == ["task1", "task2"]
+    assert mock_client.update_task.await_args_list[0].args == ("task1",)
+    assert mock_client.update_task.await_args_list[0].kwargs == {"priority": 2}
+    assert mock_client.update_task.await_args_list[1].args == ("task2",)
+    assert mock_client.update_task.await_args_list[1].kwargs == {"priority": 2}
+
+
+@patch("clickup.cli.commands.task.get_client")
 def test_task_delete(mock_get_client):
     """Test deleting a task."""
     mock_client = AsyncMock()
@@ -259,6 +288,33 @@ def test_task_status_change_positional(mock_get_client):
     assert data["id"] == "task123"
     assert data["name"] == "Test Task"
     mock_client.update_task.assert_awaited_once_with("task123", status="in progress")
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_status_task_ids_batch(mock_get_client):
+    """`task status --task-ids` updates a specific set of tasks in one invocation."""
+    mock_client = AsyncMock()
+    task1 = Mock(id="task1", name="One")
+    task2 = Mock(id="task2", name="Two")
+    mock_client.update_task.side_effect = [task1, task2]
+
+    def create_mock_client():
+        ctx_mgr = AsyncMock()
+        ctx_mgr.__aenter__.return_value = mock_client
+        return ctx_mgr
+
+    mock_get_client.side_effect = create_mock_client
+
+    result = runner.invoke(app, ["task", "status", "--task-ids", "task1,task2", "--status", "complete"])
+
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["count"] == 2
+    assert [task["id"] for task in data["data"]] == ["task1", "task2"]
+    assert mock_client.update_task.await_args_list[0].args == ("task1",)
+    assert mock_client.update_task.await_args_list[0].kwargs == {"status": "complete"}
+    assert mock_client.update_task.await_args_list[1].args == ("task2",)
+    assert mock_client.update_task.await_args_list[1].kwargs == {"status": "complete"}
 
 
 def test_task_status_missing_args_exits_2():
@@ -370,6 +426,109 @@ def test_task_list_with_filters(mock_get_client, sample_tasks):
 
     assert result.exit_code == 0
     assert "Test Task" in result.stdout
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_list_multi_status_filter(mock_get_client, sample_tasks):
+    """Comma-separated --status becomes the API statuses array."""
+    mock_client = AsyncMock()
+    mock_client.get_tasks.return_value = sample_tasks
+
+    def create_mock_client():
+        ctx_mgr = AsyncMock()
+        ctx_mgr.__aenter__.return_value = mock_client
+        return ctx_mgr
+
+    mock_get_client.side_effect = create_mock_client
+
+    result = runner.invoke(app, ["task", "list", "--list-id", "list123", "--status", "in progress,on-deck"])
+
+    assert result.exit_code == 0
+    mock_client.get_tasks.assert_awaited_once_with("list123", statuses=["in progress", "on-deck"])
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_list_date_filters_use_clickup_params(mock_get_client, sample_tasks):
+    """Date flags map to ClickUp's epoch-ms query parameters."""
+    mock_client = AsyncMock()
+    mock_client.get_tasks.return_value = sample_tasks
+
+    def create_mock_client():
+        ctx_mgr = AsyncMock()
+        ctx_mgr.__aenter__.return_value = mock_client
+        return ctx_mgr
+
+    mock_get_client.side_effect = create_mock_client
+
+    result = runner.invoke(
+        app,
+        [
+            "task",
+            "list",
+            "--list-id",
+            "list123",
+            "--created-after",
+            "2026-05-01",
+            "--updated-before",
+            "2026-05-10",
+        ],
+    )
+
+    assert result.exit_code == 0
+    mock_client.get_tasks.assert_awaited_once_with(
+        "list123",
+        date_created_gt=1777593600000,
+        date_updated_lt=1778371200000,
+    )
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_list_multiple_lists_fans_out_and_merges(mock_get_client, sample_tasks):
+    """Comma-separated --list-id queries each list and returns one merged collection."""
+    mock_client = AsyncMock()
+    mock_client.get_tasks.side_effect = [[sample_tasks[0]], [sample_tasks[1]]]
+
+    def create_mock_client():
+        ctx_mgr = AsyncMock()
+        ctx_mgr.__aenter__.return_value = mock_client
+        return ctx_mgr
+
+    mock_get_client.side_effect = create_mock_client
+
+    result = runner.invoke(app, ["task", "list", "--list-id", "listA,listB"])
+
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["count"] == 2
+    assert data["data"][0]["source_list_id"] == "listA"
+    assert data["data"][1]["source_list_id"] == "listB"
+    assert [call.args[0] for call in mock_client.get_tasks.await_args_list] == ["listA", "listB"]
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_list_all_lists_uses_configured_default_lists(mock_get_client, sample_tasks, monkeypatch, tmp_path):
+    """--all-lists queries each configured default_lists value."""
+    monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
+    Config().set("default_lists", {"work": "listA", "home": "listB"})
+
+    mock_client = AsyncMock()
+    mock_client.get_tasks.side_effect = [[sample_tasks[0]], [sample_tasks[1]]]
+
+    def create_mock_client():
+        ctx_mgr = AsyncMock()
+        ctx_mgr.__aenter__.return_value = mock_client
+        return ctx_mgr
+
+    mock_get_client.side_effect = create_mock_client
+
+    result = runner.invoke(app, ["task", "list", "--all-lists"])
+
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["count"] == 2
+    assert data["data"][0]["source_list_id"] == "listA"
+    assert data["data"][1]["source_list_id"] == "listB"
+    assert [call.args[0] for call in mock_client.get_tasks.await_args_list] == ["listA", "listB"]
 
 
 @patch("clickup.cli.commands.task.get_client")
