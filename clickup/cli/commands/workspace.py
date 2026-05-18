@@ -3,7 +3,7 @@
 import typer
 from rich.console import Console
 
-from ...core import ClickUpClient, ClickUpError, Config
+from ...core import ClickUpError, Config, TaskProvider, get_provider, provider_requires_credentials
 from ..output import render_error, render_folders, render_message, render_spaces, render_teams, render_users
 from ..utils import run_async
 
@@ -11,16 +11,16 @@ app = typer.Typer(help="Workspace management")
 console = Console()
 
 
-async def get_client() -> ClickUpClient:
-    """Get configured ClickUp client."""
+async def get_client() -> TaskProvider:
+    """Get configured task provider."""
     config = Config()
-    if not config.has_credentials():
+    if provider_requires_credentials(config) and not config.has_credentials():
         render_error(
             "No ClickUp API token configured. "
             "Set CLICKUP_API_KEY in your environment (or .env), or run 'clickup config set-token <token>'."
         )
         raise typer.Exit(2) from None
-    return ClickUpClient(config, console)
+    return get_provider(config, console)
 
 
 @app.command("list")

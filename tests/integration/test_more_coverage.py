@@ -37,7 +37,7 @@ def _ctx(client):
 # ---------- config validate / whoami -----------------------------------------
 
 
-@patch("clickup.cli.commands.config.ClickUpClient")
+@patch("clickup.cli.commands.config.get_provider")
 def test_config_validate_valid_token(mock_client_cls):
     mock_client = AsyncMock()
     mock_client.validate_auth.return_value = (
@@ -55,7 +55,7 @@ def test_config_validate_valid_token(mock_client_cls):
             assert "evan" in result.output
 
 
-@patch("clickup.cli.commands.config.ClickUpClient")
+@patch("clickup.cli.commands.config.get_provider")
 def test_config_validate_invalid_token(mock_client_cls):
     mock_client = AsyncMock()
     mock_client.validate_auth.return_value = (False, "bad token", None)
@@ -69,7 +69,7 @@ def test_config_validate_invalid_token(mock_client_cls):
             assert "bad token" in result.output
 
 
-@patch("clickup.cli.commands.config.ClickUpClient")
+@patch("clickup.cli.commands.config.get_provider")
 def test_config_validate_exception(mock_client_cls):
     mock_client_cls.side_effect = Exception("network down")
 
@@ -81,7 +81,7 @@ def test_config_validate_exception(mock_client_cls):
             assert "network down" in result.output
 
 
-@patch("clickup.cli.commands.config.ClickUpClient")
+@patch("clickup.cli.commands.config.get_provider")
 def test_config_whoami_authenticated(mock_client_cls):
     mock_client = AsyncMock()
     mock_client.get_user.return_value = User(id=1, username="evan", email="e@x.com", color="#fff")

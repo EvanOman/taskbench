@@ -47,7 +47,7 @@ def test_status_no_token():
             assert "No API token" in result.output
 
 
-@patch("clickup.cli.main.ClickUpClient")
+@patch("clickup.cli.main.get_provider")
 def test_status_with_valid_token(mock_client_cls):
     """Status with valid token shows user info."""
     mock_client = AsyncMock()
@@ -63,7 +63,7 @@ def test_status_with_valid_token(mock_client_cls):
             assert "evan" in result.output
 
 
-@patch("clickup.cli.main.ClickUpClient")
+@patch("clickup.cli.main.get_provider")
 def test_status_with_full_defaults(mock_client_cls):
     """Status resolves and displays default team / space / list names."""
     mock_client = AsyncMock()
@@ -87,7 +87,7 @@ def test_status_with_full_defaults(mock_client_cls):
             assert "Sprint" in result.output
 
 
-@patch("clickup.cli.main.ClickUpClient")
+@patch("clickup.cli.main.get_provider")
 def test_status_json(mock_client_cls):
     """Status emits parseable JSON in --format json mode."""
     mock_client = AsyncMock()
@@ -105,7 +105,7 @@ def test_status_json(mock_client_cls):
             assert "auth_valid" in data
 
 
-@patch("clickup.cli.main.ClickUpClient")
+@patch("clickup.cli.main.get_provider")
 def test_status_invalid_token(mock_client_cls):
     """Status with an invalid token reports the failure."""
     mock_client = AsyncMock()
@@ -120,7 +120,7 @@ def test_status_invalid_token(mock_client_cls):
             assert "bad token" in result.output
 
 
-@patch("clickup.cli.main.ClickUpClient")
+@patch("clickup.cli.main.get_provider")
 def test_status_auto_detects_single_workspace(mock_client_cls):
     """Status auto-detects implicit_team if exactly one workspace exists."""
     mock_client = AsyncMock()
@@ -137,7 +137,7 @@ def test_status_auto_detects_single_workspace(mock_client_cls):
             assert "auto-detected" in result.output
 
 
-@patch("clickup.cli.main.ClickUpClient")
+@patch("clickup.cli.main.get_provider")
 def test_status_partial_defaults(mock_client_cls):
     """Status hints when some defaults are missing."""
     mock_client = AsyncMock()

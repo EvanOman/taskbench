@@ -9,7 +9,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from ...core import ClickUpClient, ClickUpError, Config
+from ...core import ClickUpError, Config, TaskProvider, get_provider, provider_requires_credentials
 from ..output import render_error
 from ..utils import run_async
 
@@ -17,16 +17,16 @@ app = typer.Typer(help="Bulk operations and import/export")
 console = Console()
 
 
-async def get_client() -> ClickUpClient:
-    """Get configured ClickUp client."""
+async def get_client() -> TaskProvider:
+    """Get configured task provider."""
     config = Config()
-    if not config.has_credentials():
+    if provider_requires_credentials(config) and not config.has_credentials():
         console.print(
             "[red]Error: No ClickUp API token configured. Set CLICKUP_API_KEY in your "
             "environment (or .env), or run 'clickup config set-token <token>'.[/red]"
         )
         raise typer.Exit(1)
-    return ClickUpClient(config, console)
+    return get_provider(config, console)
 
 
 @app.command("export-tasks")

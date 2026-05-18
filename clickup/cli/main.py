@@ -7,7 +7,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from ..core import ClickUpClient, Config
+from ..core import Config, get_provider, provider_name, provider_requires_credentials
 from .commands import api, bulk, config, discover, mock, task, templates, workspace
 from .commands import list as list_cmd
 from .commands import setup as setup_cmd
@@ -82,6 +82,7 @@ def status() -> None:
         else:
             masked_token = None
 
+        status_data["provider"] = provider_name(config_manager)
         status_data["api_token"] = masked_token or "Not configured"
         status_data["base_url"] = config_manager.get("base_url") or "N/A"
 
@@ -103,9 +104,10 @@ def status() -> None:
         space_name: str | None = None
         list_name: str | None = None
 
-        if has_token:
+        can_query = has_token or not provider_requires_credentials(config_manager)
+        if can_query:
             try:
-                async with ClickUpClient(config_manager) as client:
+                async with get_provider(config_manager) as client:
                     is_valid, message, user = await client.validate_auth()
                     if is_valid and user:
                         auth_valid = True
@@ -172,6 +174,8 @@ def status() -> None:
         table = Table(title="ClickUp Status", show_header=True)
         table.add_column("Setting", style="cyan")
         table.add_column("Value", style="green")
+
+        table.add_row("Provider", status_data["provider"])
 
         # Auth section
         if auth_valid:

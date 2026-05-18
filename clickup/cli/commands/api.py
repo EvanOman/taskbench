@@ -6,7 +6,7 @@ from typing import Any, NoReturn
 import typer
 from rich.console import Console
 
-from ...core import ClickUpClient, ClickUpError, Config
+from ...core import ClickUpError, Config, TaskProvider, get_provider, provider_requires_credentials
 from ..output import render_error, render_kv
 from ..utils import run_async
 
@@ -16,16 +16,16 @@ _ALLOWED_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE"}
 _PARAM_OPTION = typer.Option(None, "--param", "-p", help="Query parameter as key=value")
 
 
-async def get_client() -> ClickUpClient:
-    """Get configured ClickUp client."""
+async def get_client() -> TaskProvider:
+    """Get configured task provider."""
     config = Config()
-    if not config.has_credentials():
+    if provider_requires_credentials(config) and not config.has_credentials():
         render_error(
             "Error: No ClickUp API token configured. Set CLICKUP_API_KEY in your "
             "environment (or .env), or run 'clickup config set-token <token>'."
         )
         raise typer.Exit(1)
-    return ClickUpClient(config, console)
+    return get_provider(config, console)
 
 
 def _usage_error(msg: str) -> NoReturn:

@@ -4,7 +4,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from ...core import ClickUpClient, Config
+from ...core import Config, get_provider, provider_requires_credentials
 from ...core.config import _CREDENTIAL_KEYS, _DEFAULT_KEYS, is_known_key
 from ..output import render_error
 from ..utils import run_async
@@ -231,7 +231,7 @@ def validate_auth() -> None:
 
     async def _validate() -> None:
         config = Config()
-        if not config.has_credentials():
+        if provider_requires_credentials(config) and not config.has_credentials():
             render_error("❌ No API credentials configured")
             console.print(
                 "Set CLICKUP_API_KEY in your environment (or .env), or run 'clickup config set-token <token>'."
@@ -239,7 +239,7 @@ def validate_auth() -> None:
             raise typer.Exit(1)
 
         try:
-            async with ClickUpClient(config) as client:
+            async with get_provider(config) as client:
                 is_valid, message, user = await client.validate_auth()
 
                 if is_valid:
@@ -274,13 +274,13 @@ def whoami() -> None:
 
     async def _whoami() -> None:
         config = Config()
-        if not config.has_credentials():
+        if provider_requires_credentials(config) and not config.has_credentials():
             render_error("No API credentials configured.")
             console.print("Set CLICKUP_API_KEY or run 'clickup setup run'.")
             raise typer.Exit(1)
 
         try:
-            async with ClickUpClient(config) as client:
+            async with get_provider(config) as client:
                 user = await client.get_user()
 
                 table = Table(title="Who Am I", show_header=False)
