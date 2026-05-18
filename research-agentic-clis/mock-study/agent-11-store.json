@@ -1,5 +1,5 @@
 {
-  "next_task": 1006,
+  "next_task": 1008,
   "next_comment": 5002,
   "user": {
     "id": 1,
@@ -153,6 +153,20 @@
         }
       ],
       "task_count": 2
+    },
+    {
+      "id": "list_3",
+      "name": "Reading",
+      "folder_id": "folder_daily",
+      "folder": {
+        "id": "folder_daily",
+        "name": "Daily Work"
+      },
+      "space": {
+        "id": "space_ops",
+        "name": "Operations"
+      },
+      "task_count": 2
     }
   ],
   "tasks": [
@@ -166,8 +180,8 @@
         "color": "#87909f",
         "orderindex": 0
       },
-      "date_created": "1779071768796",
-      "date_updated": "1779071768796",
+      "date_created": "1779074716901",
+      "date_updated": "1779074716901",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -190,8 +204,8 @@
         "color": "#2f80ed",
         "orderindex": 1
       },
-      "date_created": "1779071768796",
-      "date_updated": "1779071768796",
+      "date_created": "1779074716901",
+      "date_updated": "1779074716901",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -214,8 +228,8 @@
         "color": "#f2c94c",
         "orderindex": 2
       },
-      "date_created": "1779071768796",
-      "date_updated": "1779071768796",
+      "date_created": "1779074716901",
+      "date_updated": "1779074716901",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -238,8 +252,8 @@
         "color": "#2f80ed",
         "orderindex": 1
       },
-      "date_created": "1779071768796",
-      "date_updated": "1779071768796",
+      "date_created": "1779074716901",
+      "date_updated": "1779074716901",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -262,8 +276,8 @@
         "color": "#87909f",
         "orderindex": 0
       },
-      "date_created": "1779071768796",
-      "date_updated": "1779071768796",
+      "date_created": "1779074716901",
+      "date_updated": "1779074716901",
       "archived": false,
       "assignees": [],
       "priority": null,
@@ -272,6 +286,48 @@
         "name": "Inbox"
       },
       "url": "mock://task/mock_1005"
+    },
+    {
+      "id": "mock_1006",
+      "name": "Finish Designing Data-Intensive Applications",
+      "description": null,
+      "status": {
+        "status": "to do",
+        "type": "open",
+        "color": "#87909f",
+        "orderindex": 0
+      },
+      "date_created": "1779074803048",
+      "date_updated": "1779074803048",
+      "archived": false,
+      "assignees": [],
+      "priority": null,
+      "list": {
+        "id": "list_3",
+        "name": "Reading"
+      },
+      "url": "mock://task/mock_1006"
+    },
+    {
+      "id": "mock_1007",
+      "name": "Re-read DDD blue book ch. 4",
+      "description": null,
+      "status": {
+        "status": "to do",
+        "type": "open",
+        "color": "#87909f",
+        "orderindex": 0
+      },
+      "date_created": "1779074804012",
+      "date_updated": "1779074804012",
+      "archived": false,
+      "assignees": [],
+      "priority": null,
+      "list": {
+        "id": "list_3",
+        "name": "Reading"
+      },
+      "url": "mock://task/mock_1007"
     }
   ],
   "comments": {
@@ -285,7 +341,7 @@
           "username": "Mock Agent",
           "email": "agent@example.test"
         },
-        "date": "1779071768796",
+        "date": "1779074716901",
         "resolved": false
       }
     ]

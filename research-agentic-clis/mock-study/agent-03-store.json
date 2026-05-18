@@ -166,8 +166,8 @@
         "color": "#87909f",
         "orderindex": 0
       },
-      "date_created": "1779071768793",
-      "date_updated": "1779071768793",
+      "date_created": "1779074716899",
+      "date_updated": "1779074716899",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -185,10 +185,13 @@
       "name": "Triage customer feedback notes",
       "description": "Group feedback into bugs, feature requests, and follow-ups.",
       "status": {
-        "status": "in progress"
+        "status": "in progress",
+        "type": "custom",
+        "color": "#2f80ed",
+        "orderindex": 1
       },
-      "date_created": "1779071768793",
-      "date_updated": "1779071843025",
+      "date_created": "1779074716899",
+      "date_updated": "1779074773142",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -211,8 +214,8 @@
         "color": "#f2c94c",
         "orderindex": 2
       },
-      "date_created": "1779071768793",
-      "date_updated": "1779071768793",
+      "date_created": "1779074716899",
+      "date_updated": "1779074716899",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -235,8 +238,8 @@
         "color": "#2f80ed",
         "orderindex": 1
       },
-      "date_created": "1779071768793",
-      "date_updated": "1779071768793",
+      "date_created": "1779074716899",
+      "date_updated": "1779074716899",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -259,8 +262,8 @@
         "color": "#87909f",
         "orderindex": 0
       },
-      "date_created": "1779071768793",
-      "date_updated": "1779071768793",
+      "date_created": "1779074716899",
+      "date_updated": "1779074716899",
       "archived": false,
       "assignees": [],
       "priority": null,
@@ -282,7 +285,7 @@
           "username": "Mock Agent",
           "email": "agent@example.test"
         },
-        "date": "1779071768793",
+        "date": "1779074716899",
         "resolved": false
       }
     ]

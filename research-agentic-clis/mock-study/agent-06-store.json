@@ -166,8 +166,8 @@
         "color": "#87909f",
         "orderindex": 0
       },
-      "date_created": "1779071768794",
-      "date_updated": "1779071768794",
+      "date_created": "1779074716899",
+      "date_updated": "1779074716899",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -190,8 +190,8 @@
         "color": "#2f80ed",
         "orderindex": 1
       },
-      "date_created": "1779071768794",
-      "date_updated": "1779071768794",
+      "date_created": "1779074716899",
+      "date_updated": "1779074716899",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -214,8 +214,8 @@
         "color": "#f2c94c",
         "orderindex": 2
       },
-      "date_created": "1779071768794",
-      "date_updated": "1779071768794",
+      "date_created": "1779074716899",
+      "date_updated": "1779074716899",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -238,8 +238,8 @@
         "color": "#2f80ed",
         "orderindex": 1
       },
-      "date_created": "1779071768794",
-      "date_updated": "1779071768794",
+      "date_created": "1779074716899",
+      "date_updated": "1779074716899",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -262,8 +262,8 @@
         "color": "#87909f",
         "orderindex": 0
       },
-      "date_created": "1779071768794",
-      "date_updated": "1779071768794",
+      "date_created": "1779074716899",
+      "date_updated": "1779074716899",
       "archived": false,
       "assignees": [],
       "priority": null,
@@ -285,7 +285,7 @@
           "username": "Mock Agent",
           "email": "agent@example.test"
         },
-        "date": "1779071768794",
+        "date": "1779074716899",
         "resolved": false
       }
     ],
@@ -293,13 +293,13 @@
       {
         "id": "comment_5002",
         "comment": [],
-        "comment_text": "Reminder: deadline approaching. Send final review request to the team and set a cutoff date for comments.",
+        "comment_text": "Ping reviewers for outstanding feedback by EOD; if no response, escalate to team lead.",
         "user": {
           "id": 1,
           "username": "Mock Agent",
           "email": "agent@example.test"
         },
-        "date": "1779071872952",
+        "date": "1779074793655",
         "resolved": false
       }
     ]

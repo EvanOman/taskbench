@@ -1,5 +1,5 @@
 {
-  "next_task": 1008,
+  "next_task": 1006,
   "next_comment": 5002,
   "user": {
     "id": 1,
@@ -112,7 +112,7 @@
           "orderindex": 3
         }
       ],
-      "task_count": 5
+      "task_count": 3
     },
     {
       "id": "list_active",
@@ -161,15 +161,18 @@
       "name": "Draft weekly project update",
       "description": "Summarize completed work, blockers, and next actions.",
       "status": {
-        "status": "nonexistent_status_xyzzy"
+        "status": "to do",
+        "type": "open",
+        "color": "#87909f",
+        "orderindex": 0
       },
-      "date_created": "1779071768797",
-      "date_updated": "1779071949599",
+      "date_created": "1779074716902",
+      "date_updated": "1779074716902",
       "archived": false,
       "assignees": [],
       "priority": {
-        "id": "-1",
-        "priority": "-1"
+        "id": "2",
+        "priority": "2"
       },
       "list": {
         "id": "list_inbox",
@@ -187,8 +190,8 @@
         "color": "#2f80ed",
         "orderindex": 1
       },
-      "date_created": "1779071768797",
-      "date_updated": "1779071768797",
+      "date_created": "1779074716902",
+      "date_updated": "1779074716902",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -211,8 +214,8 @@
         "color": "#f2c94c",
         "orderindex": 2
       },
-      "date_created": "1779071768797",
-      "date_updated": "1779071768797",
+      "date_created": "1779074716902",
+      "date_updated": "1779074716902",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -235,8 +238,8 @@
         "color": "#2f80ed",
         "orderindex": 1
       },
-      "date_created": "1779071768797",
-      "date_updated": "1779071768797",
+      "date_created": "1779074716902",
+      "date_updated": "1779074716902",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -259,8 +262,8 @@
         "color": "#87909f",
         "orderindex": 0
       },
-      "date_created": "1779071768797",
-      "date_updated": "1779071768797",
+      "date_created": "1779074716902",
+      "date_updated": "1779074716902",
       "archived": false,
       "assignees": [],
       "priority": null,
@@ -269,42 +272,6 @@
         "name": "Inbox"
       },
       "url": "mock://task/mock_1005"
-    },
-    {
-      "id": "mock_1006",
-      "name": "",
-      "description": null,
-      "status": {
-        "status": "to do"
-      },
-      "date_created": "1779071929940",
-      "date_updated": "1779071929940",
-      "archived": false,
-      "assignees": [],
-      "priority": null,
-      "list": {
-        "id": "list_inbox",
-        "name": "Inbox"
-      },
-      "url": "mock://task/mock_1006"
-    },
-    {
-      "id": "mock_1007",
-      "name": "zero priority",
-      "description": null,
-      "status": {
-        "status": "to do"
-      },
-      "date_created": "1779071937969",
-      "date_updated": "1779071937969",
-      "archived": false,
-      "assignees": [],
-      "priority": null,
-      "list": {
-        "id": "list_inbox",
-        "name": "Inbox"
-      },
-      "url": "mock://task/mock_1007"
     }
   ],
   "comments": {
@@ -318,7 +285,7 @@
           "username": "Mock Agent",
           "email": "agent@example.test"
         },
-        "date": "1779071768797",
+        "date": "1779074716902",
         "resolved": false
       }
     ]

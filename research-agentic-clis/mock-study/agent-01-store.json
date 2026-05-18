@@ -161,10 +161,13 @@
       "name": "Draft weekly project update",
       "description": "Summarize completed work, blockers, and next actions.",
       "status": {
-        "status": "in progress"
+        "status": "in progress",
+        "type": "custom",
+        "color": "#2f80ed",
+        "orderindex": 1
       },
-      "date_created": "1779071768792",
-      "date_updated": "1779071842911",
+      "date_created": "1779074716898",
+      "date_updated": "1779074761269",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -187,8 +190,8 @@
         "color": "#2f80ed",
         "orderindex": 1
       },
-      "date_created": "1779071768792",
-      "date_updated": "1779071768792",
+      "date_created": "1779074716898",
+      "date_updated": "1779074716898",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -211,8 +214,8 @@
         "color": "#f2c94c",
         "orderindex": 2
       },
-      "date_created": "1779071768792",
-      "date_updated": "1779071768792",
+      "date_created": "1779074716898",
+      "date_updated": "1779074716898",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -235,8 +238,8 @@
         "color": "#2f80ed",
         "orderindex": 1
       },
-      "date_created": "1779071768792",
-      "date_updated": "1779071768792",
+      "date_created": "1779074716898",
+      "date_updated": "1779074716898",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -259,8 +262,8 @@
         "color": "#87909f",
         "orderindex": 0
       },
-      "date_created": "1779071768792",
-      "date_updated": "1779071768792",
+      "date_created": "1779074716898",
+      "date_updated": "1779074716898",
       "archived": false,
       "assignees": [],
       "priority": null,
@@ -282,19 +285,19 @@
           "username": "Mock Agent",
           "email": "agent@example.test"
         },
-        "date": "1779071768792",
+        "date": "1779074716898",
         "resolved": false
       },
       {
         "id": "comment_5002",
         "comment": [],
-        "comment_text": "Picked this task because it has the highest priority (high/2) among all tasks in the queue. The other tasks are lower priority (low/4 and none). Starting work on this now.",
+        "comment_text": "Picked this as the most urgent task: it is the highest-priority item (priority 2/high) that was not already in progress. The other high-priority task (mock_1004) is already being worked on, so this one needed attention next.",
         "user": {
           "id": 1,
           "username": "Mock Agent",
           "email": "agent@example.test"
         },
-        "date": "1779071847128",
+        "date": "1779074767027",
         "resolved": false
       }
     ]

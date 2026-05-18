@@ -166,8 +166,8 @@
         "color": "#87909f",
         "orderindex": 0
       },
-      "date_created": "1779071768792",
-      "date_updated": "1779071768792",
+      "date_created": "1779074716898",
+      "date_updated": "1779074716898",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -190,8 +190,8 @@
         "color": "#2f80ed",
         "orderindex": 1
       },
-      "date_created": "1779071768792",
-      "date_updated": "1779071768792",
+      "date_created": "1779074716898",
+      "date_updated": "1779074716898",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -214,8 +214,8 @@
         "color": "#f2c94c",
         "orderindex": 2
       },
-      "date_created": "1779071768792",
-      "date_updated": "1779071768792",
+      "date_created": "1779074716898",
+      "date_updated": "1779074716898",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -238,8 +238,8 @@
         "color": "#2f80ed",
         "orderindex": 1
       },
-      "date_created": "1779071768792",
-      "date_updated": "1779071768792",
+      "date_created": "1779074716898",
+      "date_updated": "1779074716898",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -262,8 +262,8 @@
         "color": "#87909f",
         "orderindex": 0
       },
-      "date_created": "1779071768792",
-      "date_updated": "1779071768792",
+      "date_created": "1779074716898",
+      "date_updated": "1779074716898",
       "archived": false,
       "assignees": [],
       "priority": null,
@@ -278,10 +278,13 @@
       "name": "Prepare quarterly review",
       "description": null,
       "status": {
-        "status": "on-deck"
+        "status": "on-deck",
+        "type": "custom",
+        "color": "#f2c94c",
+        "orderindex": 2
       },
-      "date_created": "1779071845741",
-      "date_updated": "1779071851549",
+      "date_created": "1779074764096",
+      "date_updated": "1779074767565",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -306,7 +309,7 @@
           "username": "Mock Agent",
           "email": "agent@example.test"
         },
-        "date": "1779071768792",
+        "date": "1779074716898",
         "resolved": false
       }
     ]

@@ -166,8 +166,8 @@
         "color": "#87909f",
         "orderindex": 0
       },
-      "date_created": "1779071768796",
-      "date_updated": "1779071888181",
+      "date_created": "1779074716901",
+      "date_updated": "1779074809861",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -190,8 +190,8 @@
         "color": "#2f80ed",
         "orderindex": 1
       },
-      "date_created": "1779071768796",
-      "date_updated": "1779071768796",
+      "date_created": "1779074716901",
+      "date_updated": "1779074716901",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -214,8 +214,8 @@
         "color": "#f2c94c",
         "orderindex": 2
       },
-      "date_created": "1779071768796",
-      "date_updated": "1779071768796",
+      "date_created": "1779074716901",
+      "date_updated": "1779074716901",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -238,8 +238,8 @@
         "color": "#2f80ed",
         "orderindex": 1
       },
-      "date_created": "1779071768796",
-      "date_updated": "1779071768796",
+      "date_created": "1779074716901",
+      "date_updated": "1779074716901",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -262,8 +262,8 @@
         "color": "#87909f",
         "orderindex": 0
       },
-      "date_created": "1779071768796",
-      "date_updated": "1779071768796",
+      "date_created": "1779074716901",
+      "date_updated": "1779074716901",
       "archived": false,
       "assignees": [],
       "priority": null,
@@ -285,7 +285,7 @@
           "username": "Mock Agent",
           "email": "agent@example.test"
         },
-        "date": "1779071768796",
+        "date": "1779074716901",
         "resolved": false
       }
     ]

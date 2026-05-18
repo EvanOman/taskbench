@@ -161,10 +161,13 @@
       "name": "Draft weekly project update",
       "description": "Summarize completed work, blockers, and next actions.",
       "status": {
-        "status": "in progress"
+        "status": "in progress",
+        "type": "custom",
+        "color": "#2f80ed",
+        "orderindex": 1
       },
-      "date_created": "1779071768794",
-      "date_updated": "1779071863422",
+      "date_created": "1779074716900",
+      "date_updated": "1779074793872",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -187,8 +190,8 @@
         "color": "#2f80ed",
         "orderindex": 1
       },
-      "date_created": "1779071768794",
-      "date_updated": "1779071768794",
+      "date_created": "1779074716900",
+      "date_updated": "1779074716900",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -211,8 +214,8 @@
         "color": "#f2c94c",
         "orderindex": 2
       },
-      "date_created": "1779071768794",
-      "date_updated": "1779071768794",
+      "date_created": "1779074716900",
+      "date_updated": "1779074716900",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -235,8 +238,8 @@
         "color": "#2f80ed",
         "orderindex": 1
       },
-      "date_created": "1779071768794",
-      "date_updated": "1779071768794",
+      "date_created": "1779074716900",
+      "date_updated": "1779074716900",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -259,8 +262,8 @@
         "color": "#87909f",
         "orderindex": 0
       },
-      "date_created": "1779071768794",
-      "date_updated": "1779071768794",
+      "date_created": "1779074716900",
+      "date_updated": "1779074716900",
       "archived": false,
       "assignees": [],
       "priority": null,
@@ -282,7 +285,7 @@
           "username": "Mock Agent",
           "email": "agent@example.test"
         },
-        "date": "1779071768794",
+        "date": "1779074716900",
         "resolved": false
       }
     ]
