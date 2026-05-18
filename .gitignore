@@ -226,3 +226,5 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+.todoist_token
+.todoist_seed_ref.json

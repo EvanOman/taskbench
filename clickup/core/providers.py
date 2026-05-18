@@ -12,6 +12,7 @@ from .config import Config
 from .json_provider import JsonProvider
 from .models import Comment, Folder, Space, Task, Team, User
 from .models import List as ClickUpList
+from .todoist_provider import TodoistProvider
 
 
 class TaskProvider(Protocol):
@@ -75,7 +76,8 @@ def provider_name(config: Config) -> str:
 
 def provider_requires_credentials(config: Config) -> bool:
     """Whether the selected provider needs ClickUp credentials."""
-    return provider_name(config) == "clickup"
+    name = provider_name(config)
+    return name in {"clickup", "todoist"}
 
 
 def get_provider(config: Config | None = None, console: Console | None = None) -> TaskProvider:
@@ -86,4 +88,6 @@ def get_provider(config: Config | None = None, console: Console | None = None) -
         return JsonProvider(config, console)
     if name == "clickup":
         return ClickUpClient(config, console)
-    raise ValueError(f"Unknown provider '{name}'. Use 'clickup' or 'json'.")
+    if name == "todoist":
+        return TodoistProvider(config, console)
+    raise ValueError(f"Unknown provider '{name}'. Use 'clickup', 'json', or 'todoist'.")
