@@ -2,6 +2,7 @@
 .claude/*
 !.claude/skills/
 .worktrees/
+.env.cloud
 
 node_modules/
 dist/

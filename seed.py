@@ -8,15 +8,20 @@ Usage:
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 
 from plankapy.v2 import Planka
 
-PLANKA_URL = "http://localhost:18920"
-PLANKA_USER = "admin"
-PLANKA_PASS = "Planka!Admin2025#Secure"
-SEED_FILE = Path("/home/evan/dev/clickup-tools/eval/seed/taskflow.json")
+PLANKA_URL = os.environ.get("PLANKA_URL", "http://localhost:18920")
+PLANKA_USER = os.environ.get("PLANKA_USERNAME", "admin")
+PLANKA_PASS = os.environ.get("PLANKA_PASSWORD", "Planka!Admin2025#Secure")
+SEED_FILE = Path(
+    os.environ.get(
+        "SEED_FILE", "/home/evan/dev/clickup-tools/eval/seed/taskflow.json"
+    )
+)
 
 STATUS_COLUMNS = ["to do", "in progress", "review", "complete"]
 
