@@ -204,6 +204,27 @@ def _parse_sort(sort: str | None, reverse_flag: bool) -> tuple[str | None, bool]
     return field, explicit_desc
 
 
+# Priority is a fixed 1..4 scale (1=urgent, 4=low). Reject anything else
+# at the CLI boundary instead of letting it slip through to the backend.
+_VALID_PRIORITIES: set[int] = {1, 2, 3, 4}
+
+
+def _validate_priority(priority: int | None) -> None:
+    """Reject priorities outside ClickUp's 1..4 scale with a usage error."""
+    if priority is None:
+        return
+    if priority not in _VALID_PRIORITIES:
+        _usage_error(f"Error: --priority must be 1 (urgent), 2 (high), 3 (normal), or 4 (low). Got {priority}.")
+
+
+def _validate_task_name(name: str | None, *, field: str = "task name") -> None:
+    """Reject empty/whitespace-only task names."""
+    if name is None:
+        return
+    if not name.strip():
+        _usage_error(f"Error: {field} cannot be empty or whitespace-only.")
+
+
 # Fields we can sort tasks by client-side. Server-side sort isn't reliable
 # (priority in particular isn't natively orderable), and multi-list queries
 # need a global re-sort over the merged result set anyway, so we just sort
@@ -421,6 +442,8 @@ def create_task(
     ),
 ) -> None:
     """Create a new task."""
+    _validate_task_name(name)
+    _validate_priority(priority)
 
     async def _create_task() -> None:
         list_id_to_use = _resolve_list_id(list_id)
@@ -477,6 +500,9 @@ def update_task(
     archived: bool | None = typer.Option(None, "--archived/--unarchived", help="Archive state"),
 ) -> None:
     """Update a task. Only fields you pass are changed; everything else stays the same."""
+    _validate_priority(priority)
+    if name is not None:
+        _validate_task_name(name)
 
     async def _update_task() -> None:
         if task_id is not None and task_ids is not None:

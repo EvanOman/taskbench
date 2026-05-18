@@ -227,22 +227,31 @@ class JsonProvider:
         """Look up a status by name on the given list, falling back to its space.
 
         Returns the full status object (with color/type/orderindex) so updates
-        echo the same shape as `task statuses`. Falls back to a bare
-        ``{"status": name}`` when the name isn't found anywhere (the caller
-        decides whether to validate).
+        echo the same shape as `task statuses`. Raises ``ValidationError`` if
+        the name is unknown — matching what the real ClickUp API does for
+        invalid statuses, so the local provider doesn't silently swallow typos.
         """
         for status in list_data.get("statuses") or []:
             if status.get("status", "").lower() == name.lower():
                 return deepcopy(status)
         space = list_data.get("space") or {}
         store = self._load()
+        space_statuses: list[dict[str, Any]] = []
         for space_data in store.get("spaces", []):
             if space_data.get("id") == space.get("id"):
-                for status in space_data.get("statuses") or []:
+                space_statuses = space_data.get("statuses") or []
+                for status in space_statuses:
                     if status.get("status", "").lower() == name.lower():
                         return deepcopy(status)
                 break
-        return {"status": name}
+        # Surface the names actually visible at *either* level so the error is
+        # actionable even when the list inherits its statuses from the space.
+        known: list[str] = []
+        for status in list_data.get("statuses") or space_statuses:
+            value = status.get("status")
+            if isinstance(value, str) and value:
+                known.append(value)
+        raise ValidationError(f"Unknown status '{name}'. Available: {', '.join(known) or '(none)'}.")
 
     async def raw_request(self, method: str, endpoint: str, **kwargs: Any) -> dict[str, Any]:
         method = method.upper()

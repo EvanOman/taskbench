@@ -163,3 +163,20 @@ async def test_json_provider_list_creation_and_errors(tmp_path, monkeypatch):
             await provider.delete_task("missing")
         with pytest.raises(ValidationError):
             await provider.raw_request("PATCH", "/unsupported")
+
+
+@pytest.mark.asyncio
+async def test_json_provider_rejects_unknown_status_on_update(tmp_path, monkeypatch):
+    """JsonProvider should validate status names against the list's statuses,
+    matching the real ClickUp API's behavior (issue #29 P0 #4 / Agent 15)."""
+    monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
+    store_path = tmp_path / "mock-store.json"
+    write_seed_store(store_path)
+    config = Config()
+    config.set("json_store_path", str(store_path))
+
+    async with JsonProvider(config) as provider:
+        with pytest.raises(ValidationError, match="Unknown status"):
+            await provider.update_task("mock_1001", status="xyzzy-not-a-real-status")
+        with pytest.raises(ValidationError, match="Unknown status"):
+            await provider.create_task("list_inbox", "Test", status="nope")

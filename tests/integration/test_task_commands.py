@@ -727,6 +727,40 @@ def test_task_create_missing_params():
     assert result.exit_code != 0
 
 
+# --- input validation regressions for issue #29 P0 #4 / Agent 15 ---
+
+
+@pytest.mark.parametrize("bad_priority", ["0", "-1", "5", "99"])
+def test_task_create_invalid_priority_is_usage_error(bad_priority):
+    """--priority outside 1..4 is rejected at the CLI boundary."""
+    result = runner.invoke(app, ["task", "create", "X", "--list-id", "L", "--priority", bad_priority])
+    assert result.exit_code == 2
+    assert "--priority must be" in result.stderr
+
+
+@pytest.mark.parametrize("bad_priority", ["0", "-1", "5", "99"])
+def test_task_update_invalid_priority_is_usage_error(bad_priority):
+    """--priority outside 1..4 is rejected at the CLI boundary."""
+    result = runner.invoke(app, ["task", "update", "T1", "--priority", bad_priority])
+    assert result.exit_code == 2
+    assert "--priority must be" in result.stderr
+
+
+@pytest.mark.parametrize("bad_name", ["", "   ", "\t"])
+def test_task_create_empty_name_is_usage_error(bad_name):
+    """Empty / whitespace-only names are rejected (issue #29 P0 #4)."""
+    result = runner.invoke(app, ["task", "create", bad_name, "--list-id", "L"])
+    assert result.exit_code == 2
+    assert "empty" in result.stderr.lower()
+
+
+def test_task_update_empty_name_is_usage_error():
+    """--name '' or whitespace is rejected (use --description '' to clear instead)."""
+    result = runner.invoke(app, ["task", "update", "T1", "--name", "   "])
+    assert result.exit_code == 2
+    assert "empty" in result.stderr.lower()
+
+
 @patch("clickup.cli.commands.task.get_client")
 def test_task_list_empty(mock_get_client):
     """Test listing tasks when none exist."""
