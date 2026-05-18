@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 import sys
-import time
 from pathlib import Path
 
 import httpx
@@ -73,11 +72,14 @@ PRIORITY_MAP = {
 
 def create_project(name: str, identifier: str, description: str) -> dict:
     print(f"Creating project: {name} ({identifier})")
-    return api_post("/projects/", {
-        "name": name,
-        "identifier": identifier,
-        "description": description,
-    })
+    return api_post(
+        "/projects/",
+        {
+            "name": name,
+            "identifier": identifier,
+            "description": description,
+        },
+    )
 
 
 def get_states(project_id: str) -> list[dict]:
@@ -87,27 +89,36 @@ def get_states(project_id: str) -> list[dict]:
 
 def create_state(project_id: str, name: str, group: str, color: str, sequence: float) -> dict:
     print(f"  Creating state: {name} (group={group})")
-    return api_post(f"/projects/{project_id}/states/", {
-        "name": name,
-        "color": color,
-        "group": group,
-        "sequence": sequence,
-    })
+    return api_post(
+        f"/projects/{project_id}/states/",
+        {
+            "name": name,
+            "color": color,
+            "group": group,
+            "sequence": sequence,
+        },
+    )
 
 
 def create_work_item(project_id: str, name: str, description: str, state_id: str, priority: str) -> dict:
-    return api_post(f"/projects/{project_id}/work-items/", {
-        "name": name,
-        "description_html": f"<p>{description}</p>",
-        "state": state_id,
-        "priority": priority,
-    })
+    return api_post(
+        f"/projects/{project_id}/work-items/",
+        {
+            "name": name,
+            "description_html": f"<p>{description}</p>",
+            "state": state_id,
+            "priority": priority,
+        },
+    )
 
 
 def create_comment(project_id: str, work_item_id: str, text: str) -> dict:
-    return api_post(f"/projects/{project_id}/work-items/{work_item_id}/comments/", {
-        "comment_html": f"<p>{text}</p>",
-    })
+    return api_post(
+        f"/projects/{project_id}/work-items/{work_item_id}/comments/",
+        {
+            "comment_html": f"<p>{text}</p>",
+        },
+    )
 
 
 def main() -> None:
@@ -183,12 +194,12 @@ def main() -> None:
 
             # Create comments
             for comment_def in task_def.get("comments", []):
-                comment = create_comment(project_id, wi_id, comment_def["text"])
+                create_comment(project_id, wi_id, comment_def["text"])
                 total_comments += 1
                 print(f"       Comment: {comment_def['text'][:50]}...")
 
-    print(f"\n{'='*60}")
-    print(f"Seeding complete!")
+    print(f"\n{'=' * 60}")
+    print("Seeding complete!")
     print(f"  Tasks created: {total_tasks}")
     print(f"  Comments created: {total_comments}")
     print(f"  Projects: {list(project_ids.keys())}")
