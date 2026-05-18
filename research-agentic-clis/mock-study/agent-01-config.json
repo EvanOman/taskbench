@@ -1,0 +1,17 @@
+{
+  "api_token": null,
+  "base_url": "https://api.clickup.com/api/v2",
+  "default_team_id": "team_mock",
+  "default_space_id": "space_ops",
+  "default_list_id": "list_inbox",
+  "default_lists": {
+    "inbox": "list_inbox",
+    "active": "list_active"
+  },
+  "provider": "json",
+  "json_store_path": "/home/evan/dev/clickup-tools/research-agentic-clis/mock-study/agent-01-store.json",
+  "timeout": 30,
+  "max_retries": 3,
+  "output_format": "table",
+  "colors": true
+}

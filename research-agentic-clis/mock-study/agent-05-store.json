@@ -1,0 +1,272 @@
+{
+  "next_task": 1006,
+  "next_comment": 5002,
+  "user": {
+    "id": 1,
+    "username": "Mock Agent",
+    "email": "agent@example.test"
+  },
+  "teams": [
+    {
+      "id": "team_mock",
+      "name": "Mock Workspace",
+      "color": "#2f80ed",
+      "members": [
+        {
+          "user": {
+            "id": 1,
+            "username": "Mock Agent",
+            "email": "agent@example.test"
+          }
+        }
+      ]
+    }
+  ],
+  "spaces": [
+    {
+      "id": "space_ops",
+      "name": "Operations",
+      "private": false,
+      "multiple_assignees": true,
+      "features": {},
+      "statuses": [
+        {
+          "status": "to do",
+          "type": "open",
+          "color": "#87909f",
+          "orderindex": 0
+        },
+        {
+          "status": "in progress",
+          "type": "custom",
+          "color": "#2f80ed",
+          "orderindex": 1
+        },
+        {
+          "status": "on-deck",
+          "type": "custom",
+          "color": "#f2c94c",
+          "orderindex": 2
+        },
+        {
+          "status": "complete",
+          "type": "closed",
+          "color": "#27ae60",
+          "orderindex": 3
+        }
+      ],
+      "team_id": "team_mock"
+    }
+  ],
+  "folders": [
+    {
+      "id": "folder_daily",
+      "name": "Daily Work",
+      "orderindex": 0,
+      "override_statuses": false,
+      "hidden": false,
+      "space": {
+        "id": "space_ops",
+        "name": "Operations"
+      },
+      "task_count": "5",
+      "lists": []
+    }
+  ],
+  "lists": [
+    {
+      "id": "list_inbox",
+      "name": "Inbox",
+      "folder_id": "folder_daily",
+      "space": {
+        "id": "space_ops",
+        "name": "Operations"
+      },
+      "folder": {
+        "id": "folder_daily",
+        "name": "Daily Work"
+      },
+      "statuses": [
+        {
+          "status": "to do",
+          "type": "open",
+          "color": "#87909f",
+          "orderindex": 0
+        },
+        {
+          "status": "in progress",
+          "type": "custom",
+          "color": "#2f80ed",
+          "orderindex": 1
+        },
+        {
+          "status": "on-deck",
+          "type": "custom",
+          "color": "#f2c94c",
+          "orderindex": 2
+        },
+        {
+          "status": "complete",
+          "type": "closed",
+          "color": "#27ae60",
+          "orderindex": 3
+        }
+      ],
+      "task_count": 3
+    },
+    {
+      "id": "list_active",
+      "name": "Active",
+      "folder_id": "folder_daily",
+      "space": {
+        "id": "space_ops",
+        "name": "Operations"
+      },
+      "folder": {
+        "id": "folder_daily",
+        "name": "Daily Work"
+      },
+      "statuses": [
+        {
+          "status": "to do",
+          "type": "open",
+          "color": "#87909f",
+          "orderindex": 0
+        },
+        {
+          "status": "in progress",
+          "type": "custom",
+          "color": "#2f80ed",
+          "orderindex": 1
+        },
+        {
+          "status": "on-deck",
+          "type": "custom",
+          "color": "#f2c94c",
+          "orderindex": 2
+        },
+        {
+          "status": "complete",
+          "type": "closed",
+          "color": "#27ae60",
+          "orderindex": 3
+        }
+      ],
+      "task_count": 2
+    }
+  ],
+  "tasks": [
+    {
+      "id": "mock_1001",
+      "name": "Draft weekly project update",
+      "description": "Summarize completed work, blockers, and next actions.",
+      "status": {
+        "status": "to do",
+        "type": "open",
+        "color": "#87909f",
+        "orderindex": 0
+      },
+      "date_created": "1779071768794",
+      "date_updated": "1779071768794",
+      "archived": false,
+      "assignees": [],
+      "priority": {
+        "id": "2",
+        "priority": "2"
+      },
+      "list": {
+        "id": "list_inbox",
+        "name": "Inbox"
+      },
+      "url": "mock://task/mock_1001"
+    },
+    {
+      "id": "mock_1002",
+      "name": "Triage customer feedback notes",
+      "description": "Group feedback into bugs, feature requests, and follow-ups.",
+      "status": {
+        "status": "in progress",
+        "type": "custom",
+        "color": "#2f80ed",
+        "orderindex": 1
+      },
+      "date_created": "1779071768794",
+      "date_updated": "1779071768794",
+      "archived": false,
+      "assignees": [],
+      "priority": {
+        "id": "3",
+        "priority": "3"
+      },
+      "list": {
+        "id": "list_active",
+        "name": "Active"
+      },
+      "url": "mock://task/mock_1002"
+    },
+    {
+      "id": "mock_1003",
+      "name": "Prepare invoice packet",
+      "description": "Collect receipts and confirm totals.",
+      "status": {
+        "status": "on-deck",
+        "type": "custom",
+        "color": "#f2c94c",
+        "orderindex": 2
+      },
+      "date_created": "1779071768794",
+      "date_updated": "1779071768794",
+      "archived": false,
+      "assignees": [],
+      "priority": {
+        "id": "4",
+        "priority": "4"
+      },
+      "list": {
+        "id": "list_inbox",
+        "name": "Inbox"
+      },
+      "url": "mock://task/mock_1003"
+    },
+    {
+      "id": "mock_1004",
+      "name": "Follow up on API docs review",
+      "description": "Ask for final comments and close the loop.",
+      "status": {
+        "status": "in progress",
+        "type": "custom",
+        "color": "#2f80ed",
+        "orderindex": 1
+      },
+      "date_created": "1779071768794",
+      "date_updated": "1779071768794",
+      "archived": false,
+      "assignees": [],
+      "priority": {
+        "id": "2",
+        "priority": "2"
+      },
+      "list": {
+        "id": "list_active",
+        "name": "Active"
+      },
+      "url": "mock://task/mock_1004"
+    }
+  ],
+  "comments": {
+    "mock_1001": [
+      {
+        "id": "comment_5001",
+        "comment": [],
+        "comment_text": "Use concise bullets.",
+        "user": {
+          "id": 1,
+          "username": "Mock Agent",
+          "email": "agent@example.test"
+        },
+        "date": "1779071768794",
+        "resolved": false
+      }
+    ]
+  }
+}
