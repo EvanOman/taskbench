@@ -257,6 +257,15 @@ def _task_sort_value(task: Any, field: str) -> int | None:
         return None
 
 
+def _filter_open_only(tasks: list[Any]) -> list[Any]:
+    """Drop tasks whose status type is ``closed``.
+
+    Lets agents say "show me what's still active" without having to first
+    enumerate every non-closed status name on every list.
+    """
+    return [t for t in tasks if not (t.status and getattr(t.status, "type", None) == "closed")]
+
+
 def _sort_tasks_locally(tasks: list[Any], field: str | None, descending: bool) -> list[Any]:
     """Globally sort tasks client-side. No-op when ``field`` is None.
 
@@ -302,6 +311,20 @@ def list_tasks(
         "--reverse",
         help="Sort descending. Illegal when --sort already has an explicit direction.",
     ),
+    open_only: bool = typer.Option(
+        False,
+        "--open-only",
+        "--open",
+        help="Hide tasks whose status type is 'closed' (e.g. 'complete'). Shorthand for the 'all-but-closed' query.",
+    ),
+    brief: bool = typer.Option(
+        False,
+        "--brief",
+        help=(
+            "Return only id/name/status/priority/assignees/due_date/url/list. "
+            "Drops noisy null fields and flattens status to a string."
+        ),
+    ),
 ) -> None:
     """List tasks from a ClickUp list."""
     order_by, descending = _parse_sort(sort, reverse)
@@ -345,12 +368,16 @@ def list_tasks(
                     if include_source:
                         list_tasks_result = [_annotate_source_list(task, list_id_to_use) for task in list_tasks_result]
                     tasks.extend(list_tasks_result)
+                # Filter closed tasks before sorting/limiting so --open-only
+                # interacts predictably with --limit.
+                if open_only:
+                    tasks = _filter_open_only(tasks)
                 # Globally sort, then limit. Doing it in this order is what
                 # makes --sort priority --all-lists produce a true priority
                 # ranking instead of per-list batches.
                 tasks = _sort_tasks_locally(tasks, order_by, descending)
                 tasks = tasks[:limit]
-                render_tasks(tasks)
+                render_tasks(tasks, brief=brief)
                 if not tasks:
                     render_message("No tasks found.", "warn")
 
@@ -362,18 +389,29 @@ def list_tasks(
 
 
 @app.command("get")
-def get_task(task_id: str = typer.Argument(..., help="Task ID")) -> None:
+def get_task(
+    task_id: str = typer.Argument(..., help="Task ID"),
+    brief: bool = typer.Option(
+        False,
+        "--brief",
+        help=(
+            "Return only id/name/status/priority/assignees/due_date/url/list. "
+            "Drops noisy null fields and flattens status to a string."
+        ),
+    ),
+) -> None:
     """Get detailed information about a specific task.
 
     Shows all available fields including tags, parent, custom fields,
     time estimate, time tracked, watchers, and list/folder/space context.
+    With ``--brief`` the response is the agent-routing subset only.
     """
 
     async def _get_task() -> None:
         try:
             async with await get_client() as client:
                 task = await client.get_task(task_id)
-                render_task(task)
+                render_task(task, brief=brief)
 
         except ClickUpError as e:
             render_error(f"ClickUp API Error: {e}")
@@ -390,13 +428,33 @@ def my_tasks(
         "-w",
         help="Workspace/team ID (defaults to default_team_id or auto-detected single workspace)",
     ),
+    status: str | None = typer.Option(None, "--status", "-s", help="Filter by status; comma-separated values allowed"),
+    updated_since: str | None = typer.Option(None, "--updated-since", help="Updated after relative time, e.g. 7d"),
+    sort: str | None = typer.Option(
+        None,
+        "--sort",
+        "--order-by",
+        help="Sort by: created, updated, due_date, priority. Direction: 'priority:desc', '-priority', '+priority'.",
+    ),
+    reverse: bool = typer.Option(False, "--reverse", help="Sort descending."),
     limit: int = typer.Option(50, "--limit", help="Maximum number of tasks to show"),
+    open_only: bool = typer.Option(
+        False,
+        "--open-only",
+        "--open",
+        help="Hide tasks whose status type is 'closed'.",
+    ),
+    brief: bool = typer.Option(False, "--brief", help="Return a stripped projection (see `task list --brief`)."),
 ) -> None:
     """List tasks assigned to the authenticated user.
 
     Searches across the workspace for tasks assigned to you. Uses the default
     workspace from config, or auto-detects if you belong to exactly one workspace.
+    Supports the same filter/sort/projection flags as ``task list``.
     """
+    order_by, descending = _parse_sort(sort, reverse)
+    status_filter = {s.lower() for s in _split_csv(status)} if status else None
+    updated_since_ms = _epoch_ms(updated_since) if updated_since else None
 
     async def _my_tasks() -> None:
         try:
@@ -412,8 +470,22 @@ def my_tasks(
                     "",
                     **{"assignees[]": [str(user.id)]},
                 )
+
+                # Post-filter client-side. search_tasks doesn't accept the rich
+                # filter set get_tasks does, so we apply them here for parity
+                # with `task list`.
+                if status_filter:
+                    tasks = [
+                        t for t in tasks if t.status and t.status.status and t.status.status.lower() in status_filter
+                    ]
+                if updated_since_ms is not None:
+                    tasks = [t for t in tasks if t.date_updated and int(t.date_updated) >= updated_since_ms]
+                if open_only:
+                    tasks = _filter_open_only(tasks)
+
+                tasks = _sort_tasks_locally(tasks, order_by, descending)
                 tasks = tasks[:limit]
-                render_tasks(tasks)
+                render_tasks(tasks, brief=brief)
                 if not tasks:
                     render_message("No tasks assigned to you.", "warn")
                 else:
@@ -431,7 +503,12 @@ def create_task(
     name: str = typer.Argument(..., help="Task name"),
     list_id: str | None = typer.Option(None, "--list-id", "-l", help="List ID or alias to create task in"),
     description: str | None = typer.Option(None, "--description", "-d", help="Task description"),
-    priority: int | None = typer.Option(None, "--priority", "-p", help="Priority (1=urgent, 4=low)"),
+    priority: int | None = typer.Option(
+        None,
+        "--priority",
+        "-p",
+        help="Priority (1=urgent, 2=high, 3=normal, 4=low).",
+    ),
     assignee: str | None = typer.Option(None, "--assignee", "-a", help="Assignee user ID"),
     due_date: str | None = typer.Option(None, "--due-date", help="Due date (YYYY-MM-DD)"),
     status: str | None = typer.Option(
@@ -494,8 +571,21 @@ def update_task(
     task_ids: str | None = typer.Option(None, "--task-ids", help="Comma-separated task IDs to update"),
     name: str | None = typer.Option(None, "--name", "-n", help="New task name"),
     description: str | None = typer.Option(None, "--description", "-d", help="New description (pass '' to clear)"),
+    description_append: str | None = typer.Option(
+        None,
+        "--description-append",
+        help=(
+            "Append text to the existing description. The caller supplies any leading "
+            "separator (e.g. ' — ', '\\n'). Mutually exclusive with --description."
+        ),
+    ),
     status: str | None = typer.Option(None, "--status", "-s", help="New status"),
-    priority: int | None = typer.Option(None, "--priority", "-p", help="New priority (1-4)"),
+    priority: int | None = typer.Option(
+        None,
+        "--priority",
+        "-p",
+        help="New priority (1=urgent, 2=high, 3=normal, 4=low).",
+    ),
     due_date: str | None = typer.Option(None, "--due-date", help="New due date (ms timestamp)"),
     archived: bool | None = typer.Option(None, "--archived/--unarchived", help="Archive state"),
 ) -> None:
@@ -503,6 +593,8 @@ def update_task(
     _validate_priority(priority)
     if name is not None:
         _validate_task_name(name)
+    if description is not None and description_append is not None:
+        _usage_error("Error: --description and --description-append are mutually exclusive.")
 
     async def _update_task() -> None:
         if task_id is not None and task_ids is not None:
@@ -526,13 +618,22 @@ def update_task(
         if archived is not None:
             updates["archived"] = archived
 
-        if not updates:
+        if not updates and description_append is None:
             render_message("No updates specified.", "warn")
             return
 
         try:
             async with await get_client() as client:
-                tasks = [await client.update_task(target_id, **updates) for target_id in target_ids]
+                # --description-append needs a per-task read-modify-write, so
+                # we resolve each target's new description inline before update.
+                tasks = []
+                for target_id in target_ids:
+                    per_task_updates = dict(updates)
+                    if description_append is not None:
+                        current = await client.get_task(target_id)
+                        existing = current.description or ""
+                        per_task_updates["description"] = existing + description_append
+                    tasks.append(await client.update_task(target_id, **per_task_updates))
                 if get_format() == "json":
                     if len(tasks) == 1:
                         render_task(tasks[0])
@@ -767,6 +868,7 @@ def search_tasks(
     query: str | None = typer.Option(None, "--query", "-q", help="Search query"),
     workspace_id: str | None = typer.Option(None, "--workspace-id", "-w", help="Workspace ID to search in"),
     team_id: str | None = typer.Option(None, "--team-id", "-t", help="Team ID (alias for workspace-id)"),
+    brief: bool = typer.Option(False, "--brief", help="Return a stripped projection (see `task list --brief`)."),
 ) -> None:
     """Search for tasks across the workspace.
 
@@ -795,7 +897,7 @@ def search_tasks(
         try:
             async with await get_client() as client:
                 tasks = await client.search_tasks(id_to_use, query)
-                render_tasks(tasks)
+                render_tasks(tasks, brief=brief)
                 if not tasks:
                     render_message(f"No tasks found matching '{query}'", "warn")
                 else:

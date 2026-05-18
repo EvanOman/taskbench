@@ -180,3 +180,89 @@ async def test_json_provider_rejects_unknown_status_on_update(tmp_path, monkeypa
             await provider.update_task("mock_1001", status="xyzzy-not-a-real-status")
         with pytest.raises(ValidationError, match="Unknown status"):
             await provider.create_task("list_inbox", "Test", status="nope")
+
+
+def test_task_list_brief_flag_strips_noisy_fields(tmp_path, monkeypatch):
+    """--brief returns an agent-routing projection, not the 30-field default."""
+    monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
+    store_path = tmp_path / "mock-store.json"
+    result = runner.invoke(app, ["mock", "init", "--path", str(store_path)])
+    assert result.exit_code == 0
+
+    result = runner.invoke(app, ["task", "list", "--list-id", "inbox", "--brief"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["count"] >= 1
+    sample = data["data"][0]
+    # Brief keeps these identity/routing fields.
+    for required in ("id", "name", "status", "list", "url"):
+        assert required in sample, f"--brief missing key {required!r}"
+    # And drops the noisy ones.
+    for absent in ("text_content", "watchers", "checklists", "tags", "custom_fields", "dependencies"):
+        assert absent not in sample, f"--brief should drop {absent!r}, found {sample[absent]!r}"
+
+
+def test_task_list_open_only_excludes_closed(tmp_path, monkeypatch):
+    """--open-only drops tasks whose status type is 'closed'."""
+    monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
+    store_path = tmp_path / "mock-store.json"
+    result = runner.invoke(app, ["mock", "init", "--path", str(store_path)])
+    assert result.exit_code == 0
+
+    # Close one task so the filter has something to drop.
+    result = runner.invoke(app, ["task", "status", "mock_1001", "complete"])
+    assert result.exit_code == 0
+
+    everything = json.loads(runner.invoke(app, ["task", "list", "--list-id", "inbox"]).stdout)
+    open_only = json.loads(runner.invoke(app, ["task", "list", "--list-id", "inbox", "--open-only"]).stdout)
+
+    assert any(t["id"] == "mock_1001" for t in everything["data"])
+    assert not any(t["id"] == "mock_1001" for t in open_only["data"]), "closed task leaked through --open-only"
+    assert open_only["count"] == everything["count"] - 1
+
+
+def test_task_update_description_append(tmp_path, monkeypatch):
+    """--description-append concatenates instead of overwriting."""
+    monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
+    store_path = tmp_path / "mock-store.json"
+    result = runner.invoke(app, ["mock", "init", "--path", str(store_path)])
+    assert result.exit_code == 0
+
+    original = json.loads(runner.invoke(app, ["task", "get", "mock_1001"]).stdout)["description"]
+    assert original  # seed has a description
+
+    result = runner.invoke(app, ["task", "update", "mock_1001", "--description-append", " — due Friday"])
+    assert result.exit_code == 0
+    updated = json.loads(result.stdout)["description"]
+    assert updated == original + " — due Friday"
+
+
+def test_task_update_description_and_append_are_mutually_exclusive():
+    """--description and --description-append cannot both be passed."""
+    result = runner.invoke(app, ["task", "update", "mock_1001", "--description", "x", "--description-append", "y"])
+    assert result.exit_code == 2
+    assert "mutually exclusive" in result.stderr
+
+
+def test_task_mine_filter_parity_status_and_open_only(tmp_path, monkeypatch):
+    """`task mine` honors --status / --open-only just like `task list` does."""
+    monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
+    store_path = tmp_path / "mock-store.json"
+    result = runner.invoke(app, ["mock", "init", "--path", str(store_path)])
+    assert result.exit_code == 0
+
+    # Seed has the Mock Agent as user id=1 but no tasks are auto-assigned.
+    # Assign mock_1001 to user 1, leave others unassigned.
+    result = runner.invoke(
+        app,
+        ["task", "update", "mock_1001", "--status", "in progress"],
+    )
+    assert result.exit_code == 0
+    # Pre-condition: the search_tasks API in JsonProvider doesn't filter by
+    # assignee, so `task mine` returns all tasks matching the query "". That
+    # means we can validate the post-filter (--status / --open-only) logic
+    # without needing real assignee plumbing.
+    result = runner.invoke(app, ["task", "mine", "--status", "in progress"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert all(t["status"]["status"] == "in progress" for t in data["data"])

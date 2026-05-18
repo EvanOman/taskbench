@@ -264,7 +264,11 @@ def bulk_update(
     list_id: str | None = typer.Option(None, "--list-id", help="List ID to update tasks in"),
     filter_status: str | None = typer.Option(None, "--filter-status", help="Only update tasks with this status"),
     new_status: str | None = typer.Option(None, "--status", help="New status to set"),
-    new_priority: int | None = typer.Option(None, "--priority", help="New priority to set (1-4)"),
+    new_priority: int | None = typer.Option(
+        None,
+        "--priority",
+        help="New priority to set (1=urgent, 2=high, 3=normal, 4=low).",
+    ),
     new_assignee: str | None = typer.Option(None, "--assignee", help="New assignee user ID"),
     dry_run: bool = typer.Option(False, "--dry-run", help="Preview changes without applying"),
     force: bool = typer.Option(

@@ -95,7 +95,7 @@ def create_list(
     space_id: str | None = typer.Option(None, "--space-id", "-s", help="Space ID to create folderless list in"),
     content: str | None = typer.Option(None, "--content", "-c", help="List description/content"),
     due_date: str | None = typer.Option(None, "--due-date", help="Due date (YYYY-MM-DD)"),
-    priority: int | None = typer.Option(None, "--priority", help="Priority (1-4)"),
+    priority: int | None = typer.Option(None, "--priority", help="Priority (1=urgent, 2=high, 3=normal, 4=low)."),
     assignee: str | None = typer.Option(None, "--assignee", help="Assignee user ID"),
 ) -> None:
     """Create a new list."""

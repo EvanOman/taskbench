@@ -130,6 +130,43 @@ def _mock_safe_attr(obj: Any, name: str) -> Any:
     return value
 
 
+_BRIEF_TASK_FIELDS: tuple[str, ...] = (
+    "id",
+    "name",
+    "status",
+    "priority",
+    "priority_label",
+    "assignees",
+    "due_date",
+    "url",
+    "list",
+    "source_list_id",
+)
+
+
+def _task_to_brief_dict(task: Task | Any) -> dict[str, Any]:
+    """Stripped-down JSON projection for --brief mode.
+
+    Cuts the ~30-field default down to identity + routing fields agents
+    actually use. status is flattened to its name, priority to its int,
+    assignees to a list of usernames.
+    """
+    full = _task_to_json_dict(task)
+    brief: dict[str, Any] = {}
+    for key in _BRIEF_TASK_FIELDS:
+        if key not in full or full[key] is None:
+            continue
+        brief[key] = full[key]
+    # Flatten nested objects to the shapes an agent typically wants.
+    if isinstance(brief.get("status"), dict):
+        brief["status"] = brief["status"].get("status")
+    if isinstance(brief.get("assignees"), list):
+        brief["assignees"] = [a.get("username") if isinstance(a, dict) else a for a in brief["assignees"]]
+    if isinstance(brief.get("list"), dict):
+        brief["list"] = {"id": brief["list"].get("id"), "name": brief["list"].get("name")}
+    return brief
+
+
 def _task_to_json_dict(task: Task | Any) -> dict[str, Any]:
     """Serialise a Task for JSON output with ISO timestamps and priority dual-display."""
     raw_dump = None
@@ -400,10 +437,12 @@ def render_hierarchy(data: dict[str, Any]) -> None:
     _console.print(tree)
 
 
-def render_task(task: Task) -> None:
-    """Render a single Task with full detail."""
+def render_task(task: Task, *, brief: bool = False) -> None:
+    """Render a single Task with full detail. With ``brief=True`` the JSON
+    output is a trimmed projection (id/name/status/priority/...) and the
+    table output keeps only the same key rows."""
     if get_format() == "json":
-        _print_json(_task_to_json_dict(task))
+        _print_json(_task_to_brief_dict(task) if brief else _task_to_json_dict(task))
         return
 
     table = Table(title=f"Task: {escape(task.name)}", show_header=False)
@@ -412,7 +451,8 @@ def render_task(task: Task) -> None:
 
     table.add_row("ID", task.id)
     table.add_row("Name", escape(task.name))
-    table.add_row("Description", escape(task.description) if task.description else "None")
+    if not brief:
+        table.add_row("Description", escape(task.description) if task.description else "None")
     table.add_row("Status", escape(task.status.status) if task.status else "Unknown")
     table.add_row(
         "Assignees",
@@ -420,17 +460,20 @@ def render_task(task: Task) -> None:
     )
     table.add_row("Priority", _priority_table_str(task.priority))
     table.add_row("Due Date", format_timestamp(task.due_date) or "None")
-    table.add_row("Created", format_timestamp(task.date_created) or "Unknown")
-    table.add_row("Updated", format_timestamp(task.date_updated) or "Unknown")
+    if not brief:
+        table.add_row("Created", format_timestamp(task.date_created) or "Unknown")
+        table.add_row("Updated", format_timestamp(task.date_updated) or "Unknown")
     table.add_row("URL", task.url or "None")
 
     _console.print(table)
 
 
-def render_tasks(tasks: list[Task]) -> None:
-    """Render a list of Tasks."""
+def render_tasks(tasks: list[Task], *, brief: bool = False) -> None:
+    """Render a list of Tasks. ``brief=True`` switches to a stripped JSON
+    projection (still wrapped in the ``{"data": [...], "count": N}`` envelope)."""
     if get_format() == "json":
-        _print_json({"data": [_task_to_json_dict(t) for t in tasks], "count": len(tasks)})
+        serialize = _task_to_brief_dict if brief else _task_to_json_dict
+        _print_json({"data": [serialize(t) for t in tasks], "count": len(tasks)})
         return
 
     table = Table(title="Tasks", show_header=True)
