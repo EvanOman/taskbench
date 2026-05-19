@@ -24,19 +24,64 @@ To continue after the trial, add a credit card and upgrade to the Hobby plan ($5
 
 ## Architecture
 
-Three Railway services in a single project (`clickup-tools-planka`):
+Four Railway services in a single project (`clickup-tools-planka`):
 
 | Service | Type | Public? | Notes |
 |---------|------|---------|-------|
 | **caddy** | `caddy@sha256:…` (digest-pinned) | **Yes** (port 80) | Reverse proxy; injects security headers; only public entrypoint. Config in `caddy/Caddyfile`, shipped to Railway via `CADDYFILE_CONTENT` env var. |
 | **planka** | `ghcr.io/plankanban/planka@sha256:…` (digest-pinned) | No | Internal-only at `planka.railway.internal:1337`. Persistent volume at `/app/private`. |
 | **postgres** | `postgres@sha256:…` (digest-pinned, 15.18) | No | Internal-only at `postgres.railway.internal:5432`. Persistent volume at `/var/lib/postgresql/data`. |
-
-**Image pinning lesson:** changing the Postgres image source pin in Railway can swap volumes and reset the data dir. If you need to bump the Postgres image, snapshot the data first or be ready to re-seed.
+| **db-backup** | `postgres@sha256:…` (same digest as live postgres) | No | Daily `pg_dump` to its own `/backups` volume. Cron `0 4 * * *`. See `backup/README.md`. |
 
 Caddy is what closes the bulk of the security audit's medium-severity findings
 (see `caddy/README.md` for the full list). Planka being internal-only means the
 only attack surface is Caddy + Railway's edge.
+
+---
+
+## Data safety — read this before redeploying
+
+During the audit work we hit a data wipe: pinning the Postgres image source
+caused Planka to see an empty database after the redeploy. The volume was
+still attached; the data inside was no longer accessible to the new Postgres
+container (likely a Railway mount-race or permission shift on image source
+change). We re-seeded — on real data this would have been unrecoverable.
+
+To prevent recurrence, the project now runs a **`db-backup` service** that
+takes a `pg_dump` of the live database daily at 04:00 UTC and stores 30 days
+of dumps on its own dedicated volume (not the Postgres volume). See
+`backup/README.md` for the bootstrap, restore procedure, and limitations.
+
+### Operations that REQUIRE a manual backup first
+
+Before doing any of these, trigger a manual backup and confirm the dump file
+appeared in `/backups`:
+
+- Changing the Postgres service's `source.image` (tag or digest)
+- Editing `PGDATA` / `POSTGRES_USER` / `POSTGRES_DB` / `POSTGRES_PASSWORD`
+- Changing the postgres volume's `mountPath`
+- Migrating to a different Postgres major version
+- Deleting and recreating the Postgres service (volume is decoupled — orphan happens)
+- Anything in the Railway dashboard that triggers a Postgres redeploy
+
+Manual backup trigger:
+
+```bash
+source .secrets/railway-deploy.env
+curl -sS -X POST https://backboard.railway.com/graphql/v2 \
+  -H "Authorization: Bearer $RAILWAY_API_TOKEN" -H "Content-Type: application/json" \
+  -d "{\"query\":\"mutation { serviceInstanceRedeploy(environmentId: \\\"$ENV_ID\\\", serviceId: \\\"$BACKUP_SVC\\\") }\"}"
+# Wait ~30s, then verify the new dump landed:
+~/.railway/bin/railway logs --service db-backup | tail -5
+```
+
+### What CI's auto-deploy can and cannot touch
+
+`.github/workflows/deploy-planka-railway.yml` is path-filtered to
+`deploy/railway/**` and `planka-stack/**`, and only redeploys the **planka**
+service (`railway redeploy --service planka`). It never touches `postgres`
+or `db-backup`. **Don't change the workflow to redeploy postgres** — keep
+all postgres operations behind the manual-backup-first checklist above.
 
 ## Bootstrap from scratch
 
