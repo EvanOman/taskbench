@@ -28,9 +28,11 @@ Three Railway services in a single project (`clickup-tools-planka`):
 
 | Service | Type | Public? | Notes |
 |---------|------|---------|-------|
-| **caddy** | `caddy:2-alpine` | **Yes** (port 80) | Reverse proxy; injects security headers; only public entrypoint. Config in `caddy/Caddyfile`, shipped to Railway via `CADDYFILE_CONTENT` env var. |
+| **caddy** | `caddy@sha256:…` (digest-pinned) | **Yes** (port 80) | Reverse proxy; injects security headers; only public entrypoint. Config in `caddy/Caddyfile`, shipped to Railway via `CADDYFILE_CONTENT` env var. |
 | **planka** | `ghcr.io/plankanban/planka@sha256:…` (digest-pinned) | No | Internal-only at `planka.railway.internal:1337`. Persistent volume at `/app/private`. |
-| **postgres** | `postgres:15-alpine` | No | Internal-only at `postgres.railway.internal:5432`. Persistent volume at `/var/lib/postgresql/data`. |
+| **postgres** | `postgres@sha256:…` (digest-pinned, 15.18) | No | Internal-only at `postgres.railway.internal:5432`. Persistent volume at `/var/lib/postgresql/data`. |
+
+**Image pinning lesson:** changing the Postgres image source pin in Railway can swap volumes and reset the data dir. If you need to bump the Postgres image, snapshot the data first or be ready to re-seed.
 
 Caddy is what closes the bulk of the security audit's medium-severity findings
 (see `caddy/README.md` for the full list). Planka being internal-only means the
