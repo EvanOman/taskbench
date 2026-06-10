@@ -658,23 +658,38 @@ def update_task(
 
 
 async def _do_status_change_many(task_ids: list[str], status: str) -> None:
-    """Shared implementation for `task status` and short verb aliases."""
-    try:
-        async with await get_client() as client:
-            tasks = [await client.update_task(task_id, status=status) for task_id in task_ids]
-            if get_format() == "json":
-                if len(tasks) == 1:
-                    render_task(tasks[0])
-                else:
-                    render_tasks(tasks)
-                return
-            if len(tasks) == 1:
-                render_message(f"Updated task status: {tasks[0].name} -> {status}", "success")
+    """Shared implementation for `task status` and short verb aliases.
+
+    Each task is attempted independently — one bad ID doesn't abort the rest
+    of the batch. Successful updates are rendered as the usual data envelope
+    on stdout; each failure emits a canonical error envelope on stderr.
+    Exits 1 if any task failed, so agents can detect partial success by
+    pairing the exit code with the stdout envelope's count.
+    """
+    succeeded: list[Any] = []
+    failures: list[tuple[str, ClickUpError]] = []
+    async with await get_client() as client:
+        for task_id in task_ids:
+            try:
+                succeeded.append(await client.update_task(task_id, status=status))
+            except ClickUpError as e:
+                failures.append((task_id, e))
+
+    if succeeded:
+        if get_format() == "json":
+            if len(task_ids) == 1:
+                render_task(succeeded[0])
             else:
-                render_message(f"Updated {len(tasks)} task statuses -> {status}", "success")
-    except ClickUpError as e:
-        render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
-        raise typer.Exit(1) from e
+                render_tasks(succeeded)
+        elif len(succeeded) == 1 and not failures:
+            render_message(f"Updated task status: {succeeded[0].name} -> {status}", "success")
+        else:
+            render_message(f"Updated {len(succeeded)}/{len(task_ids)} task statuses -> {status}", "success")
+
+    for task_id, exc in failures:
+        render_error(f"ClickUp API Error ({task_id}): {exc}", error_type=type(exc).__name__)
+    if failures:
+        raise typer.Exit(1)
 
 
 def _usage_error(msg: str) -> NoReturn:

@@ -266,3 +266,49 @@ def test_task_mine_filter_parity_status_and_open_only(tmp_path, monkeypatch):
     assert result.exit_code == 0
     data = json.loads(result.stdout)
     assert all(t["status"]["status"] == "in progress" for t in data["data"])
+
+
+def test_batch_status_change_partial_failure(tmp_path, monkeypatch):
+    """`task done T_good T_bad` updates the good task, reports the bad one, exits 1."""
+    monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
+    result = runner.invoke(app, ["mock", "init", "--path", str(tmp_path / "store.json")])
+    assert result.exit_code == 0
+
+    result = runner.invoke(app, ["task", "done", "mock_1001", "mock_9999"])
+    assert result.exit_code == 1
+    # Successful update still lands on stdout as the usual envelope.
+    data = json.loads(result.stdout)
+    assert data["count"] == 1
+    assert data["data"][0]["id"] == "mock_1001"
+    assert data["data"][0]["status"]["status"] == "complete"
+    # The failure is a canonical error envelope on stderr.
+    err = json.loads(result.stderr.strip().splitlines()[-1])
+    assert err["type"] == "NotFoundError"
+    assert "mock_9999" in err["error"]
+
+
+def test_batch_status_change_all_fail(tmp_path, monkeypatch):
+    """All-bad batch keeps stdout empty (no data envelope) and exits 1."""
+    monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
+    result = runner.invoke(app, ["mock", "init", "--path", str(tmp_path / "store.json")])
+    assert result.exit_code == 0
+
+    result = runner.invoke(app, ["task", "done", "mock_9998", "mock_9999"])
+    assert result.exit_code == 1
+    assert result.stdout.strip() == ""
+    error_lines = [json.loads(line) for line in result.stderr.strip().splitlines() if line.startswith("{")]
+    assert len(error_lines) == 2
+    assert all(e["type"] == "NotFoundError" for e in error_lines)
+
+
+def test_batch_status_change_all_succeed_unchanged(tmp_path, monkeypatch):
+    """Happy-path batch keeps the existing envelope shape and exit 0."""
+    monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
+    result = runner.invoke(app, ["mock", "init", "--path", str(tmp_path / "store.json")])
+    assert result.exit_code == 0
+
+    result = runner.invoke(app, ["task", "done", "mock_1001", "mock_1002"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["count"] == 2
+    assert {t["id"] for t in data["data"]} == {"mock_1001", "mock_1002"}
