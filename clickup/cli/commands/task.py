@@ -875,7 +875,7 @@ def delete_task(
 
     async def _delete_task() -> None:
         if not force:
-            render_error("Refusing to delete without --force/--yes (this CLI never prompts).")
+            render_error("Refusing to delete without --force/--yes (this CLI never prompts).", error_type="UsageError")
             raise typer.Exit(2)
 
         try:

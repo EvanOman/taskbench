@@ -208,7 +208,8 @@ def import_tasks(
 
             if not force:
                 render_error(
-                    f"Refusing to import {len(tasks_data)} tasks without --force/--yes (use --dry-run to preview)."
+                    f"Refusing to import {len(tasks_data)} tasks without --force/--yes (use --dry-run to preview).",
+                    error_type="UsageError",
                 )
                 raise typer.Exit(2)
 
@@ -347,7 +348,8 @@ def bulk_update(
 
                 if not force:
                     render_error(
-                        f"Refusing to update {len(tasks)} tasks without --force/--yes (use --dry-run to preview)."
+                        f"Refusing to update {len(tasks)} tasks without --force/--yes (use --dry-run to preview).",
+                        error_type="UsageError",
                     )
                     raise typer.Exit(2)
 

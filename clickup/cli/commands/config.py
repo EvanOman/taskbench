@@ -198,7 +198,10 @@ def clean_config(
         return
 
     if not force:
-        render_error(f"Refusing to remove {len(unknown)} key(s) without --force/--yes (use --dry-run to preview).")
+        render_error(
+            f"Refusing to remove {len(unknown)} key(s) without --force/--yes (use --dry-run to preview).",
+            error_type="UsageError",
+        )
         raise typer.Exit(2)
 
     config.remove_keys(set(unknown.keys()))
@@ -218,7 +221,7 @@ def reset_config(
 ) -> None:
     """Reset configuration to defaults."""
     if not force:
-        render_error("Refusing to reset without --force/--yes (this CLI never prompts).")
+        render_error("Refusing to reset without --force/--yes (this CLI never prompts).", error_type="UsageError")
         raise typer.Exit(2)
     config = Config()
     config.config_path.unlink(missing_ok=True)

@@ -318,6 +318,15 @@ class PlankaProvider:
             return folders[0]
         raise NotFoundError(f"Folder not found: {folder_id}")
 
+    async def create_folder(self, space_id: str, name: str, **kwargs: Any) -> Folder:
+        # Planka has no folder concept; every space exposes one synthetic
+        # "Default" folder. Refuse rather than silently pretend.
+        _ = (space_id, name, kwargs)
+        raise ValidationError(
+            "Planka has no folders. Create lists directly in the space "
+            "(or use the synthetic 'folder_<space_id>' default folder)."
+        )
+
     # -- Lists (= Planka Boards) ------------------------------------------- #
 
     async def get_lists(self, folder_id: str) -> list[ClickUpList]:
