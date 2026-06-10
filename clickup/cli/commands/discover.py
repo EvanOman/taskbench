@@ -30,7 +30,15 @@ def show_hierarchy(
         None, "--workspace-id", "-w", help="Workspace ID (will list all if not provided)"
     ),
     team_id: str | None = typer.Option(None, "--team-id", "-t", help="Team ID (alias for workspace-id)"),
-    max_depth: int = typer.Option(3, "--depth", "-d", help="Maximum depth to explore"),
+    max_depth: int = typer.Option(
+        5,
+        "--depth",
+        "-d",
+        help=(
+            "Maximum depth to explore (1=workspaces, 2=+spaces, 3=+folders, 4=+lists, 5=full). "
+            "Defaults to the full tree; lower it to trim API calls on large workspaces."
+        ),
+    ),
 ) -> None:
     """Show the complete ClickUp hierarchy tree."""
 

@@ -712,7 +712,7 @@ def _usage_error(msg: str, hint: str | None = None) -> NoReturn:
 
     Declared ``NoReturn`` so the type checker treats call sites as terminating.
     """
-    render_error(msg, hint=hint)
+    render_error(msg, hint=hint, error_type="UsageError")
     raise typer.Exit(2)
 
 

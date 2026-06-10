@@ -289,7 +289,14 @@ def main() -> None:
     """
     json_mode = _wants_json_mode(sys.argv[1:])
     try:
-        app(standalone_mode=False)
+        # In non-standalone mode Click *returns* the exit code when a command
+        # raises typer.Exit/ctx.exit() during invoke (it only lets the Exit
+        # exception propagate in rarer paths). Dropping this return value
+        # turned every application-level error into exit 0 — caught by the
+        # round-3 agent study (Agent 15). Always propagate it.
+        result = app(standalone_mode=False)
+        if isinstance(result, int) and result != 0:
+            sys.exit(result)
     except click.exceptions.UsageError as e:
         if json_mode:
             _emit_click_error_envelope(e)

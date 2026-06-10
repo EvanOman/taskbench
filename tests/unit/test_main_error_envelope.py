@@ -96,3 +96,62 @@ def test_main_falls_back_to_rich_prose_for_table_mode(
     assert "frobnicate" in captured.err
     # Crucially, NOT a JSON envelope.
     assert not captured.err.lstrip().startswith("{")
+
+
+@pytest.fixture
+def json_provider_env(tmp_path, monkeypatch: pytest.MonkeyPatch):
+    """Point the CLI at a seeded JSON store so main() can run end-to-end."""
+    from clickup.core.json_provider import write_seed_store
+
+    store = tmp_path / "store.json"
+    write_seed_store(store)
+    config = tmp_path / "config.json"
+    config.write_text(json.dumps({"provider": "json", "json_store_path": str(store), "default_list_id": "list_inbox"}))
+    monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(config))
+    return config
+
+
+def test_main_propagates_app_level_error_exit_code(
+    json_provider_env,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Regression for the standalone_mode=False return-value drop (round-3 study).
+
+    In non-standalone mode Click *returns* the exit code for typer.Exit raised
+    during invoke; main() must propagate it instead of falling through to 0.
+    """
+    monkeypatch.setattr("sys.argv", ["clickup", "task", "get", "mock_9999"])
+    with pytest.raises(SystemExit) as exit_info:
+        main()
+    assert exit_info.value.code == 1
+    captured = capsys.readouterr()
+    payload = json.loads(captured.err)
+    assert payload["type"] == "NotFoundError"
+
+
+def test_main_propagates_usage_error_exit_code(
+    json_provider_env,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """CLI-boundary validation (exit 2) must also survive main()."""
+    monkeypatch.setattr("sys.argv", ["clickup", "task", "update", "mock_1001", "--priority", "99"])
+    with pytest.raises(SystemExit) as exit_info:
+        main()
+    assert exit_info.value.code == 2
+    captured = capsys.readouterr()
+    assert "--priority must be" in json.loads(captured.err)["error"]
+
+
+def test_main_success_path_exits_zero(
+    json_provider_env,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A successful command must not raise SystemExit (implicit exit 0)."""
+    monkeypatch.setattr("sys.argv", ["clickup", "task", "list", "--brief"])
+    main()  # no SystemExit
+    captured = capsys.readouterr()
+    data = json.loads(captured.out)
+    assert data["count"] >= 1
