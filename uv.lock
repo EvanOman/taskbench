@@ -1,9 +1,13 @@
 version = 1
 revision = 3
 requires-python = ">=3.12"
+resolution-markers = [
+    "python_full_version >= '3.13'",
+    "python_full_version < '3.13'",
+]
 
 [options]
-exclude-newer = "2026-04-21T21:13:28.611265165Z"
+exclude-newer = "2026-05-11T03:18:27.38997935Z"
 exclude-newer-span = "P7D"
 
 [[package]]
@@ -129,6 +133,8 @@ version = "0.3.0"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
+    { name = "plankapy", version = "2.2.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
+    { name = "plankapy", version = "2.4.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "rich" },
@@ -148,6 +154,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "httpx", specifier = ">=0.27.0" },
+    { name = "plankapy", specifier = ">=2.2.2" },
     { name = "pydantic", specifier = ">=2.0.0" },
     { name = "python-dotenv", specifier = ">=1.0.0" },
     { name = "rich", specifier = ">=13.0.0" },
@@ -396,6 +403,33 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/c9/e4/4b64a97d71b2a83158134abbb2f5bd3f8a2ea691361282f010998f339ec7/pillow-12.2.0-cp314-cp314t-win32.whl", hash = "sha256:6bb77b2dcb06b20f9f4b4a8454caa581cd4dd0643a08bacf821216a16d9c8354", size = 6482084, upload-time = "2026-04-01T14:45:47.568Z" },
     { url = "https://files.pythonhosted.org/packages/ba/13/306d275efd3a3453f72114b7431c877d10b1154014c1ebbedd067770d629/pillow-12.2.0-cp314-cp314t-win_amd64.whl", hash = "sha256:6562ace0d3fb5f20ed7290f1f929cae41b25ae29528f2af1722966a0a02e2aa1", size = 7225152, upload-time = "2026-04-01T14:45:50.032Z" },
     { url = "https://files.pythonhosted.org/packages/ff/6e/cf826fae916b8658848d7b9f38d88da6396895c676e8086fc0988073aaf8/pillow-12.2.0-cp314-cp314t-win_arm64.whl", hash = "sha256:aa88ccfe4e32d362816319ed727a004423aab09c5cea43c01a4b435643fa34eb", size = 2556579, upload-time = "2026-04-01T14:45:52.529Z" },
+]
+
+[[package]]
+name = "plankapy"
+version = "2.2.2"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.13'",
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9b/57/29987afb2f9862b627a38648ee899e754b05de998cec386e1ca467f6efbd/plankapy-2.2.2.tar.gz", hash = "sha256:bd832f97f9e63e651946b4d1410ceb96c7cee1732cdddfe796ed60bf6404b6f3", size = 46442, upload-time = "2025-05-13T02:05:40.261Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/25/bd/e99f0185fe426186e57cdfee3e84ca863aec91e40b6209bff55045a42537/plankapy-2.2.2-py3-none-any.whl", hash = "sha256:bb8493ebf3c416e296dae3147ded72ea6cb772a419946015f864815c6345ebc4", size = 44780, upload-time = "2025-05-13T02:05:38.46Z" },
+]
+
+[[package]]
+name = "plankapy"
+version = "2.4.0"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.13'",
+]
+dependencies = [
+    { name = "httpx", marker = "python_full_version >= '3.13'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/09/4a/943cf46ae6085fed070182ed3a4605b22862a38d636d7a948c76542e07f6/plankapy-2.4.0.tar.gz", hash = "sha256:5c918801b9cc5d307aae4b349c8ee38f33737db273cdba3dabfef21cceace3b1", size = 117880, upload-time = "2026-03-23T12:40:10.772Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/82/1a/ac7215a640b5704d0d801056e5ccd0d24a668070035770f9ac2a5295942a/plankapy-2.4.0-py3-none-any.whl", hash = "sha256:fd49973152a3aa543035340bdd53487cf64c108b3bc5580a9c123a492a63264d", size = 142631, upload-time = "2026-03-23T12:40:09.443Z" },
 ]
 
 [[package]]

@@ -2,6 +2,7 @@
 .claude/*
 !.claude/skills/
 .worktrees/
+.env.cloud
 
 node_modules/
 dist/
@@ -226,3 +227,4 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+.secrets/

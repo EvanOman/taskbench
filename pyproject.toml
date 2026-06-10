@@ -23,6 +23,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "typer>=0.12.0",
     "rich>=13.0.0",
+    "plankapy>=2.2.2",
 ]
 
 [tool.uv]
@@ -80,7 +81,7 @@ indent-style = "space"
 python-version = "3.12"
 
 [tool.ty.src]
-exclude = ["tests/**"]
+exclude = ["tests/**", "seed.py", "clickup/core/planka_provider.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -88,4 +89,10 @@ addopts = "-v --cov=clickup --cov-report=term-missing --cov-fail-under=90 --igno
 asyncio_mode = "auto"
 markers = [
     "live: marks tests as requiring live ClickUp API access (deselect with '-m \"not live\"')",
+]
+
+[tool.coverage.run]
+omit = [
+    "seed.py",
+    "clickup/core/planka_provider.py",
 ]

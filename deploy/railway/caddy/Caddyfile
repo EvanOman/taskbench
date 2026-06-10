@@ -1,0 +1,86 @@
+# Caddy reverse proxy for Planka on Railway
+#
+# Architecture:
+#   [Internet] -> Railway edge (TLS) -> Caddy (port 80) -> planka.railway.internal:1337
+#
+# Caddy's role: inject security headers that Planka doesn't ship with, bound
+# request body size, and keep Planka itself private (no public domain on the
+# planka service).
+#
+# Closes the following findings from the security audits (rounds 1 + 2):
+#   - Missing HSTS / CSP / X-Frame-Options / X-Content-Type-Options
+#   - Missing Referrer-Policy / Permissions-Policy
+#   - Missing Cross-Origin-* isolation headers
+#   - File-upload XSS hardening (strict sandbox CSP on /attachments/*)
+#   - Via header / Server / X-Powered-By / x-exit fingerprinting
+#   - 10 MB+ upload size (request_body limit)
+
+{
+	# Railway terminates TLS at the edge; Caddy speaks plain HTTP behind it.
+	auto_https off
+
+	# Don't expose Caddy's admin API.
+	admin off
+
+	# Production logging
+	log {
+		output stdout
+		format console
+		level INFO
+	}
+
+	# Trust Railway's edge proxy so X-Forwarded-For / X-Forwarded-Proto are honored
+	servers {
+		trusted_proxies static private_ranges
+	}
+}
+
+# Listen on the port Railway routes to (default 80).
+:80 {
+	# Bound request body size globally. Reasonable Kanban attachment ceiling.
+	# Closes "no payload size limit" from the audit (10 MB uploads + 900 KB
+	# descriptions previously unbounded).
+	request_body {
+		max_size 25MB
+	}
+
+	# Matchers — defined once, used by both header blocks below.
+	@attachments path /attachments/* /api/cards/*/attachments*
+	@notattachments not path /attachments/* /api/cards/*/attachments*
+
+	# Headers common to ALL responses. CSP is set separately per-path below
+	# so the strict attachment sandbox isn't clobbered by the global value.
+	header {
+		Strict-Transport-Security    "max-age=63072000; includeSubDomains; preload"
+		X-Frame-Options              "DENY"
+		X-Content-Type-Options       "nosniff"
+		Referrer-Policy              "strict-origin-when-cross-origin"
+		Permissions-Policy           "camera=(), microphone=(), geolocation=(), payment=(), usb=(), magnetometer=(), accelerometer=(), gyroscope=(), interest-cohort=()"
+		Cross-Origin-Opener-Policy   "same-origin"
+		Cross-Origin-Resource-Policy "same-site"
+
+		# Strip fingerprinting and proxy-leakage headers.
+		-Server
+		-X-Powered-By
+		-X-Exit
+		-Via
+	}
+
+	# Default application CSP for normal HTML/API paths.
+	header @notattachments Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' wss: https:; media-src 'self' blob:; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'"
+
+	# Strict sandbox CSP for attachment download paths. Mutually exclusive
+	# with the @notattachments matcher above, so no override conflict.
+	# Reality check: Content-Disposition: attachment (set by Planka) is the
+	# primary defense; this CSP is belt-and-braces for edge cases where the
+	# browser ignores Content-Disposition.
+	header @attachments Content-Security-Policy "sandbox; default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'"
+
+	# Reverse proxy to the internal Planka service.
+	# Caddy auto-detects Socket.io WebSocket upgrades and proxies them.
+	reverse_proxy http://planka.railway.internal:1337 {
+		header_up X-Real-IP         {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-Host  {host}
+	}
+}
