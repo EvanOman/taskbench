@@ -1,5 +1,4 @@
 {
-  "api_token": null,
   "base_url": "https://api.clickup.com/api/v2",
   "default_team_id": "team_mock",
   "default_space_id": "space_ops",

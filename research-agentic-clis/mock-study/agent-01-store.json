@@ -1,6 +1,6 @@
 {
   "next_task": 1006,
-  "next_comment": 5002,
+  "next_comment": 5003,
   "user": {
     "id": 1,
     "username": "Mock Agent",
@@ -161,13 +161,13 @@
       "name": "Draft weekly project update",
       "description": "Summarize completed work, blockers, and next actions.",
       "status": {
-        "status": "to do",
-        "type": "open",
-        "color": "#87909f",
-        "orderindex": 0
+        "status": "in progress",
+        "type": "custom",
+        "color": "#2f80ed",
+        "orderindex": 1
       },
-      "date_created": "1779075589692",
-      "date_updated": "1779075589692",
+      "date_created": "1781067311600",
+      "date_updated": "1781067366814",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -190,8 +190,8 @@
         "color": "#2f80ed",
         "orderindex": 1
       },
-      "date_created": "1779075589692",
-      "date_updated": "1779075589692",
+      "date_created": "1781067311600",
+      "date_updated": "1781067311600",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -214,8 +214,8 @@
         "color": "#f2c94c",
         "orderindex": 2
       },
-      "date_created": "1779075589692",
-      "date_updated": "1779075589692",
+      "date_created": "1781067311600",
+      "date_updated": "1781067311600",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -238,8 +238,8 @@
         "color": "#2f80ed",
         "orderindex": 1
       },
-      "date_created": "1779075589692",
-      "date_updated": "1779075589692",
+      "date_created": "1781067311600",
+      "date_updated": "1781067311600",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -262,8 +262,8 @@
         "color": "#87909f",
         "orderindex": 0
       },
-      "date_created": "1779075589692",
-      "date_updated": "1779075589692",
+      "date_created": "1781067311600",
+      "date_updated": "1781067311600",
       "archived": false,
       "assignees": [],
       "priority": null,
@@ -285,7 +285,19 @@
           "username": "Mock Agent",
           "email": "agent@example.test"
         },
-        "date": "1779075589692",
+        "date": "1781067311600",
+        "resolved": false
+      },
+      {
+        "id": "comment_5002",
+        "comment": [],
+        "comment_text": "Picked this as the most urgent task: it is the highest-priority item (high/2) not already in progress. The other high-priority task (mock_1004) is already being worked on, so this was the next one to start.",
+        "user": {
+          "id": 1,
+          "username": "Mock Agent",
+          "email": "agent@example.test"
+        },
+        "date": "1781067372027",
         "resolved": false
       }
     ]

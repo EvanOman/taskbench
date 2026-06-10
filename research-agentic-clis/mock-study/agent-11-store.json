@@ -71,6 +71,19 @@
       },
       "task_count": "5",
       "lists": []
+    },
+    {
+      "id": "folder_2",
+      "name": "Side Projects",
+      "orderindex": 1,
+      "override_statuses": false,
+      "hidden": false,
+      "space": {
+        "id": "space_ops",
+        "name": "Operations"
+      },
+      "task_count": "0",
+      "lists": []
     }
   ],
   "lists": [
@@ -157,10 +170,10 @@
     {
       "id": "list_3",
       "name": "Reading",
-      "folder_id": "folder_daily",
+      "folder_id": "folder_2",
       "folder": {
-        "id": "folder_daily",
-        "name": "Daily Work"
+        "id": "folder_2",
+        "name": "Side Projects"
       },
       "space": {
         "id": "space_ops",
@@ -180,8 +193,8 @@
         "color": "#87909f",
         "orderindex": 0
       },
-      "date_created": "1779074716901",
-      "date_updated": "1779074716901",
+      "date_created": "1781067311634",
+      "date_updated": "1781067311634",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -204,8 +217,8 @@
         "color": "#2f80ed",
         "orderindex": 1
       },
-      "date_created": "1779074716901",
-      "date_updated": "1779074716901",
+      "date_created": "1781067311634",
+      "date_updated": "1781067311634",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -228,8 +241,8 @@
         "color": "#f2c94c",
         "orderindex": 2
       },
-      "date_created": "1779074716901",
-      "date_updated": "1779074716901",
+      "date_created": "1781067311634",
+      "date_updated": "1781067311634",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -252,8 +265,8 @@
         "color": "#2f80ed",
         "orderindex": 1
       },
-      "date_created": "1779074716901",
-      "date_updated": "1779074716901",
+      "date_created": "1781067311634",
+      "date_updated": "1781067311634",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -276,8 +289,8 @@
         "color": "#87909f",
         "orderindex": 0
       },
-      "date_created": "1779074716901",
-      "date_updated": "1779074716901",
+      "date_created": "1781067311634",
+      "date_updated": "1781067311634",
       "archived": false,
       "assignees": [],
       "priority": null,
@@ -297,8 +310,8 @@
         "color": "#87909f",
         "orderindex": 0
       },
-      "date_created": "1779074803048",
-      "date_updated": "1779074803048",
+      "date_created": "1781067407303",
+      "date_updated": "1781067407303",
       "archived": false,
       "assignees": [],
       "priority": null,
@@ -318,8 +331,8 @@
         "color": "#87909f",
         "orderindex": 0
       },
-      "date_created": "1779074804012",
-      "date_updated": "1779074804012",
+      "date_created": "1781067408512",
+      "date_updated": "1781067408512",
       "archived": false,
       "assignees": [],
       "priority": null,
@@ -341,7 +354,7 @@
           "username": "Mock Agent",
           "email": "agent@example.test"
         },
-        "date": "1779074716901",
+        "date": "1781067311634",
         "resolved": false
       }
     ]

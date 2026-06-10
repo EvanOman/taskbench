@@ -166,8 +166,8 @@
         "color": "#87909f",
         "orderindex": 0
       },
-      "date_created": "1779074716899",
-      "date_updated": "1779074716899",
+      "date_created": "1781067311602",
+      "date_updated": "1781067311602",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -190,8 +190,8 @@
         "color": "#2f80ed",
         "orderindex": 1
       },
-      "date_created": "1779074716899",
-      "date_updated": "1779074716899",
+      "date_created": "1781067311602",
+      "date_updated": "1781067311602",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -214,8 +214,8 @@
         "color": "#f2c94c",
         "orderindex": 2
       },
-      "date_created": "1779074716899",
-      "date_updated": "1779074716899",
+      "date_created": "1781067311602",
+      "date_updated": "1781067311602",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -238,8 +238,8 @@
         "color": "#2f80ed",
         "orderindex": 1
       },
-      "date_created": "1779074716899",
-      "date_updated": "1779074716899",
+      "date_created": "1781067311602",
+      "date_updated": "1781067311602",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -262,8 +262,8 @@
         "color": "#87909f",
         "orderindex": 0
       },
-      "date_created": "1779074716899",
-      "date_updated": "1779074716899",
+      "date_created": "1781067311602",
+      "date_updated": "1781067311602",
       "archived": false,
       "assignees": [],
       "priority": null,
@@ -285,7 +285,7 @@
           "username": "Mock Agent",
           "email": "agent@example.test"
         },
-        "date": "1779074716899",
+        "date": "1781067311602",
         "resolved": false
       }
     ],
@@ -293,13 +293,13 @@
       {
         "id": "comment_5002",
         "comment": [],
-        "comment_text": "Ping reviewers for outstanding feedback by EOD; if no response, escalate to team lead.",
+        "comment_text": "High priority and in progress -- check if the reviewer has had time to look at the docs yet and ping them if not.",
         "user": {
           "id": 1,
           "username": "Mock Agent",
           "email": "agent@example.test"
         },
-        "date": "1779074793655",
+        "date": "1781067398565",
         "resolved": false
       }
     ]

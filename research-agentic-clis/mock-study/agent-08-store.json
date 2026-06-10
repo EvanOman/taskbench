@@ -166,8 +166,8 @@
         "color": "#87909f",
         "orderindex": 0
       },
-      "date_created": "1779075589693",
-      "date_updated": "1779075589693",
+      "date_created": "1781067311633",
+      "date_updated": "1781067311633",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -185,13 +185,13 @@
       "name": "Triage customer feedback notes",
       "description": "Group feedback into bugs, feature requests, and follow-ups.",
       "status": {
-        "status": "in progress",
-        "type": "custom",
-        "color": "#2f80ed",
-        "orderindex": 1
+        "status": "complete",
+        "type": "closed",
+        "color": "#27ae60",
+        "orderindex": 3
       },
-      "date_created": "1779075589693",
-      "date_updated": "1779075589693",
+      "date_created": "1781067311633",
+      "date_updated": "1781067403524",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -214,8 +214,8 @@
         "color": "#f2c94c",
         "orderindex": 2
       },
-      "date_created": "1779075589693",
-      "date_updated": "1779075589693",
+      "date_created": "1781067311633",
+      "date_updated": "1781067311633",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -233,13 +233,13 @@
       "name": "Follow up on API docs review",
       "description": "Ask for final comments and close the loop.",
       "status": {
-        "status": "in progress",
-        "type": "custom",
-        "color": "#2f80ed",
-        "orderindex": 1
+        "status": "complete",
+        "type": "closed",
+        "color": "#27ae60",
+        "orderindex": 3
       },
-      "date_created": "1779075589693",
-      "date_updated": "1779075589693",
+      "date_created": "1781067311633",
+      "date_updated": "1781067403525",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -262,8 +262,8 @@
         "color": "#87909f",
         "orderindex": 0
       },
-      "date_created": "1779075589693",
-      "date_updated": "1779075589693",
+      "date_created": "1781067311633",
+      "date_updated": "1781067311633",
       "archived": false,
       "assignees": [],
       "priority": null,
@@ -285,7 +285,7 @@
           "username": "Mock Agent",
           "email": "agent@example.test"
         },
-        "date": "1779075589693",
+        "date": "1781067311633",
         "resolved": false
       }
     ]

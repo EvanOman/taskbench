@@ -161,13 +161,13 @@
       "name": "Draft weekly project update",
       "description": "Summarize completed work, blockers, and next actions.",
       "status": {
-        "status": "to do",
-        "type": "open",
-        "color": "#87909f",
-        "orderindex": 0
+        "status": "complete",
+        "type": "closed",
+        "color": "#27ae60",
+        "orderindex": 3
       },
-      "date_created": "1779074716902",
-      "date_updated": "1779074716902",
+      "date_created": "1781067820346",
+      "date_updated": "1781067864680",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -190,8 +190,8 @@
         "color": "#2f80ed",
         "orderindex": 1
       },
-      "date_created": "1779074716902",
-      "date_updated": "1779074716902",
+      "date_created": "1781067820346",
+      "date_updated": "1781067820346",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -214,8 +214,8 @@
         "color": "#f2c94c",
         "orderindex": 2
       },
-      "date_created": "1779074716902",
-      "date_updated": "1779074716902",
+      "date_created": "1781067820346",
+      "date_updated": "1781067820346",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -238,8 +238,8 @@
         "color": "#2f80ed",
         "orderindex": 1
       },
-      "date_created": "1779074716902",
-      "date_updated": "1779074716902",
+      "date_created": "1781067820346",
+      "date_updated": "1781067820346",
       "archived": false,
       "assignees": [],
       "priority": {
@@ -262,8 +262,8 @@
         "color": "#87909f",
         "orderindex": 0
       },
-      "date_created": "1779074716902",
-      "date_updated": "1779074716902",
+      "date_created": "1781067820346",
+      "date_updated": "1781067820346",
       "archived": false,
       "assignees": [],
       "priority": null,
@@ -285,7 +285,7 @@
           "username": "Mock Agent",
           "email": "agent@example.test"
         },
-        "date": "1779074716902",
+        "date": "1781067820346",
         "resolved": false
       }
     ]
