@@ -62,7 +62,14 @@ def _resolve_list_ids(list_id: str | None, *, all_lists: bool = False) -> list[s
     if all_lists:
         aliases: dict[str, str] = config.get("default_lists") or {}
         if not aliases:
-            _usage_error("Error: --all-lists requires configured default_lists aliases.")
+            _usage_error(
+                "Error: --all-lists queries the configured default_lists aliases, and none are configured.",
+                hint=(
+                    "Configure aliases with 'clickup config set default_lists "
+                    '\'{"inbox": "<list-id>", ...}\'\' — or use task search / task mine for a '
+                    "workspace-wide query."
+                ),
+            )
         return list(aliases.values())
 
     raw_values = _split_csv(list_id)
@@ -286,7 +293,15 @@ def _sort_tasks_locally(tasks: list[Any], field: str | None, descending: bool) -
 @app.command("list")
 def list_tasks(
     list_id: str | None = typer.Option(None, "--list-id", "-l", help="List ID to get tasks from"),
-    all_lists: bool = typer.Option(False, "--all-lists", help="Query every configured default_lists alias"),
+    all_lists: bool = typer.Option(
+        False,
+        "--all-lists",
+        help=(
+            "Query every list configured in the default_lists aliases — NOT every list in the "
+            "workspace. Configure aliases with 'clickup config set default_lists ...'. "
+            "For a workspace-wide query use 'task search' or 'task mine'."
+        ),
+    ),
     status: str | None = typer.Option(None, "--status", "-s", help="Filter by status; comma-separated values allowed"),
     assignee: str | None = typer.Option(None, "--assignee", "-a", help="Filter by assignee"),
     limit: int = typer.Option(50, "--limit", help="Maximum number of tasks to show"),
@@ -692,12 +707,12 @@ async def _do_status_change_many(task_ids: list[str], status: str) -> None:
         raise typer.Exit(1)
 
 
-def _usage_error(msg: str) -> NoReturn:
+def _usage_error(msg: str, hint: str | None = None) -> NoReturn:
     """Emit a usage error per AGENT.md §4a (render_error → stderr, exit 2).
 
     Declared ``NoReturn`` so the type checker treats call sites as terminating.
     """
-    render_error(msg)
+    render_error(msg, hint=hint)
     raise typer.Exit(2)
 
 

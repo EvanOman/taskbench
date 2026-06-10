@@ -397,3 +397,17 @@ def test_folder_create_missing_space(tmp_path, monkeypatch):
     err = json.loads(result.stderr)
     assert "space" in err["error"].lower()
     assert "hint" in err
+
+
+def test_all_lists_without_aliases_gives_actionable_error(tmp_path, monkeypatch):
+    """--all-lists with no default_lists configured explains the alias scope."""
+    monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
+    result = runner.invoke(app, ["mock", "init", "--path", str(tmp_path / "store.json")])
+    assert result.exit_code == 0
+    Config().set("default_lists", {})
+
+    result = runner.invoke(app, ["task", "list", "--all-lists"])
+    assert result.exit_code == 2
+    err = json.loads(result.stderr)
+    assert "default_lists" in err["error"]
+    assert "hint" in err
