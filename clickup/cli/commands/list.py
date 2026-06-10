@@ -63,11 +63,21 @@ def list_lists(
 
 
 @app.command("get")
-def get_list(list_id: str | None = typer.Option(None, "--list-id", "-l", help="List ID")) -> None:
-    """Get detailed information about a specific list."""
+def get_list(
+    list_id_arg: str | None = typer.Argument(None, metavar="LIST_ID", help="List ID or alias (positional)"),
+    list_id: str | None = typer.Option(None, "--list-id", "-l", help="List ID (back-compat alias for positional)"),
+) -> None:
+    """Get detailed information about a specific list.
+
+    Positional form: clickup list get LIST_ID (matches `task get TASK_ID`).
+    Flag form (back-compat): clickup list get --list-id LIST_ID
+    """
+    if list_id_arg is not None and list_id is not None:
+        render_error("Error: pass LIST_ID either as a positional argument OR via --list-id, not both.")
+        raise typer.Exit(2)
 
     async def _get_list() -> None:
-        list_id_to_use = _resolve_list_id(list_id)
+        list_id_to_use = _resolve_list_id(list_id_arg or list_id)
 
         if not list_id_to_use:
             render_error(

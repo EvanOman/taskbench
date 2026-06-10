@@ -333,3 +333,67 @@ def test_task_objects_carry_comment_count(tmp_path, monkeypatch):
     # --brief keeps the field too.
     brief = json.loads(runner.invoke(app, ["task", "get", "mock_1003", "--brief"]).stdout)
     assert brief["comment_count"] == 1
+
+
+def test_list_get_positional_arg(tmp_path, monkeypatch):
+    """`list get LIST_ID` works positionally, matching `task get TASK_ID`."""
+    monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
+    result = runner.invoke(app, ["mock", "init", "--path", str(tmp_path / "store.json")])
+    assert result.exit_code == 0
+
+    positional = runner.invoke(app, ["list", "get", "inbox"])
+    assert positional.exit_code == 0
+    assert json.loads(positional.stdout)["id"] == "list_inbox"
+
+    flag = runner.invoke(app, ["list", "get", "--list-id", "inbox"])
+    assert flag.exit_code == 0
+    assert json.loads(flag.stdout)["id"] == "list_inbox"
+
+    both = runner.invoke(app, ["list", "get", "inbox", "--list-id", "active"])
+    assert both.exit_code == 2
+    assert "not both" in both.stderr
+
+
+def test_folder_create_and_full_hierarchy_crud(tmp_path, monkeypatch):
+    """`folder create` works against the JSON provider; new folder accepts lists and tasks."""
+    monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
+    result = runner.invoke(app, ["mock", "init", "--path", str(tmp_path / "store.json")])
+    assert result.exit_code == 0
+
+    created = runner.invoke(app, ["folder", "create", "Projects"])
+    assert created.exit_code == 0
+    folder = json.loads(created.stdout)
+    assert folder["name"] == "Projects"
+    assert folder["space"]["id"] == "space_ops"
+
+    fetched = runner.invoke(app, ["folder", "get", folder["id"]])
+    assert fetched.exit_code == 0
+    assert json.loads(fetched.stdout)["name"] == "Projects"
+
+    listed = runner.invoke(app, ["folder", "list"])
+    assert listed.exit_code == 0
+    names = {f["name"] for f in json.loads(listed.stdout)["data"]}
+    assert {"Daily Work", "Projects"} <= names
+
+    # Agent 11's round-1 scenario end-to-end: list in new folder, task in new list.
+    new_list = runner.invoke(app, ["list", "create", "Reading", "--folder-id", folder["id"]])
+    assert new_list.exit_code == 0
+    list_id = json.loads(new_list.stdout)["id"]
+    new_task = runner.invoke(app, ["task", "create", "Finish DDIA", "--list-id", list_id])
+    assert new_task.exit_code == 0
+    assert json.loads(new_task.stdout)["list"]["id"] == list_id
+
+
+def test_folder_create_missing_space(tmp_path, monkeypatch):
+    """No space ID and no default → usage error with hint."""
+    monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
+    result = runner.invoke(app, ["mock", "init", "--path", str(tmp_path / "store.json")])
+    assert result.exit_code == 0
+    # Clear the default space that mock init configured.
+    Config().set("default_space_id", "")
+
+    result = runner.invoke(app, ["folder", "create", "Orphan"])
+    assert result.exit_code == 2
+    err = json.loads(result.stderr)
+    assert "space" in err["error"].lower()
+    assert "hint" in err

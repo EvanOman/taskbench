@@ -10,7 +10,7 @@ from rich.console import Console
 from rich.table import Table
 
 from ..core import Config, get_provider, provider_name, provider_requires_credentials
-from .commands import api, bulk, config, discover, mock, task, templates, workspace
+from .commands import api, bulk, config, discover, folder, mock, task, templates, workspace
 from .commands import list as list_cmd
 from .commands import setup as setup_cmd
 from .output import FormatChoice, error_payload, get_format, set_format
@@ -53,6 +53,7 @@ app.add_typer(task.app, name="task", rich_help_panel="Task workflow")
 # -- Workspace navigation ------------------------------------------------
 app.add_typer(workspace.app, name="workspace", rich_help_panel="Workspace navigation")
 app.add_typer(list_cmd.app, name="list", rich_help_panel="Workspace navigation")
+app.add_typer(folder.app, name="folder", rich_help_panel="Workspace navigation")
 app.add_typer(discover.app, name="discover", rich_help_panel="Workspace navigation")
 
 # -- Other ---------------------------------------------------------------

@@ -143,6 +143,12 @@ class ClickUpClient:
         data = await self._request("GET", f"/folder/{folder_id}")
         return Folder(**data)
 
+    async def create_folder(self, space_id: str, name: str, **kwargs: Any) -> Folder:
+        """Create a new folder in a space."""
+        payload = {"name": name, **kwargs}
+        data = await self._request("POST", f"/space/{space_id}/folder", json=payload)
+        return Folder(**data)
+
     # Lists
     async def get_lists(self, folder_id: str) -> list[ClickUpList]:
         """Get all lists in a folder."""

@@ -320,6 +320,27 @@ class JsonProvider:
                 return Folder(**folder)
         raise NotFoundError(f"Folder not found: {folder_id}")
 
+    async def create_folder(self, space_id: str, name: str, **kwargs: Any) -> Folder:
+        store = self._load()
+        space = next((item for item in store.get("spaces", []) if item["id"] == space_id), None)
+        if space is None:
+            raise NotFoundError(f"Space not found: {space_id}")
+        folder_id = f"folder_{len(store.get('folders', [])) + 1}"
+        folder: dict[str, Any] = {
+            "id": folder_id,
+            "name": name,
+            "orderindex": len(store.get("folders", [])),
+            "override_statuses": False,
+            "hidden": False,
+            "space": {"id": space_id, "name": space["name"]},
+            "task_count": "0",
+            "lists": [],
+            **kwargs,
+        }
+        store.setdefault("folders", []).append(folder)
+        self._save(store)
+        return Folder(**folder)
+
     async def get_lists(self, folder_id: str) -> list[ClickUpList]:
         return [ClickUpList(**item) for item in self._load().get("lists", []) if item.get("folder_id") == folder_id]
 

@@ -352,6 +352,23 @@ def render_lists(lists: list[ClickUpList]) -> None:
     _console.print(table)
 
 
+def render_folder(folder: Folder) -> None:
+    """Render a single Folder."""
+    if get_format() == "json":
+        _print_json(folder.model_dump(mode="json"))
+        return
+    table = Table(title=f"Folder: {escape(folder.name)}", show_header=False)
+    table.add_column("Field", style="cyan", width=15)
+    table.add_column("Value")
+    table.add_row("ID", folder.id)
+    table.add_row("Name", escape(folder.name))
+    table.add_row("Hidden", "Yes" if folder.hidden else "No")
+    table.add_row("Task Count", str(folder.task_count))
+    if folder.space is not None and folder.space.name:
+        table.add_row("Space", escape(folder.space.name))
+    _console.print(table)
+
+
 def render_folders(folders: list[Folder]) -> None:
     """Render a list of Folders."""
     if get_format() == "json":
