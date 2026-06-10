@@ -2,7 +2,9 @@
 
 import asyncio
 import json
+import sys
 
+import click
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -11,7 +13,7 @@ from ..core import Config, get_provider, provider_name, provider_requires_creden
 from .commands import api, bulk, config, discover, mock, task, templates, workspace
 from .commands import list as list_cmd
 from .commands import setup as setup_cmd
-from .output import FormatChoice, get_format, render_error, set_format
+from .output import FormatChoice, get_format, set_format
 
 app = typer.Typer(
     name="clickup",
@@ -245,16 +247,79 @@ async def async_main() -> None:
     app()
 
 
+def _wants_json_mode(argv: list[str]) -> bool:
+    """Inspect argv for ``--format`` before Click parses it.
+
+    The Typer root callback installs the format flag, but Click raises
+    UsageError *during* argument parsing — before the callback runs — so we
+    can't read ``get_format()`` here. JSON is the default per AGENT.md §2,
+    so anything except an explicit ``--format table`` (or ``--format csv``,
+    if ever supported) means JSON.
+    """
+    for i, arg in enumerate(argv):
+        if arg == "--format" and i + 1 < len(argv):
+            return argv[i + 1].lower() == "json"
+        if arg.startswith("--format="):
+            return arg.split("=", 1)[1].lower() == "json"
+    return True
+
+
+def _emit_click_error_envelope(exc: click.ClickException) -> None:
+    """Render a click.ClickException as the JSON ``{"error": ..., ...}`` envelope.
+
+    This closes the last gap from issue #29 P0 #2: Typer/Click usage errors
+    (unknown subcommand, ``--limit abc``, missing required arg) used to emit
+    Rich-formatted prose on stderr, bypassing the JSON envelope contract.
+    """
+    payload: dict[str, str] = {
+        "error": exc.format_message(),
+        "type": exc.__class__.__name__,
+    }
+    ctx = getattr(exc, "ctx", None)
+    if ctx is not None and ctx.command_path:
+        payload["command"] = ctx.command_path
+    typer.echo(json.dumps(payload), err=True)
+
+
 def main() -> None:
-    """Main entry point for the CLI."""
+    """Main entry point for the CLI.
+
+    Runs the Typer app with ``standalone_mode=False`` so we can route Click's
+    usage errors through the structured JSON envelope agents expect, instead
+    of letting Click format them as Rich prose on stderr.
+    """
+    json_mode = _wants_json_mode(sys.argv[1:])
     try:
-        app()
+        app(standalone_mode=False)
+    except click.exceptions.UsageError as e:
+        if json_mode:
+            _emit_click_error_envelope(e)
+        else:
+            e.show()
+        sys.exit(e.exit_code or 2)
+    except click.exceptions.ClickException as e:
+        # UsageError + its subclasses (NoSuchOption, BadParameter, etc.) are
+        # caught above; this clause catches the other ClickException branch,
+        # most realistically FileError.
+        if json_mode:
+            _emit_click_error_envelope(e)
+        else:
+            e.show()
+        sys.exit(e.exit_code or 1)
+    except click.exceptions.Abort:
+        # Ctrl+C path; mirror Click's default exit code without the noisy
+        # Rich traceback typer emits otherwise.
+        sys.exit(1)
+    except click.exceptions.Exit as e:
+        # typer.Exit raises this with an explicit code; honor it.
+        sys.exit(e.exit_code)
     except KeyboardInterrupt:
-        console.print("\n[yellow]Cancelled by user[/yellow]")
-        raise typer.Exit(1) from None
-    except Exception as e:
-        render_error(f"Error: {e}")
-        raise typer.Exit(1) from e
+        # Match the JSON contract on stderr in JSON mode; Rich prose for humans.
+        if json_mode:
+            typer.echo(json.dumps({"error": "Cancelled by user", "type": "KeyboardInterrupt"}), err=True)
+        else:
+            console.print("\n[yellow]Cancelled by user[/yellow]")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

@@ -303,7 +303,9 @@ def list_tasks(
         help=(
             "Sort tasks by: created, updated, due_date, priority. "
             "Direction syntax: 'updated:desc', '-updated' (desc), '+updated' or 'updated' (asc). "
-            "When direction is implicit, --reverse decides."
+            "When direction is implicit, --reverse decides. "
+            "Note: priority encodes 1=urgent..4=low numerically, so 'priority' (asc) "
+            "puts urgent first; 'priority:desc' puts low first. Tasks missing the field always sort last."
         ),
     ),
     reverse: bool = typer.Option(
@@ -434,7 +436,10 @@ def my_tasks(
         None,
         "--sort",
         "--order-by",
-        help="Sort by: created, updated, due_date, priority. Direction: 'priority:desc', '-priority', '+priority'.",
+        help=(
+            "Sort by: created, updated, due_date, priority. Direction: 'priority:desc', '-priority', '+priority'. "
+            "Priority is numeric (1=urgent..4=low), so 'priority' (asc) puts urgent first."
+        ),
     ),
     reverse: bool = typer.Option(False, "--reverse", help="Sort descending."),
     limit: int = typer.Option(50, "--limit", help="Maximum number of tasks to show"),
@@ -672,11 +677,6 @@ async def _do_status_change_many(task_ids: list[str], status: str) -> None:
         raise typer.Exit(1) from e
 
 
-async def _do_status_change(task_id: str, status: str) -> None:
-    """Shared single-task status update wrapper."""
-    await _do_status_change_many([task_id], status)
-
-
 def _usage_error(msg: str) -> NoReturn:
     """Emit a usage error per AGENT.md §4a (render_error → stderr, exit 2).
 
@@ -793,40 +793,40 @@ def change_status(
 
 @app.command("done")
 def task_done(
-    task_id: str = typer.Argument(..., help="Task ID"),
+    task_ids: list[str] = typer.Argument(..., metavar="TASK_ID...", help="One or more task IDs"),
     status: str = typer.Option(_DONE_STATUS, "--status", "-s", help=f"Target status name (default: '{_DONE_STATUS}')"),
 ) -> None:
-    """Close a task. Sets status to 'complete' unless --status overrides."""
-    run_async(_do_status_change(task_id, status))
+    """Close one or more tasks. Sets status to 'complete' unless --status overrides."""
+    run_async(_do_status_change_many(task_ids, status))
 
 
 @app.command("close")
 def task_close(
-    task_id: str = typer.Argument(..., help="Task ID"),
+    task_ids: list[str] = typer.Argument(..., metavar="TASK_ID...", help="One or more task IDs"),
     status: str = typer.Option(_DONE_STATUS, "--status", "-s", help=f"Target status name (default: '{_DONE_STATUS}')"),
 ) -> None:
-    """Close a task. Alias for `task done`."""
-    task_done(task_id=task_id, status=status)
+    """Close one or more tasks. Alias for `task done`."""
+    run_async(_do_status_change_many(task_ids, status))
 
 
 @app.command("start")
 def task_start(
-    task_id: str = typer.Argument(..., help="Task ID"),
+    task_ids: list[str] = typer.Argument(..., metavar="TASK_ID...", help="One or more task IDs"),
     status: str = typer.Option(
         _START_STATUS, "--status", "-s", help=f"Target status name (default: '{_START_STATUS}')"
     ),
 ) -> None:
-    """Move a task to 'in progress' unless --status overrides."""
-    run_async(_do_status_change(task_id, status))
+    """Move one or more tasks to 'in progress' unless --status overrides."""
+    run_async(_do_status_change_many(task_ids, status))
 
 
 @app.command("park")
 def task_park(
-    task_id: str = typer.Argument(..., help="Task ID"),
+    task_ids: list[str] = typer.Argument(..., metavar="TASK_ID...", help="One or more task IDs"),
     status: str = typer.Option(_PARK_STATUS, "--status", "-s", help=f"Target status name (default: '{_PARK_STATUS}')"),
 ) -> None:
-    """Park a task on the on-deck queue unless --status overrides."""
-    run_async(_do_status_change(task_id, status))
+    """Park one or more tasks on the on-deck queue unless --status overrides."""
+    run_async(_do_status_change_many(task_ids, status))
 
 
 @app.command("delete")
