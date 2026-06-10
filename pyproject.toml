@@ -81,7 +81,7 @@ indent-style = "space"
 python-version = "3.12"
 
 [tool.ty.src]
-exclude = ["tests/**", "seed.py", "clickup/core/planka_provider.py"]
+exclude = ["tests/**", "clickup/core/planka_provider.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -93,6 +93,5 @@ markers = [
 
 [tool.coverage.run]
 omit = [
-    "seed.py",
     "clickup/core/planka_provider.py",
 ]

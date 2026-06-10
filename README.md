@@ -297,6 +297,18 @@ The project uses a modular structure:
 
 See `AGENT.md` for development guidelines.
 
+## Backends
+
+The CLI talks to any backend implementing the `TaskProvider` protocol (`clickup/core/providers.py`). Adapters live in this repo; backend *deployments* do not.
+
+| Backend | Adapter | Deployment |
+|---------|---------|------------|
+| ClickUp | `clickup/core/client.py` (default) | SaaS — nothing to deploy |
+| Planka | `clickup/core/planka_provider.py` (`CLICKUP_PROVIDER=planka`) | [EvanOman/planka-deploy](https://github.com/EvanOman/planka-deploy) (private) — Railway stack, Caddy proxy, backups, seed data. Live at https://caddy-production-5cac.up.railway.app |
+| Local JSON | `clickup/core/json_provider.py` | None — file-backed, used for evals |
+
+Plane and Todoist adapter prototypes exist on the `adapter/plane` and `adapter/todoist` branches (closed PRs #30/#31 — Planka won the bake-off).
+
 ## License
 
 MIT
