@@ -605,3 +605,27 @@ def test_render_error_escapes_markup(capsys):
     captured = capsys.readouterr()
     # The escaped form should appear; either way, no markup parsing crash.
     assert "[bold]not a tag" in captured.err or "not a tag" in captured.err
+
+
+def test_render_error_json_superset_shape(capsys):
+    """The canonical envelope carries error/type/hint/command when provided."""
+    set_format("json")
+    render_error("boom", hint="try --force", error_type="NotFoundError", command="clickup task get")
+    captured = capsys.readouterr()
+    data = json.loads(captured.err)
+    assert data == {
+        "error": "boom",
+        "type": "NotFoundError",
+        "hint": "try --force",
+        "command": "clickup task get",
+    }
+    assert captured.out == ""
+
+
+def test_error_payload_omits_empty_fields():
+    """Optional fields are absent (not null) when not provided."""
+    from clickup.cli.output import error_payload
+
+    assert error_payload("x") == {"error": "x"}
+    assert error_payload("x", error_type="T") == {"error": "x", "type": "T"}
+    assert error_payload("x", hint="h", command="c") == {"error": "x", "hint": "h", "command": "c"}

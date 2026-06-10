@@ -56,7 +56,7 @@ def list_lists(
                 render_lists(lists)
 
         except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}")
+            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
             raise typer.Exit(1) from e
 
     run_async(_list_lists())
@@ -82,7 +82,7 @@ def get_list(list_id: str | None = typer.Option(None, "--list-id", "-l", help="L
                 render_list(list_item)
 
         except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}")
+            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
             raise typer.Exit(1) from e
 
     run_async(_get_list())
@@ -130,7 +130,7 @@ def create_list(
                 render_list(list_item)
 
         except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}")
+            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
             raise typer.Exit(1) from e
 
     run_async(_create_list())

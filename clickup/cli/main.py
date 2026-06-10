@@ -13,7 +13,7 @@ from ..core import Config, get_provider, provider_name, provider_requires_creden
 from .commands import api, bulk, config, discover, mock, task, templates, workspace
 from .commands import list as list_cmd
 from .commands import setup as setup_cmd
-from .output import FormatChoice, get_format, set_format
+from .output import FormatChoice, error_payload, get_format, set_format
 
 app = typer.Typer(
     name="clickup",
@@ -265,19 +265,17 @@ def _wants_json_mode(argv: list[str]) -> bool:
 
 
 def _emit_click_error_envelope(exc: click.ClickException) -> None:
-    """Render a click.ClickException as the JSON ``{"error": ..., ...}`` envelope.
+    """Render a click.ClickException as the canonical JSON error envelope.
 
     This closes the last gap from issue #29 P0 #2: Typer/Click usage errors
     (unknown subcommand, ``--limit abc``, missing required arg) used to emit
     Rich-formatted prose on stderr, bypassing the JSON envelope contract.
+    The payload shape is shared with :func:`clickup.cli.output.render_error`
+    via :func:`clickup.cli.output.error_payload`.
     """
-    payload: dict[str, str] = {
-        "error": exc.format_message(),
-        "type": exc.__class__.__name__,
-    }
     ctx = getattr(exc, "ctx", None)
-    if ctx is not None and ctx.command_path:
-        payload["command"] = ctx.command_path
+    command = ctx.command_path if ctx is not None and ctx.command_path else None
+    payload = error_payload(exc.format_message(), error_type=exc.__class__.__name__, command=command)
     typer.echo(json.dumps(payload), err=True)
 
 
@@ -316,7 +314,7 @@ def main() -> None:
     except KeyboardInterrupt:
         # Match the JSON contract on stderr in JSON mode; Rich prose for humans.
         if json_mode:
-            typer.echo(json.dumps({"error": "Cancelled by user", "type": "KeyboardInterrupt"}), err=True)
+            typer.echo(json.dumps(error_payload("Cancelled by user", error_type="KeyboardInterrupt")), err=True)
         else:
             console.print("\n[yellow]Cancelled by user[/yellow]")
         sys.exit(1)

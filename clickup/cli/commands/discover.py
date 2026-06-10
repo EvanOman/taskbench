@@ -85,7 +85,7 @@ def show_hierarchy(
 
                 render_hierarchy(data)
         except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}")
+            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
             raise typer.Exit(1) from e
 
     run_async(_show_hierarchy())
@@ -184,7 +184,7 @@ def show_ids(
                         )
 
         except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}")
+            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
             raise typer.Exit(1) from e
 
     run_async(_show_ids())
@@ -264,7 +264,7 @@ def find_path(list_id: str = typer.Argument(..., help="List ID to find path for"
                 else:
                     console.print(f"[yellow]Could not find path for list {list_id}[/yellow]")
         except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}")
+            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
             raise typer.Exit(1) from e
 
     run_async(_find_path())

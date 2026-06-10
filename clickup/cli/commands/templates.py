@@ -394,7 +394,7 @@ def create_from_template(
                     console.print(f"🔗 URL: {task.url}")
 
         except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}")
+            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
             raise typer.Exit(1) from e
         except Exception as e:
             render_error(f"Error: {e}")
@@ -464,7 +464,7 @@ def save_template(
                 console.print(f"🔤 Variables: {', '.join(variables_list)}")
 
         except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}")
+            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
             raise typer.Exit(1) from e
         except Exception as e:
             render_error(f"Error: {e}")

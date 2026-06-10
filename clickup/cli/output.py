@@ -602,11 +602,42 @@ def render_message(msg: str, level: Literal["info", "success", "warn", "error"] 
     _console.print(f"[{style}]{escape(msg)}[/{style}]")
 
 
-def render_error(msg: str, hint: str | None = None) -> None:
+def error_payload(
+    msg: str,
+    *,
+    error_type: str | None = None,
+    hint: str | None = None,
+    command: str | None = None,
+) -> dict[str, str]:
+    """Build the canonical error envelope: ``{"error", "type", "hint", "command"}``.
+
+    ``error`` is always present; the rest are included only when provided.
+    This is the single source of truth for the error shape — both
+    application-level errors (:func:`render_error`) and Click parse-time
+    errors (``main._emit_click_error_envelope``) emit this same superset
+    shape so agents need exactly one stderr parse path.
+    """
+    payload: dict[str, str] = {"error": msg}
+    if error_type:
+        payload["type"] = error_type
+    if hint:
+        payload["hint"] = hint
+    if command:
+        payload["command"] = command
+    return payload
+
+
+def render_error(
+    msg: str,
+    hint: str | None = None,
+    *,
+    error_type: str | None = None,
+    command: str | None = None,
+) -> None:
     """Emit an error to stderr.
 
-    In ``--format json`` mode emits ``{"error": msg, "hint": hint}`` to stderr
-    (``hint`` omitted when ``None``) so stdout pipelines (which expect data
+    In ``--format json`` mode emits the canonical envelope (see
+    :func:`error_payload`) to stderr so stdout pipelines (which expect data
     JSON) are not corrupted. In table mode emits the message and the hint
     on separate stderr lines.
 
@@ -615,10 +646,7 @@ def render_error(msg: str, hint: str | None = None) -> None:
     (missing required flags, invalid input, etc.).
     """
     if get_format() == "json":
-        payload: dict[str, str] = {"error": msg}
-        if hint:
-            payload["hint"] = hint
-        typer.echo(json.dumps(payload), err=True)
+        typer.echo(json.dumps(error_payload(msg, error_type=error_type, hint=hint, command=command)), err=True)
     else:
         typer.echo(msg, err=True)
         if hint:

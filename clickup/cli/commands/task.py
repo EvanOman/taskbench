@@ -384,7 +384,7 @@ def list_tasks(
                     render_message("No tasks found.", "warn")
 
         except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}")
+            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
             raise typer.Exit(1) from e
 
     run_async(_list_tasks())
@@ -416,7 +416,7 @@ def get_task(
                 render_task(task, brief=brief)
 
         except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}")
+            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
             raise typer.Exit(1) from e
 
     run_async(_get_task())
@@ -497,7 +497,7 @@ def my_tasks(
                     render_message(f"Showing {len(tasks)} task(s) assigned to {user.username}.", "info")
 
         except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}")
+            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
             raise typer.Exit(1) from e
 
     run_async(_my_tasks())
@@ -564,7 +564,7 @@ def create_task(
                     render_message(f"URL: {task.url}", "info")
 
         except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}")
+            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
             raise typer.Exit(1) from e
 
     run_async(_create_task())
@@ -651,7 +651,7 @@ def update_task(
                     render_message(f"Updated {len(tasks)} tasks.", "success")
 
         except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}")
+            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
             raise typer.Exit(1) from e
 
     run_async(_update_task())
@@ -673,7 +673,7 @@ async def _do_status_change_many(task_ids: list[str], status: str) -> None:
             else:
                 render_message(f"Updated {len(tasks)} task statuses -> {status}", "success")
     except ClickUpError as e:
-        render_error(f"ClickUp API Error: {e}")
+        render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
         raise typer.Exit(1) from e
 
 
@@ -736,7 +736,7 @@ def list_task_statuses(
                 render_statuses(statuses, list_id=list_obj.id, list_name=list_obj.name)
 
         except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}")
+            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
             raise typer.Exit(1) from e
 
     run_async(_list_task_statuses())
@@ -857,7 +857,7 @@ def delete_task(
                 render_message(f"Deleted task {task_id}", "success")
 
         except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}")
+            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
             raise typer.Exit(1) from e
 
     run_async(_delete_task())
@@ -904,7 +904,7 @@ def search_tasks(
                     render_message(f"Found {len(tasks)} task(s)", "info")
 
         except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}")
+            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
             raise typer.Exit(1) from e
 
     run_async(_search_tasks())
@@ -985,7 +985,7 @@ def export_tasks(
                 render_kv({"exported": len(tasks), "output_file": output_file, "format": format.lower()})
 
         except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}")
+            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
             raise typer.Exit(1) from e
 
     run_async(_export_tasks())
@@ -1011,7 +1011,7 @@ def list_comments(
                     render_message(f"{len(comments)} comment(s)", "info")
 
         except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}")
+            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
             raise typer.Exit(1) from e
 
     run_async(_list_comments())
@@ -1034,7 +1034,7 @@ def add_comment(
                 render_message(f"Comment added (ID: {comment.id})", "success")
 
         except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}")
+            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
             raise typer.Exit(1) from e
 
     run_async(_add_comment())

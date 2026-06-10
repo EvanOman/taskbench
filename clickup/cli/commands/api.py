@@ -87,7 +87,7 @@ def request(
                 result = await client.raw_request(method_to_use, endpoint, **request_kwargs)
                 render_kv(result)
         except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}")
+            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
             raise typer.Exit(1) from e
 
     run_async(_request())

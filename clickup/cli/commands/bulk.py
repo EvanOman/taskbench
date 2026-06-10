@@ -118,7 +118,7 @@ def export_tasks(
                 render_kv({"exported": len(tasks), "output_file": output_file, "format": format.lower()})
 
         except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}")
+            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
             raise typer.Exit(1) from e
         except typer.Exit:
             raise
@@ -248,7 +248,7 @@ def import_tasks(
                 render_kv({"created": created_count, "failed": failed_count})
 
         except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}")
+            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
             raise typer.Exit(1) from e
         except typer.Exit:
             raise
@@ -366,7 +366,7 @@ def bulk_update(
                 render_kv({"updated": updated_count, "failed": failed_count})
 
         except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}")
+            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
             raise typer.Exit(1) from e
         except typer.Exit:
             raise

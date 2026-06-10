@@ -36,7 +36,7 @@ def list_workspaces() -> None:
                     return
                 render_teams(teams)
         except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}")
+            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
             raise typer.Exit(1) from None
         except typer.Exit:
             raise
@@ -74,7 +74,7 @@ def list_spaces(
                     return
                 render_spaces(spaces)
         except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}")
+            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
             raise typer.Exit(1) from None
         except typer.Exit:
             raise
@@ -111,7 +111,7 @@ def list_folders(
                     return
                 render_folders(folders)
         except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}")
+            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
             raise typer.Exit(1) from None
         except typer.Exit:
             raise
@@ -149,7 +149,7 @@ def list_members(
                     return
                 render_users(members, title="Workspace Members")
         except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}")
+            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
             raise typer.Exit(1) from None
         except typer.Exit:
             raise
