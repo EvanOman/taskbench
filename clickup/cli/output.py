@@ -141,6 +141,9 @@ _BRIEF_TASK_FIELDS: tuple[str, ...] = (
     "url",
     "list",
     "source_list_id",
+    # Present only when the provider supplies it (JsonProvider computes it
+    # from its comments map; the real ClickUp API omits it).
+    "comment_count",
 )
 
 

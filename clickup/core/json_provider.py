@@ -220,8 +220,17 @@ class JsonProvider:
                 return task
         raise NotFoundError(f"Task not found: {task_id}")
 
-    def _task_model(self, task: dict[str, Any]) -> Task:
-        return Task(**deepcopy(task))
+    def _task_model(self, task: dict[str, Any], store: dict[str, Any] | None = None) -> Task:
+        """Materialise a Task model, annotating ``comment_count`` from the store.
+
+        The real ClickUp API doesn't return comment counts on task objects, so
+        this is a local-provider enrichment — it spares audit-style flows the
+        N+1 `task comments list` round-trips (issue #29 / Agent 06).
+        """
+        data = deepcopy(task)
+        if store is not None:
+            data["comment_count"] = len(store.get("comments", {}).get(task["id"], []))
+        return Task(**data)
 
     def _resolve_status(self, list_data: dict[str, Any], name: str) -> dict[str, Any]:
         """Look up a status by name on the given list, falling back to its space.
@@ -382,10 +391,11 @@ class JsonProvider:
                     tasks = [task for task in tasks if int(task.get(field) or 0) > threshold]
                 else:
                     tasks = [task for task in tasks if int(task.get(field) or 0) < threshold]
-        return [self._task_model(task) for task in tasks]
+        return [self._task_model(task, store) for task in tasks]
 
     async def get_task(self, task_id: str) -> Task:
-        return self._task_model(self._task_data(self._load(), task_id))
+        store = self._load()
+        return self._task_model(self._task_data(store, task_id), store)
 
     async def create_task(self, list_id: str, name: str, **kwargs: Any) -> Task:
         store = self._load()
@@ -412,7 +422,7 @@ class JsonProvider:
         store.setdefault("tasks", []).append(task)
         list_data["task_count"] = int(list_data.get("task_count") or 0) + 1
         self._save(store)
-        return self._task_model(task)
+        return self._task_model(task, store)
 
     async def update_task(self, task_id: str, **updates: Any) -> Task:
         store = self._load()
@@ -427,7 +437,7 @@ class JsonProvider:
                 task[key] = value
         task["date_updated"] = _now_ms()
         self._save(store)
-        return self._task_model(task)
+        return self._task_model(task, store)
 
     async def delete_task(self, task_id: str) -> bool:
         store = self._load()
@@ -472,4 +482,4 @@ class JsonProvider:
             for task in store.get("tasks", [])
             if needle in task.get("name", "").lower() or needle in (task.get("description") or "").lower()
         ]
-        return [self._task_model(task) for task in tasks]
+        return [self._task_model(task, store) for task in tasks]

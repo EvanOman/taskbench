@@ -312,3 +312,24 @@ def test_batch_status_change_all_succeed_unchanged(tmp_path, monkeypatch):
     data = json.loads(result.stdout)
     assert data["count"] == 2
     assert {t["id"] for t in data["data"]} == {"mock_1001", "mock_1002"}
+
+
+def test_task_objects_carry_comment_count(tmp_path, monkeypatch):
+    """JsonProvider annotates comment_count so audits don't need N+1 calls."""
+    monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
+    result = runner.invoke(app, ["mock", "init", "--path", str(tmp_path / "store.json")])
+    assert result.exit_code == 0
+
+    data = json.loads(runner.invoke(app, ["task", "list", "--list-id", "inbox"]).stdout)
+    counts = {t["id"]: t["comment_count"] for t in data["data"]}
+    assert counts["mock_1001"] == 1  # seed store has one comment here
+    assert counts["mock_1003"] == 0
+
+    result = runner.invoke(app, ["task", "comments", "add", "mock_1003", "audit note"])
+    assert result.exit_code == 0
+    after = json.loads(runner.invoke(app, ["task", "get", "mock_1003"]).stdout)
+    assert after["comment_count"] == 1
+
+    # --brief keeps the field too.
+    brief = json.loads(runner.invoke(app, ["task", "get", "mock_1003", "--brief"]).stdout)
+    assert brief["comment_count"] == 1
