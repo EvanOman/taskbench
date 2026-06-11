@@ -6,7 +6,7 @@ import typer
 from rich.console import Console
 
 from ...core import ClickUpError, Config, TaskProvider, get_provider, provider_requires_credentials
-from ..output import render_error, render_list, render_lists
+from ..output import render_error, render_list, render_lists, render_message
 from ..utils import run_async
 
 app = typer.Typer(help="List management")
@@ -33,7 +33,16 @@ def _resolve_list_id(list_id: str | None) -> str | None:
 @app.command("show")
 def list_lists(
     folder_id: str | None = typer.Option(None, "--folder-id", "-f", help="Folder ID"),
-    space_id: str | None = typer.Option(None, "--space-id", "-s", help="Space ID (for folderless lists)"),
+    space_id: str | None = typer.Option(
+        None,
+        "--space-id",
+        "-s",
+        help=(
+            "Space ID (returns only folderless lists — the ClickUp API does not include lists "
+            "inside folders here). Use --folder-id to get lists within a specific folder, or "
+            "'discover hierarchy' to see the full tree."
+        ),
+    ),
 ) -> None:
     """List all lists in a folder or space."""
 
@@ -53,6 +62,11 @@ def list_lists(
                     # space_id is guaranteed non-None here due to the check above
                     assert space_id is not None
                     lists = await client.get_folderless_lists(space_id)
+                    render_message(
+                        "Note: --space-id returns only folderless lists. Lists inside folders "
+                        "are not included. Use 'discover hierarchy' to see the full tree.",
+                        level="info",
+                    )
                 render_lists(lists)
 
         except ClickUpError as e:
@@ -62,10 +76,51 @@ def list_lists(
     run_async(_list_lists())
 
 
+@app.command("list")
+def list_lists_alias(
+    folder_id: str | None = typer.Option(None, "--folder-id", "-f", help="Folder ID"),
+    space_id: str | None = typer.Option(
+        None,
+        "--space-id",
+        "-s",
+        help=(
+            "Space ID (returns only folderless lists — the ClickUp API does not include lists "
+            "inside folders here). Use --folder-id to get lists within a specific folder, or "
+            "'discover hierarchy' to see the full tree."
+        ),
+    ),
+) -> None:
+    """List all lists in a folder or space. Alias for `list show`."""
+    list_lists(folder_id=folder_id, space_id=space_id)
+
+
+@app.command("ls")
+def list_lists_ls(
+    folder_id: str | None = typer.Option(None, "--folder-id", "-f", help="Folder ID"),
+    space_id: str | None = typer.Option(
+        None,
+        "--space-id",
+        "-s",
+        help=(
+            "Space ID (returns only folderless lists — the ClickUp API does not include lists "
+            "inside folders here). Use --folder-id to get lists within a specific folder, or "
+            "'discover hierarchy' to see the full tree."
+        ),
+    ),
+) -> None:
+    """List all lists in a folder or space. Alias for `list show`."""
+    list_lists(folder_id=folder_id, space_id=space_id)
+
+
 @app.command("get")
 def get_list(
     list_id_arg: str | None = typer.Argument(None, metavar="LIST_ID", help="List ID or alias (positional)"),
     list_id: str | None = typer.Option(None, "--list-id", "-l", help="List ID (back-compat alias for positional)"),
+    brief: bool = typer.Option(
+        False,
+        "--brief",
+        help="Return only id/name/task_count/folder/space.",
+    ),
 ) -> None:
     """Get detailed information about a specific list.
 
@@ -89,7 +144,7 @@ def get_list(
         try:
             async with await get_client() as client:
                 list_item = await client.get_list(list_id_to_use)
-                render_list(list_item)
+                render_list(list_item, brief=brief)
 
         except ClickUpError as e:
             render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)

@@ -54,14 +54,21 @@ def list_folders(
 
 
 @app.command("get")
-def get_folder(folder_id: str = typer.Argument(..., help="Folder ID")) -> None:
+def get_folder(
+    folder_id: str = typer.Argument(..., help="Folder ID"),
+    brief: bool = typer.Option(
+        False,
+        "--brief",
+        help="Return only id/name/task_count/hidden/space.",
+    ),
+) -> None:
     """Get detailed information about a specific folder."""
 
     async def _get_folder() -> None:
         try:
             async with await get_client() as client:
                 folder = await client.get_folder(folder_id)
-                render_folder(folder)
+                render_folder(folder, brief=brief)
         except ClickUpError as e:
             render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
             raise typer.Exit(1) from e
