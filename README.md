@@ -299,7 +299,7 @@ See `AGENT.md` for development guidelines.
 
 ## Backends
 
-The CLI talks to any backend implementing the `TaskProvider` protocol (`clickup/core/providers.py`). Adapters live in this repo; backend *deployments* do not.
+The CLI talks to any backend implementing the `TaskProvider` protocol (`clickup/core/providers.py`). Adapters live in this repo; backend *deployments* do not. Per-backend setup and spin-up instructions: [docs/backends.md](docs/backends.md). Implementing a backend in another language? Target the [OpenAPI contract](spec/openapi.yaml) ([design notes](spec/README.md)).
 
 | Backend | Adapter | Deployment |
 |---------|---------|------------|

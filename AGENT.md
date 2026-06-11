@@ -2,7 +2,17 @@
 
 ## Project goal in one line
 
-A Python CLI for ClickUp that an AI coding agent can drive end-to-end through stdin/stdout — no MCP, no UI, no skills required for basic use. Linear MCP's "modify if passed" semantics for writes.
+A task-management CLI that an AI coding agent can drive end-to-end through stdin/stdout — no MCP, no UI, no skills required for basic use. ClickUp is the default backend, but the CLI is backend-pluggable (see "Backends"). Linear MCP's "modify if passed" semantics for writes.
+
+## Docs map (start here if you're new)
+
+| You want to... | Read |
+|---|---|
+| Understand the system in 2 minutes | `docs/architecture.md` |
+| Run the CLI against a backend (incl. zero-infra local) | `docs/backends.md` |
+| Add a new backend adapter | `docs/writing-an-adapter.md` |
+| Implement a backend in another language | `spec/openapi.yaml` + `spec/README.md` |
+| Know the behavioral rules before changing code | this file, "Architecture decisions" |
 
 ## Technology stack (required)
 
@@ -51,19 +61,41 @@ clickup-toolkit/
 ├── pyproject.toml          # both `clickup` and `cup` entry points
 ├── justfile                # dev commands (`just fc` = format+lint+type+test)
 ├── clickup/
-│   ├── core/               # API client, config, models, exceptions
+│   ├── core/               # provider port, adapters, config, models, exceptions
+│   │   ├── providers.py    # TaskProvider protocol + get_provider() factory
+│   │   ├── client.py       # ClickUp adapter (default)
+│   │   ├── json_provider.py    # zero-infra local adapter
+│   │   └── planka_provider.py  # Planka adapter (reference for new adapters)
 │   ├── cli/
 │   │   ├── main.py         # Typer root, --format callback, status, version
 │   │   ├── output.py       # ALL output rendering (see "Output contract")
 │   │   ├── utils.py        # run_async + no-op spinner shim
 │   │   └── commands/       # per-feature subcommands
 │   └── nlp/                # PARKED — see "Parked features"
+├── docs/                   # architecture, backends, adapter guide
+├── spec/                   # OpenAPI contract for HTTP backends + design notes
 ├── tests/
 │   ├── unit/               # mocked
 │   ├── integration/        # mocked end-to-end CLI
 │   └── live/               # marked @pytest.mark.live, hits real API
 └── .claude/skills/cli-agent-eval/   # the regression eval (see below)
 ```
+
+## Backends (providers)
+
+The CLI is backend-pluggable via the `TaskProvider` protocol
+(`clickup/core/providers.py`). Select with `CLICKUP_PROVIDER`:
+
+- `clickup` (default) — the real SaaS; needs `CLICKUP_API_KEY`
+- `json` / `local` / `mock` — file-backed, **zero setup**; use this for development and evals
+- `planka` — self-hosted Kanban; live instance + local compose stack run from the private [planka-deploy](https://github.com/EvanOman/planka-deploy) repo (`/home/evan/dev/planka-deploy` locally)
+
+Spin-up commands, env vars, and verification steps per backend: **`docs/backends.md`**.
+Deployment code never lives in this repo — adapters only.
+
+Two contract surfaces, one source of truth: the Python protocol is canonical;
+`spec/openapi.yaml` is its HTTP projection for non-Python implementers. If a
+PR changes `TaskProvider` or the models, it must update the spec too.
 
 ## Architecture decisions (load-bearing — don't undo without reason)
 
