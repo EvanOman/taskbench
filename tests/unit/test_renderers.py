@@ -562,14 +562,23 @@ def test_render_message_error_to_stderr(capsys):
     assert "oops" in captured.err
 
 
-def test_render_message_json_info_to_stderr(capsys):
-    """In JSON mode info messages go to stderr so stdout stays a single data envelope."""
+def test_render_message_json_info_suppressed(capsys):
+    """In JSON mode info messages are suppressed (no stdout, no stderr)."""
     set_format("json")
     render_message("hi", "info")
     captured = capsys.readouterr()
-    data = json.loads(captured.err)
-    assert data == {"message": "hi", "level": "info"}
     assert captured.out == ""
+    assert captured.err == ""
+
+
+def test_render_message_json_success_suppressed(capsys):
+    """In JSON mode success messages are suppressed — mutation commands already
+    emit their data envelope on stdout."""
+    set_format("json")
+    render_message("done!", "success")
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == ""
 
 
 def test_render_message_json_warn_to_stderr(capsys):
@@ -578,6 +587,23 @@ def test_render_message_json_warn_to_stderr(capsys):
     captured = capsys.readouterr()
     data = json.loads(captured.err)
     assert data == {"message": "warn-msg", "level": "warn"}
+
+
+def test_render_message_json_error_to_stderr(capsys):
+    set_format("json")
+    render_message("err-msg", "error")
+    captured = capsys.readouterr()
+    data = json.loads(captured.err)
+    assert data == {"message": "err-msg", "level": "error"}
+
+
+def test_render_message_table_info_still_prints(capsys):
+    """Table mode is completely unaffected — info still goes to stdout."""
+    set_format("table")
+    render_message("hello-table", "info")
+    captured = capsys.readouterr()
+    assert "hello-table" in captured.out
+    assert captured.err == ""
 
 
 # ---------- render_error ------------------------------------------------------

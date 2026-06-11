@@ -155,3 +155,24 @@ def test_main_success_path_exits_zero(
     captured = capsys.readouterr()
     data = json.loads(captured.out)
     assert data["count"] >= 1
+
+
+def test_main_json_mode_suppresses_info_on_stderr(
+    json_provider_env,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """End-to-end: JSON-mode info messages are suppressed — stderr is clean.
+
+    ``task list`` emits data on stdout; any info-level render_message calls
+    (e.g. count summaries) must NOT leak to stderr in JSON mode.  This pins
+    the contract added in the json-info-suppression change.
+    """
+    monkeypatch.setattr("sys.argv", ["clickup", "task", "list", "--brief"])
+    main()
+    captured = capsys.readouterr()
+    # stdout should have valid JSON data
+    data = json.loads(captured.out)
+    assert data["count"] >= 1
+    # stderr must be completely empty — no info envelopes
+    assert captured.err == ""

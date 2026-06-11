@@ -600,13 +600,28 @@ def render_statuses(statuses: list[dict[str, Any]], *, list_id: str, list_name: 
 
 
 def render_message(msg: str, level: Literal["info", "success", "warn", "error"] = "info") -> None:
-    """Print a styled one-line message. Respects ``--format json`` by emitting
-    ``{"message": ..., "level": ...}`` on stderr (info/success/warn/error all
-    route to stderr in JSON mode so stdout stays a single data envelope).
+    """Print a styled one-line message.
+
+    In **JSON mode**:
+
+    * ``info`` and ``success`` → **no-op** (emit nothing).  These levels
+      are purely informational and the stdout data envelope already carries
+      equivalent context (e.g. ``count``).  Suppressing them prevents
+      JSON-shaped stderr lines from being misread as data contamination by
+      agents that consume merged terminal output.
+    * ``warn`` and ``error`` → stderr envelope
+      ``{"message": ..., "level": ...}`` (unchanged).
+
+    In **table mode** all levels behave as before: info/success go to the
+    Rich console on stdout; warn/error go to stderr via ``typer.echo``.
+
+    Exit codes are never affected by this function.
     """
     if get_format() == "json":
-        # Commentary, warnings, and errors are all stderr-bound in JSON mode
-        # so the data envelope on stdout stays a single parseable JSON value.
+        if level in ("info", "success"):
+            return
+        # Warnings and errors are stderr-bound in JSON mode so the data
+        # envelope on stdout stays a single parseable JSON value.
         typer.echo(json.dumps({"message": msg, "level": level}), err=True)
         return
     if level in ("error", "warn"):

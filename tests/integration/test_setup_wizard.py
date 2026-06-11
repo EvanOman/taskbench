@@ -69,7 +69,7 @@ def test_setup_with_token_and_single_workspace_auto_selects(mock_client_cls):
     client = _mock_client(teams=[team], spaces=[space], lists=[lst])
     mock_client_cls.return_value = _ctx(client)
 
-    result = runner.invoke(app, ["setup", "run", "--token", "pk_test", "--non-interactive"])
+    result = runner.invoke(app, ["--format", "table", "setup", "run", "--token", "pk_test", "--non-interactive"])
     assert result.exit_code == 0, result.output
     assert "Auto-selected workspace" in result.output
     assert "Auto-selected space" in result.output
@@ -89,6 +89,8 @@ def test_setup_with_all_flags_no_prompts(mock_client_cls):
     result = runner.invoke(
         app,
         [
+            "--format",
+            "table",
             "setup",
             "run",
             "--token",

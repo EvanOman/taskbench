@@ -147,7 +147,7 @@ def test_setup_token_validation_then_smoke_test(mock_client_cls):
 
     result = runner.invoke(
         app,
-        ["setup", "run", "--token", "pk", "--list-id", "L1", "--non-interactive"],
+        ["--format", "table", "setup", "run", "--token", "pk", "--list-id", "L1", "--non-interactive"],
     )
     assert result.exit_code == 0
     assert "smoke test" in result.output.lower()
