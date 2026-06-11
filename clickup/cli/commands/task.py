@@ -290,6 +290,31 @@ def _sort_tasks_locally(tasks: list[Any], field: str | None, descending: bool) -
     return present + missing
 
 
+def _apply_task_filters(
+    tasks: list[Any],
+    *,
+    statuses: set[str] | None = None,
+    updated_since_ms: int | None = None,
+    open_only: bool = False,
+    sort_field: str | None = None,
+    sort_descending: bool = False,
+) -> list[Any]:
+    """Shared client-side post-filter + sort pipeline.
+
+    Used by ``task list``, ``task mine``, and ``task search`` so the
+    ``--status``/``--sort``/``--updated-since``/``--open-only`` filters
+    behave identically everywhere.
+    """
+    if statuses:
+        tasks = [t for t in tasks if t.status and t.status.status and t.status.status.lower() in statuses]
+    if updated_since_ms is not None:
+        tasks = [t for t in tasks if t.date_updated and int(t.date_updated) >= updated_since_ms]
+    if open_only:
+        tasks = _filter_open_only(tasks)
+    tasks = _sort_tasks_locally(tasks, sort_field, sort_descending)
+    return tasks
+
+
 @app.command("list")
 def list_tasks(
     list_id: str | None = typer.Option(None, "--list-id", "-l", help="List ID to get tasks from"),
@@ -343,7 +368,11 @@ def list_tasks(
         ),
     ),
 ) -> None:
-    """List tasks from a ClickUp list."""
+    """List tasks from a ClickUp list.
+
+    Supports the same --status/--sort/--updated-since/--open-only filters
+    as ``task mine`` and ``task search``.
+    """
     order_by, descending = _parse_sort(sort, reverse)
 
     async def _list_tasks() -> None:
@@ -385,14 +414,14 @@ def list_tasks(
                     if include_source:
                         list_tasks_result = [_annotate_source_list(task, list_id_to_use) for task in list_tasks_result]
                     tasks.extend(list_tasks_result)
-                # Filter closed tasks before sorting/limiting so --open-only
-                # interacts predictably with --limit.
-                if open_only:
-                    tasks = _filter_open_only(tasks)
-                # Globally sort, then limit. Doing it in this order is what
-                # makes --sort priority --all-lists produce a true priority
-                # ranking instead of per-list batches.
-                tasks = _sort_tasks_locally(tasks, order_by, descending)
+                # Client-side filter + sort pipeline. open_only and sort are
+                # applied here (status/date filters already went to the API).
+                tasks = _apply_task_filters(
+                    tasks,
+                    open_only=open_only,
+                    sort_field=order_by,
+                    sort_descending=descending,
+                )
                 tasks = tasks[:limit]
                 render_tasks(tasks, brief=brief)
                 if not tasks:
@@ -470,7 +499,9 @@ def my_tasks(
 
     Searches across the workspace for tasks assigned to you. Uses the default
     workspace from config, or auto-detects if you belong to exactly one workspace.
-    Supports the same filter/sort/projection flags as ``task list``.
+
+    Supports the same --status/--sort/--updated-since/--open-only filters
+    as ``task list`` and ``task search``.
     """
     order_by, descending = _parse_sort(sort, reverse)
     status_filter = {s.lower() for s in _split_csv(status)} if status else None
@@ -491,19 +522,15 @@ def my_tasks(
                     **{"assignees[]": [str(user.id)]},
                 )
 
-                # Post-filter client-side. search_tasks doesn't accept the rich
-                # filter set get_tasks does, so we apply them here for parity
-                # with `task list`.
-                if status_filter:
-                    tasks = [
-                        t for t in tasks if t.status and t.status.status and t.status.status.lower() in status_filter
-                    ]
-                if updated_since_ms is not None:
-                    tasks = [t for t in tasks if t.date_updated and int(t.date_updated) >= updated_since_ms]
-                if open_only:
-                    tasks = _filter_open_only(tasks)
-
-                tasks = _sort_tasks_locally(tasks, order_by, descending)
+                # Client-side filter + sort via shared pipeline.
+                tasks = _apply_task_filters(
+                    tasks,
+                    statuses=status_filter,
+                    updated_since_ms=updated_since_ms,
+                    open_only=open_only,
+                    sort_field=order_by,
+                    sort_descending=descending,
+                )
                 tasks = tasks[:limit]
                 render_tasks(tasks, brief=brief)
                 if not tasks:
@@ -895,23 +922,50 @@ def delete_task(
 
 @app.command("search")
 def search_tasks(
-    query: str | None = typer.Option(None, "--query", "-q", help="Search query"),
+    query: str | None = typer.Option(
+        None,
+        "--query",
+        "-q",
+        help="Search query. Omit for workspace-wide enumeration (returns all tasks).",
+    ),
     workspace_id: str | None = typer.Option(None, "--workspace-id", "-w", help="Workspace ID to search in"),
     team_id: str | None = typer.Option(None, "--team-id", "-t", help="Team ID (alias for workspace-id)"),
+    status: str | None = typer.Option(None, "--status", "-s", help="Filter by status; comma-separated values allowed"),
+    sort: str | None = typer.Option(
+        None,
+        "--sort",
+        "--order-by",
+        help=(
+            "Sort by: created, updated, due_date, priority. Direction: 'priority:desc', '-priority', '+priority'. "
+            "Priority is numeric (1=urgent..4=low), so 'priority' (asc) puts urgent first."
+        ),
+    ),
+    reverse: bool = typer.Option(False, "--reverse", help="Sort descending."),
+    updated_since: str | None = typer.Option(None, "--updated-since", help="Updated after relative time, e.g. 7d"),
+    open_only: bool = typer.Option(
+        False,
+        "--open-only",
+        "--open",
+        help="Hide tasks whose status type is 'closed'.",
+    ),
+    limit: int = typer.Option(50, "--limit", help="Maximum number of tasks to show"),
     brief: bool = typer.Option(False, "--brief", help="Return a stripped projection (see `task list --brief`)."),
 ) -> None:
     """Search for tasks across the workspace.
 
     ClickUp search performs fuzzy/full-text matching across multiple task
     fields (name, description, comments, custom fields, etc.), not just the
-    task name. Results are ranked by relevance.
+    task name. Results are ranked by relevance. Omit --query for a bare
+    workspace-wide enumeration (all tasks).
+
+    Supports the same --status/--sort/--updated-since/--open-only filters
+    as ``task list`` and ``task mine``.
     """
+    order_by, descending = _parse_sort(sort, reverse)
+    status_filter = {s.lower() for s in _split_csv(status)} if status else None
+    updated_since_ms = _epoch_ms(updated_since) if updated_since else None
 
     async def _search_tasks() -> None:
-        if not query:
-            render_error("Error: Search query is required.", hint="Use --query to specify the search terms")
-            raise typer.Exit(1)
-
         # Use either workspace_id or team_id (they're the same thing)
         id_to_use = workspace_id or team_id
         if not id_to_use:
@@ -926,10 +980,23 @@ def search_tasks(
 
         try:
             async with await get_client() as client:
-                tasks = await client.search_tasks(id_to_use, query)
+                tasks = await client.search_tasks(id_to_use, query or "")
+                # Client-side filter + sort via shared pipeline.
+                tasks = _apply_task_filters(
+                    tasks,
+                    statuses=status_filter,
+                    updated_since_ms=updated_since_ms,
+                    open_only=open_only,
+                    sort_field=order_by,
+                    sort_descending=descending,
+                )
+                tasks = tasks[:limit]
                 render_tasks(tasks, brief=brief)
                 if not tasks:
-                    render_message(f"No tasks found matching '{query}'", "warn")
+                    if query:
+                        render_message(f"No tasks found matching '{query}'", "warn")
+                    else:
+                        render_message("No tasks found.", "warn")
                 else:
                     render_message(f"Found {len(tasks)} task(s)", "info")
 
