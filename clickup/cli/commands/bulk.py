@@ -10,7 +10,7 @@ from rich.console import Console
 from rich.table import Table
 
 from ...core import ClickUpError, Config, TaskProvider, get_provider, provider_requires_credentials
-from ..output import render_error, render_kv
+from ..output import render_error, render_kv, render_message
 from ..utils import run_async
 
 app = typer.Typer(help="Bulk operations and import/export")
@@ -260,9 +260,38 @@ def import_tasks(
     run_async(_import_tasks())
 
 
+def _resolve_bulk_list_ids(list_id: str | None, *, all_lists: bool = False) -> list[str]:
+    """Resolve list IDs for bulk operations, mirroring task.py's _resolve_list_ids."""
+    config = Config()
+    if all_lists:
+        aliases: dict[str, str] = config.get("default_lists") or {}
+        if not aliases:
+            render_error(
+                "Error: --all-lists queries the configured default_lists aliases, and none are configured.",
+                hint=(
+                    "Configure aliases with 'clickup config set default_lists "
+                    '\'{"inbox": "<list-id>", ...}\'\'. '
+                    "See configured aliases with 'clickup config get default_lists'."
+                ),
+                error_type="UsageError",
+            )
+            raise typer.Exit(2)
+        return list(aliases.values())
+    resolved = config.resolve_list_id(list_id)
+    return [resolved] if resolved else []
+
+
 @app.command("bulk-update")
 def bulk_update(
     list_id: str | None = typer.Option(None, "--list-id", help="List ID to update tasks in"),
+    all_lists: bool = typer.Option(
+        False,
+        "--all-lists",
+        help=(
+            "Update tasks across every list configured in the default_lists aliases — NOT every "
+            "list in the workspace. See configured aliases with 'clickup config get default_lists'."
+        ),
+    ),
     filter_status: str | None = typer.Option(None, "--filter-status", help="Only update tasks with this status"),
     new_status: str | None = typer.Option(None, "--status", help="New status to set"),
     new_priority: int | None = typer.Option(
@@ -284,10 +313,9 @@ def bulk_update(
     """Bulk update tasks matching criteria."""
 
     async def _bulk_update() -> None:
-        config = Config()
-        list_id_to_use = list_id or config.get("default_list_id")
+        list_ids_to_use = _resolve_bulk_list_ids(list_id, all_lists=all_lists)
 
-        if not list_id_to_use:
+        if not list_ids_to_use:
             render_error(
                 "Error: No list ID provided and no default list configured.",
                 hint="Use --list-id or set a default with 'clickup config set default_list_id <id>'",
@@ -300,19 +328,28 @@ def bulk_update(
 
         try:
             async with await get_client() as client:
-                filters = {}
+                filters: dict[str, Any] = {}
                 if filter_status:
                     filters["statuses"] = [filter_status]
 
-                tasks = await client.get_tasks(list_id_to_use, **filters)
+                # Gather tasks across all lists
+                all_tasks: list[tuple[str, Any]] = []  # (list_id, task) pairs
+                for lid in list_ids_to_use:
+                    try:
+                        tasks = await client.get_tasks(lid, **filters)
+                        all_tasks.extend((lid, t) for t in tasks)
+                    except ClickUpError as e:
+                        render_message(f"Failed to fetch tasks from list {lid}: {e}", level="warn")
 
-                if not tasks:
+                if not all_tasks:
                     console.print("[yellow]No tasks found matching criteria.[/yellow]")
                     return
 
                 # Preview changes
                 table = Table(title="Bulk Update Preview", show_header=True)
                 table.add_column("Task", style="bold")
+                if len(list_ids_to_use) > 1:
+                    table.add_column("List", style="dim")
                 table.add_column("Current Status", style="blue")
                 table.add_column("New Status", style="green")
                 table.add_column("Current Priority", style="yellow")
@@ -326,21 +363,25 @@ def bulk_update(
                 if new_assignee:
                     updates["assignees"] = [new_assignee]
 
-                for task in tasks[:10]:  # Show first 10
+                for lid, task in all_tasks[:10]:  # Show first 10
                     current_status = task.status.status if task.status else "Unknown"
                     current_priority = (task.priority.priority or "None") if task.priority else "None"
-
-                    table.add_row(
-                        task.name[:30] + "..." if len(task.name) > 30 else task.name,
-                        current_status,
-                        new_status or current_status,
-                        current_priority,
-                        str(new_priority) if new_priority else current_priority,
+                    row = [task.name[:30] + "..." if len(task.name) > 30 else task.name]
+                    if len(list_ids_to_use) > 1:
+                        row.append(lid)
+                    row.extend(
+                        [
+                            current_status,
+                            new_status or current_status,
+                            current_priority,
+                            str(new_priority) if new_priority else current_priority,
+                        ]
                     )
+                    table.add_row(*row)
 
                 console.print(table)
-                if len(tasks) > 10:
-                    console.print(f"... and {len(tasks) - 10} more tasks")
+                if len(all_tasks) > 10:
+                    console.print(f"... and {len(all_tasks) - 10} more tasks")
 
                 if dry_run:
                     console.print("[yellow]This was a dry run. Remove --dry-run to apply changes.[/yellow]")
@@ -348,21 +389,21 @@ def bulk_update(
 
                 if not force:
                     render_error(
-                        f"Refusing to update {len(tasks)} tasks without --force/--yes (use --dry-run to preview).",
+                        f"Refusing to update {len(all_tasks)} tasks without --force/--yes (use --dry-run to preview).",
                         error_type="UsageError",
                     )
                     raise typer.Exit(2)
 
-                # Apply updates
+                # Apply updates — continue through failures (per commit 21a78ca pattern)
                 updated_count = 0
                 failed_count = 0
 
-                for task in tasks:
+                for _lid, task in all_tasks:
                     try:
                         await client.update_task(task.id, **updates)
                         updated_count += 1
                     except Exception as e:
-                        console.print(f"[yellow]Failed to update task '{task.name}': {e}[/yellow]")
+                        render_message(f"Failed to update task '{task.name}': {e}", level="warn")
                         failed_count += 1
 
                 render_kv({"updated": updated_count, "failed": failed_count})

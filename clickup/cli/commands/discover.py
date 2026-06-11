@@ -5,7 +5,7 @@ from rich.console import Console
 from rich.table import Table
 
 from ...core import ClickUpError, Config, TaskProvider, get_provider, provider_requires_credentials
-from ..output import render_error, render_hierarchy
+from ..output import get_format, render_error, render_hierarchy, render_message
 from ..utils import run_async
 
 app = typer.Typer(help="Discover and navigate ClickUp hierarchy")
@@ -48,6 +48,7 @@ def show_hierarchy(
                 id_to_use = workspace_id or team_id
                 workspaces = [await client.get_team(id_to_use)] if id_to_use else await client.get_teams()
 
+                truncated = False
                 data: dict = {"workspaces": []}
                 for workspace in workspaces:
                     ws_dict: dict = {"id": workspace.id, "name": workspace.name, "spaces": []}
@@ -79,6 +80,9 @@ def show_hierarchy(
                                             ]
                                         except ClickUpError:
                                             pass
+                                    else:
+                                        f_dict["truncated_at_depth"] = True
+                                        truncated = True
                                     sp_dict["folders"].append(f_dict)
                                 try:
                                     folderless = await client.get_folderless_lists(space.id)
@@ -88,10 +92,21 @@ def show_hierarchy(
                                     ]
                                 except ClickUpError:
                                     pass
+                            else:
+                                sp_dict["truncated_at_depth"] = True
+                                truncated = True
                             ws_dict["spaces"].append(sp_dict)
+                    else:
+                        ws_dict["truncated_at_depth"] = True
+                        truncated = True
                     data["workspaces"].append(ws_dict)
 
                 render_hierarchy(data)
+                if truncated and get_format() != "json":
+                    render_message(
+                        f"Output truncated at --depth {max_depth}. Increase --depth to see deeper levels.",
+                        level="warn",
+                    )
         except ClickUpError as e:
             render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
             raise typer.Exit(1) from e

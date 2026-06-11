@@ -323,7 +323,7 @@ def list_tasks(
         "--all-lists",
         help=(
             "Query every list configured in the default_lists aliases — NOT every list in the "
-            "workspace. Configure aliases with 'clickup config set default_lists ...'. "
+            "workspace. Run 'clickup config get default_lists' to see what's configured. "
             "For a workspace-wide query use 'task search' or 'task mine'."
         ),
     ),
