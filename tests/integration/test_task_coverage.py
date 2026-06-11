@@ -197,10 +197,18 @@ def test_task_search_empty(mock_get_client):
     assert "No tasks found" in result.stderr
 
 
-def test_task_search_no_query_errors():
+@patch("clickup.cli.commands.task.get_client")
+def test_task_search_bare_enumerates_all(mock_get_client):
+    """Omitting --query is valid: workspace-wide enumeration (empty query returns all)."""
+    mock_client = AsyncMock()
+    mock_client.search_tasks.return_value = [Task(id="t1", name="All")]
+    mock_get_client.return_value = _ctx(mock_client)
+
     result = runner.invoke(app, ["task", "search", "--workspace-id", "W1"])
-    assert result.exit_code != 0
-    assert "query" in result.stderr.lower()
+    assert result.exit_code == 0
+    assert "All" in result.output
+    # Verify empty string was passed to the adapter
+    mock_client.search_tasks.assert_awaited_once_with("W1", "")
 
 
 def test_task_search_no_workspace_errors():
