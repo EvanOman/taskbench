@@ -1,0 +1,979 @@
+openapi: 3.1.0
+info:
+  title: Standard Task Backend API
+  version: 0.1.0
+  description: |
+    The HTTP projection of the `TaskProvider` protocol
+    (`clickup/core/providers.py`) consumed by the clickup-tools CLI.
+
+    Any server implementing this spec can act as a backend for the CLI via the
+    generic provider (`CLICKUP_PROVIDER=generic`), with no Python code required.
+
+    **Source of truth:** the Python `TaskProvider` protocol. This spec is
+    derived from it; if the two disagree, the protocol wins and this file has a
+    bug.
+
+    ## Resource hierarchy
+
+        workspace -> space -> [folder] -> list -> task -> comment
+
+    Folders are an OPTIONAL capability (see `GET /capabilities`). Backends
+    without a folder concept (e.g. Kanban tools like Planka) either omit them
+    or synthesize one placeholder folder per space.
+
+    ## Conventions
+
+    - **IDs** are opaque strings, except user IDs which are integers.
+    - **Timestamps** in request/response BODIES are epoch-milliseconds
+      encoded as strings (e.g. `"1781059930000"`), matching ClickUp's wire
+      format. ISO 8601 is NOT accepted. Date-filter QUERY parameters are
+      plain integers (epoch-ms) — this asymmetry mirrors what the CLI
+      actually sends.
+    - **Priority** is written as an integer 1-4 (1=urgent, 2=high, 3=normal,
+      4=low) and read back as a `PriorityInfo` object.
+    - **User IDs** are integers in read responses but are sent as
+      stringified integers in write bodies (`assignees`, `assignee`) — this
+      asymmetry mirrors the CLI's wire behavior.
+    - **Rate limiting**: any endpoint MAY return `429` with a `Retry-After`
+      header and error code `rate_limit`, even where not listed explicitly.
+    - **Collections** are returned as `{"data": [...], "count": N}`.
+    - **All object schemas are open**: servers MAY include extra fields and
+      clients MUST ignore unknown fields (the CLI's pydantic models use
+      `extra="allow"`).
+    - **`GET /me` doubles as auth validation**: 200 means the credential is
+      valid; 401 means it is not.
+
+    ## Capability discovery
+
+    `GET /capabilities` lets minimal backends declare unsupported surface
+    instead of faking it. A 404 from this endpoint means "assume everything is
+    supported". Calling an endpoint whose capability is declared `false`
+    returns `400` with error code `unsupported`.
+servers:
+  - url: /api/v1
+security:
+  - bearerAuth: []
+
+tags:
+  - name: auth
+    description: Identity and credential validation
+  - name: hierarchy
+    description: Workspaces, spaces, folders, lists
+  - name: tasks
+    description: Task CRUD and search
+  - name: comments
+    description: Task comments
+
+paths:
+  /me:
+    get:
+      operationId: getUser
+      summary: Current user (also serves as auth validation)
+      description: Maps to `TaskProvider.get_user` and `validate_auth`.
+      tags: [auth]
+      responses:
+        "200":
+          description: The authenticated user.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /capabilities:
+    get:
+      operationId: getCapabilities
+      summary: Declare which optional capabilities this backend supports
+      tags: [auth]
+      security: []
+      responses:
+        "200":
+          description: Capability flags.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Capabilities" }
+
+  /workspaces:
+    get:
+      operationId: listWorkspaces
+      summary: List workspaces visible to the caller
+      description: |
+        Maps to `TaskProvider.get_teams`. Single-tenant backends return a
+        synthetic singleton (see the Planka adapter for the reference
+        behavior).
+      tags: [hierarchy]
+      responses:
+        "200":
+          description: Workspaces.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkspaceCollection"
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /workspaces/{workspaceId}:
+    get:
+      operationId: getWorkspace
+      summary: Get one workspace
+      description: Maps to `TaskProvider.get_team`.
+      tags: [hierarchy]
+      parameters: [{ $ref: "#/components/parameters/workspaceId" }]
+      responses:
+        "200":
+          description: The workspace.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Workspace" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /workspaces/{workspaceId}/members:
+    get:
+      operationId: listWorkspaceMembers
+      summary: List members of a workspace
+      description: Maps to `TaskProvider.get_team_members`.
+      tags: [hierarchy]
+      parameters: [{ $ref: "#/components/parameters/workspaceId" }]
+      responses:
+        "200":
+          description: Members.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/User" }
+                  count: { type: integer }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /workspaces/{workspaceId}/spaces:
+    get:
+      operationId: listSpaces
+      summary: List spaces in a workspace
+      description: Maps to `TaskProvider.get_spaces`.
+      tags: [hierarchy]
+      parameters: [{ $ref: "#/components/parameters/workspaceId" }]
+      responses:
+        "200":
+          description: Spaces.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Space" }
+                  count: { type: integer }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /workspaces/{workspaceId}/search/tasks:
+    get:
+      operationId: searchTasks
+      summary: Search tasks across a workspace (optional capability `search`)
+      description: |
+        Maps to `TaskProvider.search_tasks`. Case-insensitive substring match
+        against task names at minimum; backends MAY also match descriptions.
+      tags: [tasks]
+      parameters:
+        - { $ref: "#/components/parameters/workspaceId" }
+        - name: query
+          in: query
+          required: true
+          schema: { type: string }
+        - name: assignees
+          in: query
+          description: |
+            Restrict to tasks assigned to any of these user IDs (stringified
+            integers). Servers MAY ignore this filter — the CLI currently
+            applies assignee filtering client-side and does not rely on it.
+          schema:
+            type: array
+            items: { type: string }
+          style: form
+          explode: true
+      responses:
+        "200":
+          description: Matching tasks.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaskCollection" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /spaces/{spaceId}:
+    get:
+      operationId: getSpace
+      summary: Get one space
+      description: Maps to `TaskProvider.get_space`.
+      tags: [hierarchy]
+      parameters: [{ $ref: "#/components/parameters/spaceId" }]
+      responses:
+        "200":
+          description: The space.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Space" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /spaces/{spaceId}/folders:
+    get:
+      operationId: listFolders
+      summary: List folders in a space (optional capability `folders`)
+      description: |
+        Maps to `TaskProvider.get_folders`. Backends without folders either
+        declare `folders: false` in capabilities, or return one synthetic
+        placeholder folder per space (id `folder_<spaceId>`) so that
+        folder-based navigation still works.
+      tags: [hierarchy]
+      parameters: [{ $ref: "#/components/parameters/spaceId" }]
+      responses:
+        "200":
+          description: Folders.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Folder" }
+                  count: { type: integer }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      operationId: createFolder
+      summary: Create a folder (optional capability `folders`)
+      description: Maps to `TaskProvider.create_folder`.
+      tags: [hierarchy]
+      parameters: [{ $ref: "#/components/parameters/spaceId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+      responses:
+        "201":
+          description: The created folder.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Folder" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /folders/{folderId}:
+    get:
+      operationId: getFolder
+      summary: Get one folder (optional capability `folders`)
+      description: Maps to `TaskProvider.get_folder`.
+      tags: [hierarchy]
+      parameters: [{ $ref: "#/components/parameters/folderId" }]
+      responses:
+        "200":
+          description: The folder.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Folder" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /folders/{folderId}/lists:
+    get:
+      operationId: listLists
+      summary: List lists in a folder
+      description: Maps to `TaskProvider.get_lists`.
+      tags: [hierarchy]
+      parameters: [{ $ref: "#/components/parameters/folderId" }]
+      responses:
+        "200":
+          description: Lists.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ListCollection" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      operationId: createList
+      summary: Create a list in a folder
+      description: Maps to `TaskProvider.create_list`.
+      tags: [hierarchy]
+      parameters: [{ $ref: "#/components/parameters/folderId" }]
+      requestBody:
+        $ref: "#/components/requestBodies/CreateList"
+      responses:
+        "201":
+          description: The created list.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/List" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /spaces/{spaceId}/lists:
+    get:
+      operationId: listFolderlessLists
+      summary: List lists directly under a space (not inside any folder)
+      description: |
+        Maps to `TaskProvider.get_folderless_lists`. For backends without
+        folders this is THE list enumeration: every list in the space.
+      tags: [hierarchy]
+      parameters: [{ $ref: "#/components/parameters/spaceId" }]
+      responses:
+        "200":
+          description: Lists.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ListCollection" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      operationId: createFolderlessList
+      summary: Create a list directly under a space
+      description: Maps to `TaskProvider.create_folderless_list`.
+      tags: [hierarchy]
+      parameters: [{ $ref: "#/components/parameters/spaceId" }]
+      requestBody:
+        $ref: "#/components/requestBodies/CreateList"
+      responses:
+        "201":
+          description: The created list.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/List" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /lists/{listId}:
+    get:
+      operationId: getList
+      summary: Get one list
+      description: |
+        Maps to `TaskProvider.get_list`. Servers SHOULD include the list's
+        available statuses (workflow columns) via an extra `statuses` field so
+        clients can discover valid values for task status writes.
+      tags: [hierarchy]
+      parameters: [{ $ref: "#/components/parameters/listId" }]
+      responses:
+        "200":
+          description: The list.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/List" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /lists/{listId}/tasks:
+    get:
+      operationId: listTasks
+      summary: List tasks in a list
+      description: |
+        Maps to `TaskProvider.get_tasks`. Servers MUST honor `statuses` and
+        `include_closed`; the remaining filters SHOULD be honored and MAY be
+        ignored (the CLI treats server filtering as best-effort and refines
+        client-side).
+      tags: [tasks]
+      parameters:
+        - { $ref: "#/components/parameters/listId" }
+        - name: statuses
+          in: query
+          description: Only tasks whose status name is in this set.
+          schema:
+            type: array
+            items: { type: string }
+          style: form
+          explode: true
+        - name: assignees
+          in: query
+          description: Only tasks assigned to any of these user IDs.
+          schema:
+            type: array
+            items: { type: string }
+          style: form
+          explode: true
+        - name: include_closed
+          in: query
+          description: |
+            Include tasks in closed/done statuses. When OMITTED, closed tasks
+            ARE included (matching existing adapter behavior); the CLI sends
+            an explicit `false` when it wants them excluded.
+          schema: { type: boolean, default: true }
+        - name: date_created_gt
+          in: query
+          description: Epoch-ms lower bound on creation time.
+          schema: { type: integer, format: int64 }
+        - name: date_created_lt
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: date_updated_gt
+          in: query
+          schema: { type: integer, format: int64 }
+        - name: date_updated_lt
+          in: query
+          schema: { type: integer, format: int64 }
+      responses:
+        "200":
+          description: Tasks.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/TaskCollection" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+    post:
+      operationId: createTask
+      summary: Create a task
+      description: |
+        Maps to `TaskProvider.create_task`. If `status` is omitted the task
+        goes to the list's first/default status column.
+      tags: [tasks]
+      parameters: [{ $ref: "#/components/parameters/listId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                description: { type: string }
+                status:
+                  type: string
+                  description: Status name; must exist on the target list.
+                priority:
+                  $ref: "#/components/schemas/PriorityWrite"
+                due_date:
+                  $ref: "#/components/schemas/EpochMillis"
+                assignees:
+                  type: array
+                  items: { type: string }
+                  description: |
+                    User IDs to assign, as stringified integers (read
+                    responses return integer user IDs).
+      responses:
+        "201":
+          description: The created task.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /tasks/{taskId}:
+    get:
+      operationId: getTask
+      summary: Get one task
+      description: Maps to `TaskProvider.get_task`.
+      tags: [tasks]
+      parameters: [{ $ref: "#/components/parameters/taskId" }]
+      responses:
+        "200":
+          description: The task.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      operationId: updateTask
+      summary: Update a task (modify-if-passed semantics)
+      description: |
+        Maps to `TaskProvider.update_task`. Only fields present in the body
+        are modified; absent fields are untouched. An explicit empty string
+        CLEARS a text field — this distinction is load-bearing for the CLI's
+        modify-if-passed contract.
+
+        There is no server-side append: the CLI's `--description-append` is
+        a client-side read-modify-write that sends the full new description.
+      tags: [tasks]
+      parameters: [{ $ref: "#/components/parameters/taskId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                description: { type: string }
+                status:
+                  type: string
+                  description: Status name; must exist on the task's list.
+                priority:
+                  $ref: "#/components/schemas/PriorityWrite"
+                due_date:
+                  $ref: "#/components/schemas/EpochMillis"
+                assignees:
+                  type: array
+                  items: { type: string }
+                  description: |
+                    Replaces the full assignee set. User IDs as stringified
+                    integers (read responses return integer user IDs).
+                archived: { type: boolean }
+      responses:
+        "200":
+          description: The updated task.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Task" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      operationId: deleteTask
+      summary: Delete a task (optional capability `delete_tasks`)
+      description: Maps to `TaskProvider.delete_task`.
+      tags: [tasks]
+      parameters: [{ $ref: "#/components/parameters/taskId" }]
+      responses:
+        "204":
+          description: Deleted.
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /tasks/{taskId}/comments:
+    get:
+      operationId: listTaskComments
+      summary: List comments on a task
+      description: Maps to `TaskProvider.get_task_comments`. Oldest first.
+      tags: [comments]
+      parameters: [{ $ref: "#/components/parameters/taskId" }]
+      responses:
+        "200":
+          description: Comments.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Comment" }
+                  count: { type: integer }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      operationId: createComment
+      summary: Add a comment to a task
+      description: Maps to `TaskProvider.create_comment`.
+      tags: [comments]
+      parameters: [{ $ref: "#/components/parameters/taskId" }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [comment_text]
+              properties:
+                comment_text: { type: string }
+      responses:
+        "201":
+          description: The created comment.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Comment" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Opaque API token. How tokens are minted is backend-specific.
+
+  parameters:
+    workspaceId:
+      name: workspaceId
+      in: path
+      required: true
+      schema: { type: string }
+    spaceId:
+      name: spaceId
+      in: path
+      required: true
+      schema: { type: string }
+    folderId:
+      name: folderId
+      in: path
+      required: true
+      schema: { type: string }
+    listId:
+      name: listId
+      in: path
+      required: true
+      schema: { type: string }
+    taskId:
+      name: taskId
+      in: path
+      required: true
+      schema: { type: string }
+
+  requestBodies:
+    CreateList:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [name]
+            properties:
+              name: { type: string }
+              content:
+                type: string
+                description: List description.
+              due_date:
+                $ref: "#/components/schemas/EpochMillis"
+              priority:
+                $ref: "#/components/schemas/PriorityWrite"
+              assignee:
+                type: string
+                description: Default assignee user ID (stringified integer).
+
+  responses:
+    Unauthorized:
+      description: |
+        Missing or invalid credential. The JSON body MAY be omitted — clients
+        treat a bare 401 status as "credential invalid".
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    RateLimited:
+      description: Rate limit exceeded. Retry after the indicated delay.
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema: { type: integer }
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    NotFound:
+      description: Resource does not exist (or caller cannot see it).
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    BadRequest:
+      description: Validation failure or unsupported capability.
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+
+  schemas:
+    EpochMillis:
+      type: string
+      pattern: "^[0-9]+$"
+      description: Epoch milliseconds encoded as a string, e.g. "1781059930000".
+
+    PriorityWrite:
+      type: integer
+      enum: [1, 2, 3, 4]
+      description: "1=urgent, 2=high, 3=normal, 4=low."
+
+    Capabilities:
+      type: object
+      description: |
+        Optional-capability flags. Omitted keys default to true. Maps to the
+        graceful-degradation behavior of partial adapters (see PlankaProvider).
+      properties:
+        backend:
+          type: string
+          description: Human-readable backend name, e.g. "planka".
+        version:
+          type: string
+          description: Backend/shim version string.
+        folders:
+          type: boolean
+          description: Real folder support. False = folders are synthetic or absent.
+        search:
+          type: boolean
+          description: Workspace-wide task search.
+        delete_tasks:
+          type: boolean
+      additionalProperties: true
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: Machine-readable error class.
+              enum:
+                - authentication
+                - authorization
+                - not_found
+                - validation
+                - rate_limit
+                - unsupported
+                - server
+            message: { type: string }
+          additionalProperties: true
+      additionalProperties: true
+
+    User:
+      type: object
+      required: [id, username, email]
+      properties:
+        id: { type: integer }
+        username: { type: string }
+        email: { type: string }
+        color: { type: [string, "null"] }
+        profilePicture: { type: [string, "null"] }
+        role: { type: [integer, string, "null"] }
+      additionalProperties: true
+
+    StatusInfo:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          description: Status name, e.g. "in progress".
+        color: { type: [string, "null"] }
+        type:
+          type: [string, "null"]
+          description: '"open", "custom", "done", or "closed".'
+        orderindex: { type: [integer, "null"] }
+      additionalProperties: true
+
+    PriorityInfo:
+      type: object
+      properties:
+        id: { type: [string, "null"] }
+        priority:
+          type: [string, "null"]
+          description: Priority name or numeric string ("1"-"4").
+        color: { type: [string, "null"] }
+        orderindex: { type: [string, "null"] }
+      additionalProperties: true
+
+    Tag:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        tag_fg: { type: [string, "null"] }
+        tag_bg: { type: [string, "null"] }
+        creator:
+          type: [integer, "null"]
+          description: User ID of the tag creator.
+      additionalProperties: true
+
+    Assignee:
+      type: object
+      required: [id, username]
+      properties:
+        id: { type: integer }
+        username: { type: string }
+        color: { type: [string, "null"] }
+        email: { type: [string, "null"] }
+      additionalProperties: true
+
+    Workspace:
+      type: object
+      required: [id, name, color]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        color:
+          type: string
+          description: Hex color; synthesize a constant if the backend has none.
+        avatar: { type: [string, "null"] }
+        members:
+          type: array
+          items:
+            type: object
+            required: [user]
+            properties:
+              user: { $ref: "#/components/schemas/User" }
+            additionalProperties: true
+      additionalProperties: true
+
+    WorkspaceCollection:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Workspace" }
+        count: { type: integer }
+      additionalProperties: true
+
+    Space:
+      type: object
+      required: [id, name, private, multiple_assignees]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        private: { type: boolean }
+        statuses:
+          type: array
+          description: Statuses available to lists in this space (may be empty if statuses are per-list).
+          items: { $ref: "#/components/schemas/StatusInfo" }
+        multiple_assignees: { type: boolean }
+        features:
+          type: object
+          additionalProperties: true
+        archived: { type: boolean, default: false }
+      additionalProperties: true
+
+    Folder:
+      type: object
+      required: [id, name, orderindex, override_statuses, hidden, space, task_count]
+      properties:
+        id:
+          type: string
+          description: Synthetic folders use `folder_<spaceId>`.
+        name: { type: string }
+        orderindex: { type: integer }
+        override_statuses: { type: boolean }
+        hidden: { type: boolean }
+        space: { $ref: "#/components/schemas/SpaceRef" }
+        task_count:
+          type: string
+          description: Stringified count (ClickUp wire-format wart; kept for compatibility).
+        archived: { type: boolean, default: false }
+        lists:
+          type: array
+          items: { $ref: "#/components/schemas/List" }
+      additionalProperties: true
+
+    SpaceRef:
+      type: object
+      required: [id]
+      properties:
+        id: { type: string }
+        name: { type: [string, "null"] }
+      additionalProperties: true
+
+    FolderRef:
+      type: object
+      required: [id]
+      properties:
+        id: { type: string }
+        name: { type: [string, "null"] }
+      additionalProperties: true
+
+    ListRef:
+      type: object
+      required: [id]
+      properties:
+        id: { type: string }
+        name: { type: [string, "null"] }
+      additionalProperties: true
+
+    List:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        orderindex: { type: [integer, "null"] }
+        content:
+          type: [string, "null"]
+          description: List description.
+        status: { oneOf: [{ $ref: "#/components/schemas/StatusInfo" }, { type: "null" }] }
+        priority: { oneOf: [{ $ref: "#/components/schemas/PriorityInfo" }, { type: "null" }] }
+        assignee:
+          oneOf: [{ $ref: "#/components/schemas/User" }, { type: "null" }]
+          description: Default assignee for the list.
+        task_count: { type: [integer, "null"] }
+        due_date: { oneOf: [{ $ref: "#/components/schemas/EpochMillis" }, { type: "null" }] }
+        start_date: { oneOf: [{ $ref: "#/components/schemas/EpochMillis" }, { type: "null" }] }
+        folder: { oneOf: [{ $ref: "#/components/schemas/FolderRef" }, { type: "null" }] }
+        space: { oneOf: [{ $ref: "#/components/schemas/SpaceRef" }, { type: "null" }] }
+        archived: { type: boolean, default: false }
+        statuses:
+          type: array
+          description: RECOMMENDED extra field — the statuses tasks in this list can take, in workflow order.
+          items: { $ref: "#/components/schemas/StatusInfo" }
+      additionalProperties: true
+
+    ListCollection:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/List" }
+        count: { type: integer }
+      additionalProperties: true
+
+    Task:
+      type: object
+      required: [id, name]
+      properties:
+        id: { type: string }
+        custom_id: { type: [string, "null"] }
+        name: { type: string }
+        text_content: { type: [string, "null"] }
+        description: { type: [string, "null"] }
+        status: { oneOf: [{ $ref: "#/components/schemas/StatusInfo" }, { type: "null" }] }
+        orderindex: { type: [string, "null"] }
+        date_created: { oneOf: [{ $ref: "#/components/schemas/EpochMillis" }, { type: "null" }] }
+        date_updated: { oneOf: [{ $ref: "#/components/schemas/EpochMillis" }, { type: "null" }] }
+        date_closed: { oneOf: [{ $ref: "#/components/schemas/EpochMillis" }, { type: "null" }] }
+        date_done: { oneOf: [{ $ref: "#/components/schemas/EpochMillis" }, { type: "null" }] }
+        archived: { type: boolean, default: false }
+        creator: { oneOf: [{ $ref: "#/components/schemas/User" }, { type: "null" }] }
+        assignees:
+          type: array
+          items: { $ref: "#/components/schemas/Assignee" }
+        tags:
+          type: array
+          items: { $ref: "#/components/schemas/Tag" }
+        parent:
+          type: [string, "null"]
+          description: Parent task ID for subtasks.
+        priority: { oneOf: [{ $ref: "#/components/schemas/PriorityInfo" }, { type: "null" }] }
+        due_date: { oneOf: [{ $ref: "#/components/schemas/EpochMillis" }, { type: "null" }] }
+        start_date: { oneOf: [{ $ref: "#/components/schemas/EpochMillis" }, { type: "null" }] }
+        time_estimate: { type: [integer, "null"] }
+        time_spent: { type: [integer, "null"] }
+        team_id: { type: [string, "null"] }
+        url:
+          type: [string, "null"]
+          description: Deep link into the backend's own UI, if it has one.
+        list: { oneOf: [{ $ref: "#/components/schemas/ListRef" }, { type: "null" }] }
+        folder: { oneOf: [{ $ref: "#/components/schemas/FolderRef" }, { type: "null" }] }
+        space: { oneOf: [{ $ref: "#/components/schemas/SpaceRef" }, { type: "null" }] }
+        comment_count:
+          type: integer
+          description: RECOMMENDED extra field — number of comments on the task.
+      additionalProperties: true
+
+    TaskCollection:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: { $ref: "#/components/schemas/Task" }
+        count: { type: integer }
+      additionalProperties: true
+
+    Comment:
+      type: object
+      required: [id, comment_text, user, date]
+      properties:
+        id: { type: string }
+        comment:
+          type: array
+          description: Rich-text segments; servers without rich text return one plain segment.
+          items:
+            type: object
+            additionalProperties: true
+        comment_text:
+          type: string
+          description: Plain-text body.
+        user: { $ref: "#/components/schemas/User" }
+        date: { $ref: "#/components/schemas/EpochMillis" }
+        resolved: { type: boolean, default: false }
+      additionalProperties: true
