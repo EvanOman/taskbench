@@ -450,7 +450,7 @@ class TestListShowSpaceIdInfo:
     """--space-id emits an info message about folderless-only semantics."""
 
     def test_space_id_info_message_json(self, capsys: pytest.CaptureFixture[str]) -> None:
-        """In JSON mode the info message lands on stderr."""
+        """In JSON mode info-level messages are suppressed (render_message contract)."""
         from clickup.cli.commands.list import list_lists
 
         set_format("json")
@@ -464,8 +464,9 @@ class TestListShowSpaceIdInfo:
             list_lists(folder_id=None, space_id="S1")
 
         captured = capsys.readouterr()
-        # Info message on stderr in JSON mode
-        assert "folderless" in captured.err.lower()
+        # JSON mode suppresses info-level messages entirely; the hint is
+        # table-mode-only (see render_message). stderr must stay clean.
+        assert captured.err == ""
 
     def test_space_id_info_message_table(
         self,
