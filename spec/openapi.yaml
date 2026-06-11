@@ -24,11 +24,18 @@ info:
     ## Conventions
 
     - **IDs** are opaque strings, except user IDs which are integers.
-    - **Timestamps** are epoch-milliseconds encoded as strings
-      (e.g. `"1781059930000"`), matching ClickUp's wire format. ISO 8601 is
-      NOT accepted.
+    - **Timestamps** in request/response BODIES are epoch-milliseconds
+      encoded as strings (e.g. `"1781059930000"`), matching ClickUp's wire
+      format. ISO 8601 is NOT accepted. Date-filter QUERY parameters are
+      plain integers (epoch-ms) — this asymmetry mirrors what the CLI
+      actually sends.
     - **Priority** is written as an integer 1-4 (1=urgent, 2=high, 3=normal,
       4=low) and read back as a `PriorityInfo` object.
+    - **User IDs** are integers in read responses but are sent as
+      stringified integers in write bodies (`assignees`, `assignee`) — this
+      asymmetry mirrors the CLI's wire behavior.
+    - **Rate limiting**: any endpoint MAY return `429` with a `Retry-After`
+      header and error code `rate_limit`, even where not listed explicitly.
     - **Collections** are returned as `{"data": [...], "count": N}`.
     - **All object schemas are open**: servers MAY include extra fields and
       clients MUST ignore unknown fields (the CLI's pydantic models use
@@ -178,7 +185,10 @@ paths:
           schema: { type: string }
         - name: assignees
           in: query
-          description: Restrict to tasks assigned to any of these user IDs.
+          description: |
+            Restrict to tasks assigned to any of these user IDs (stringified
+            integers). Servers MAY ignore this filter — the CLI currently
+            applies assignee filtering client-side and does not rely on it.
           schema:
             type: array
             items: { type: string }
@@ -192,6 +202,7 @@ paths:
               schema: { $ref: "#/components/schemas/TaskCollection" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
 
   /spaces/{spaceId}:
     get:
@@ -385,8 +396,11 @@ paths:
           explode: true
         - name: include_closed
           in: query
-          description: Include tasks in closed/done statuses. Default false.
-          schema: { type: boolean, default: false }
+          description: |
+            Include tasks in closed/done statuses. When OMITTED, closed tasks
+            ARE included (matching existing adapter behavior); the CLI sends
+            an explicit `false` when it wants them excluded.
+          schema: { type: boolean, default: true }
         - name: date_created_gt
           in: query
           description: Epoch-ms lower bound on creation time.
@@ -407,6 +421,7 @@ paths:
             application/json:
               schema: { $ref: "#/components/schemas/TaskCollection" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
     post:
       operationId: createTask
       summary: Create a task
@@ -435,7 +450,9 @@ paths:
                 assignees:
                   type: array
                   items: { type: string }
-                  description: User IDs to assign.
+                  description: |
+                    User IDs to assign, as stringified integers (read
+                    responses return integer user IDs).
       responses:
         "201":
           description: The created task.
@@ -444,6 +461,7 @@ paths:
               schema: { $ref: "#/components/schemas/Task" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "404": { $ref: "#/components/responses/NotFound" }
+        "429": { $ref: "#/components/responses/RateLimited" }
 
   /tasks/{taskId}:
     get:
@@ -467,6 +485,9 @@ paths:
         are modified; absent fields are untouched. An explicit empty string
         CLEARS a text field — this distinction is load-bearing for the CLI's
         modify-if-passed contract.
+
+        There is no server-side append: the CLI's `--description-append` is
+        a client-side read-modify-write that sends the full new description.
       tags: [tasks]
       parameters: [{ $ref: "#/components/parameters/taskId" }]
       requestBody:
@@ -488,7 +509,9 @@ paths:
                 assignees:
                   type: array
                   items: { type: string }
-                  description: Replaces the full assignee set.
+                  description: |
+                    Replaces the full assignee set. User IDs as stringified
+                    integers (read responses return integer user IDs).
                 archived: { type: boolean }
       responses:
         "200":
@@ -608,11 +631,22 @@ components:
                 $ref: "#/components/schemas/PriorityWrite"
               assignee:
                 type: string
-                description: Default assignee user ID.
+                description: Default assignee user ID (stringified integer).
 
   responses:
     Unauthorized:
-      description: Missing or invalid credential.
+      description: |
+        Missing or invalid credential. The JSON body MAY be omitted — clients
+        treat a bare 401 status as "credential invalid".
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/Error" }
+    RateLimited:
+      description: Rate limit exceeded. Retry after the indicated delay.
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema: { type: integer }
       content:
         application/json:
           schema: { $ref: "#/components/schemas/Error" }
@@ -657,8 +691,6 @@ components:
           type: boolean
           description: Workspace-wide task search.
         delete_tasks:
-          type: boolean
-        comments:
           type: boolean
       additionalProperties: true
 
@@ -729,6 +761,9 @@ components:
         name: { type: string }
         tag_fg: { type: [string, "null"] }
         tag_bg: { type: [string, "null"] }
+        creator:
+          type: [integer, "null"]
+          description: User ID of the tag creator.
       additionalProperties: true
 
     Assignee:
@@ -846,6 +881,9 @@ components:
           description: List description.
         status: { oneOf: [{ $ref: "#/components/schemas/StatusInfo" }, { type: "null" }] }
         priority: { oneOf: [{ $ref: "#/components/schemas/PriorityInfo" }, { type: "null" }] }
+        assignee:
+          oneOf: [{ $ref: "#/components/schemas/User" }, { type: "null" }]
+          description: Default assignee for the list.
         task_count: { type: [integer, "null"] }
         due_date: { oneOf: [{ $ref: "#/components/schemas/EpochMillis" }, { type: "null" }] }
         start_date: { oneOf: [{ $ref: "#/components/schemas/EpochMillis" }, { type: "null" }] }

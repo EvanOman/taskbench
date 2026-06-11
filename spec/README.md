@@ -31,7 +31,7 @@ speaks exactly this spec.
 
 | `TaskProvider` method | HTTP |
 |---|---|
-| `get_user` / `validate_auth` | `GET /me` (200 = valid, 401 = invalid) |
+| `get_user` / `validate_auth` | `GET /me` (200 = valid, 401 = invalid)¹ |
 | `get_teams` | `GET /workspaces` |
 | `get_team` | `GET /workspaces/{id}` |
 | `get_team_members` | `GET /workspaces/{id}/members` |
@@ -55,6 +55,11 @@ speaks exactly this spec.
 | `search_tasks` | `GET /workspaces/{id}/search/tasks` |
 | `raw_request` | **not in the spec** — backend-native escape hatch, not portable |
 | — | `GET /capabilities` (no protocol equivalent; formalizes adapter degradation) |
+
+¹ `validate_auth` returns `(bool, str, User | None)` in the protocol; over
+HTTP the boolean is carried entirely by the status code (200 → `(True, ...,
+User)`, 401 → `(False, ..., None)`) and the body is just a `User`. A bare 401
+with no body is valid — clients must not require an error envelope here.
 
 ## Design decisions
 

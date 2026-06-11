@@ -61,14 +61,14 @@ Env vars (read by `planka_provider.py`):
 | Var | Default | Notes |
 |---|---|---|
 | `PLANKA_URL` | `http://localhost:18920` | Base URL of the Planka instance |
-| `PLANKA_EMAIL` (or `PLANKA_USERNAME`) | `admin` | Login identity |
-| `PLANKA_PASSWORD` | — (required) | Login password |
+| `PLANKA_USERNAME` (falls back to `PLANKA_EMAIL`) | `admin` | Login identity — `PLANKA_USERNAME` wins if both are set |
+| `PLANKA_PASSWORD` | `""` (empty) | Effectively required: an unset password attempts login with `""` and fails with an auth error, not a "missing env var" message |
 
 ### Option A: the live deployment (Railway)
 
 Deployment and ops live in the **private repo
 [EvanOman/planka-deploy](https://github.com/EvanOman/planka-deploy)**
-(locally at `/home/evan/dev/planka-deploy` on Evan's machine).
+(locally at `~/dev/planka-deploy` on Evan's machine).
 
 ```bash
 export CLICKUP_PROVIDER=planka
@@ -81,17 +81,18 @@ uv run clickup discover hierarchy
 ### Option B: spin up Planka locally
 
 ```bash
-docker compose -f /home/evan/dev/planka-deploy/local/docker-compose.yml up -d
+COMPOSE=~/dev/planka-deploy/local/docker-compose.yml
+docker compose -f "$COMPOSE" up -d
 # wait ~15s for first boot, then:
 export CLICKUP_PROVIDER=planka
 export PLANKA_EMAIL=admin@local
-export PLANKA_PASSWORD='Planka!Admin2025#Secure'   # local-only default, see compose file
+export PLANKA_PASSWORD=$(grep -oP 'DEFAULT_ADMIN_PASSWORD=\K.*' "$COMPOSE")
 uv run clickup status
 ```
 
 The local instance serves on `http://localhost:18920` (the adapter's default
 URL, so `PLANKA_URL` can be omitted). To populate it with the canonical
-25-task TaskFlow dataset: `uv run /home/evan/dev/planka-deploy/seed/seed.py`.
+25-task TaskFlow dataset: `uv run ~/dev/planka-deploy/seed/seed.py`.
 
 Tear down with `docker compose -f .../local/docker-compose.yml down`
 (add `-v` to also wipe data).

@@ -88,7 +88,7 @@ The CLI is backend-pluggable via the `TaskProvider` protocol
 
 - `clickup` (default) — the real SaaS; needs `CLICKUP_API_KEY`
 - `json` / `local` / `mock` — file-backed, **zero setup**; use this for development and evals
-- `planka` — self-hosted Kanban; live instance + local compose stack run from the private [planka-deploy](https://github.com/EvanOman/planka-deploy) repo (`/home/evan/dev/planka-deploy` locally)
+- `planka` — self-hosted Kanban; live instance + local compose stack run from the private [planka-deploy](https://github.com/EvanOman/planka-deploy) repo (`~/dev/planka-deploy` locally)
 
 Spin-up commands, env vars, and verification steps per backend: **`docs/backends.md`**.
 Deployment code never lives in this repo — adapters only.
