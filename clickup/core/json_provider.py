@@ -232,6 +232,24 @@ class JsonProvider:
             data["comment_count"] = len(store.get("comments", {}).get(task["id"], []))
         return Task(**data)
 
+    def _folder_model(self, folder: dict[str, Any], store: dict[str, Any]) -> Folder:
+        """Materialise a Folder model, enriching child lists and task_count at read time.
+
+        Stored ``task_count`` / ``lists`` values are ignored — both are
+        recomputed from the current store so reads always reflect the latest
+        state.  This mirrors the ``_task_model`` comment_count enrichment
+        pattern (commit 1ebe042).
+        """
+        data = deepcopy(folder)
+        folder_id = data["id"]
+        child_lists = [lst for lst in store.get("lists", []) if lst.get("folder_id") == folder_id]
+        data["lists"] = child_lists
+        total_tasks = sum(
+            len([t for t in store.get("tasks", []) if t.get("list", {}).get("id") == lst["id"]]) for lst in child_lists
+        )
+        data["task_count"] = str(total_tasks)
+        return Folder(**data)
+
     def _resolve_status(self, list_data: dict[str, Any], name: str) -> dict[str, Any]:
         """Look up a status by name on the given list, falling back to its space.
 
@@ -308,16 +326,18 @@ class JsonProvider:
         raise NotFoundError(f"Space not found: {space_id}")
 
     async def get_folders(self, space_id: str) -> list[Folder]:
+        store = self._load()
         return [
-            Folder(**folder)
-            for folder in self._load().get("folders", [])
+            self._folder_model(folder, store)
+            for folder in store.get("folders", [])
             if folder.get("space", {}).get("id") == space_id
         ]
 
     async def get_folder(self, folder_id: str) -> Folder:
-        for folder in self._load().get("folders", []):
+        store = self._load()
+        for folder in store.get("folders", []):
             if folder["id"] == folder_id:
-                return Folder(**folder)
+                return self._folder_model(folder, store)
         raise NotFoundError(f"Folder not found: {folder_id}")
 
     async def create_folder(self, space_id: str, name: str, **kwargs: Any) -> Folder:
@@ -339,7 +359,7 @@ class JsonProvider:
         }
         store.setdefault("folders", []).append(folder)
         self._save(store)
-        return Folder(**folder)
+        return self._folder_model(folder, store)
 
     async def get_lists(self, folder_id: str) -> list[ClickUpList]:
         return [ClickUpList(**item) for item in self._load().get("lists", []) if item.get("folder_id") == folder_id]
