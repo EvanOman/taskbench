@@ -45,8 +45,7 @@ def epoch_ms(value: str) -> int:
                 dt = dt.replace(tzinfo=UTC)
             else:
                 dt = dt.astimezone(UTC)
-    except ValueError as exc:
-        _ = exc
+    except ValueError:
         usage_error(
             "Error: date filters accept epoch milliseconds, YYYY-MM-DD, ISO datetime, or relative values like 7d."
         )

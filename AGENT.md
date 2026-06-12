@@ -142,7 +142,7 @@ Convention: `render_error(msg)` then `raise typer.Exit(code)` — `code=1` for r
 
 ### 5. No spinner, no Progress widgets
 
-`clickup/cli/utils.py` exports no-op shims for `Progress`, `SpinnerColumn`, `TextColumn`, `BarColumn`, `TaskProgressColumn`. Existing `with Progress(...) as progress: progress.add_task(...)` blocks compile and run but emit nothing. Reason: spinner frames on stdout corrupt `--format json` pipelines. Agents don't benefit from animation.
+The original codebase had no-op shims for `Progress`, `SpinnerColumn`, `TextColumn`, `BarColumn`, `TaskProgressColumn` in `clickup/cli/utils.py`. Those spinner shims have since been removed entirely; nothing imports `rich.progress`. The rationale remains: spinner frames on stdout corrupt `--format json` pipelines and agents don't benefit from animation.
 
 If you need user feedback for a slow operation, write a one-line message to **stderr**, not stdout.
 
@@ -227,7 +227,7 @@ Non-obvious choices and why they were made, for future contributors.
 
 **Why the test-isolation fixture patches both `_get_default_config_path` and `_get_config_path`** — Discovered (commit `9966d6c`) that several legacy tests instantiate bare `Config()` and call `.set(...)`, which writes to `~/.config/clickup-toolkit/config.json` in production. Stripping `CLICKUP_*` env vars wasn't enough — the persisted file leaked test data into real user config. Patching both path-resolution methods routes those writes to a per-test tmp file. `@pytest.mark.live` tests opt out so they hit the real env.
 
-**Why a no-spinner shim instead of editing every call site** — `Progress`, `SpinnerColumn`, `TextColumn`, `BarColumn`, `TaskProgressColumn` are stubbed to no-ops in `clickup/cli/utils.py`. Existing `with Progress(...) as p: p.add_task(...)` blocks compile and run silently. This kept the change to one PR with low diff and zero risk of missing a call site. Trade-off: imports look like they use `rich.progress`, but they resolve to the local shim.
+**Why a no-spinner shim instead of editing every call site** — Originally, `Progress`, `SpinnerColumn`, `TextColumn`, `BarColumn`, `TaskProgressColumn` were stubbed to no-ops in `clickup/cli/utils.py`. Existing `with Progress(...) as p: p.add_task(...)` blocks compiled and ran silently. This kept the change to one PR with low diff and zero risk of missing a call site. The shims have since been removed entirely (no call sites remain); nothing imports `rich.progress`.
 
 **Why `cup` alongside `clickup`** — `clickup` is the canonical name (self-documenting in shell history); `cup` is the daily-driver short alias. Both registered as entry points in `pyproject.toml`. Adding `cup` was free; renaming `clickup` would be a breaking change.
 

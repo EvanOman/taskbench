@@ -828,3 +828,112 @@ class TestBulkUpdateAllLists:
 
         # list_a failed but list_b's task was still updated
         assert client.update_task.call_count == 1
+
+
+# =============================================================================
+# Export defaults to JSON (from backlog-49 batch 2 item 2)
+# =============================================================================
+
+
+class TestExportDefaultsJson:
+    """Both bulk export-tasks and task export default to JSON format now."""
+
+    @patch("clickup.cli.commands.bulk.get_client")
+    def test_bulk_export_default_produces_json_file(self, mock_get_client):
+        """bulk export-tasks with no --output-format writes tasks.json."""
+        mock_client = AsyncMock()
+        mock_client.get_tasks.return_value = [Task(id="t1", name="One")]
+        mock_get_client.return_value = make_mock_ctx(mock_client)
+
+        result = runner.invoke(app, ["bulk", "export-tasks", "--list-id", "L1"])
+
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["format"] == "json"
+        assert data["output_file"] == "tasks.json"
+        from pathlib import Path
+
+        content = json.loads(Path("tasks.json").read_text())
+        assert isinstance(content, list)
+        Path("tasks.json").unlink(missing_ok=True)
+
+    @patch("clickup.cli.commands.bulk.get_client")
+    def test_bulk_export_csv_explicit_produces_csv_file(self, mock_get_client):
+        """bulk export-tasks --format csv without --output produces tasks.csv."""
+        mock_client = AsyncMock()
+        mock_client.get_tasks.return_value = [Task(id="t1", name="One")]
+        mock_get_client.return_value = make_mock_ctx(mock_client)
+
+        result = runner.invoke(app, ["bulk", "export-tasks", "--list-id", "L1", "--format", "csv"])
+
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["format"] == "csv"
+        assert data["output_file"] == "tasks.csv"
+        from pathlib import Path
+
+        Path("tasks.csv").unlink(missing_ok=True)
+
+    @patch("clickup.cli.commands.bulk.get_client")
+    def test_bulk_export_explicit_output_respected(self, mock_get_client):
+        """--output overrides the default filename."""
+        mock_client = AsyncMock()
+        mock_client.get_tasks.return_value = []
+        mock_get_client.return_value = make_mock_ctx(mock_client)
+
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            result = runner.invoke(app, ["bulk", "export-tasks", "--list-id", "L1", "--output", f.name])
+
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["output_file"] == f.name
+
+    @patch("clickup.cli.commands.task.get_client")
+    def test_task_export_default_produces_json_file(self, mock_get_client):
+        """task export with no --output produces tasks.json."""
+        mock_client = AsyncMock()
+        mock_client.get_tasks.return_value = [Task(id="t1", name="One")]
+        mock_get_client.return_value = make_mock_ctx(mock_client)
+
+        result = runner.invoke(app, ["task", "export", "--list-id", "L1"])
+
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["format"] == "json"
+        assert data["output_file"] == "tasks.json"
+        from pathlib import Path
+
+        content = json.loads(Path("tasks.json").read_text())
+        assert isinstance(content, list)
+        Path("tasks.json").unlink(missing_ok=True)
+
+    @patch("clickup.cli.commands.task.get_client")
+    def test_task_export_csv_produces_csv_file(self, mock_get_client):
+        """task export --output-format csv without --output produces tasks.csv."""
+        mock_client = AsyncMock()
+        mock_client.get_tasks.return_value = [Task(id="t1", name="One")]
+        mock_get_client.return_value = make_mock_ctx(mock_client)
+
+        result = runner.invoke(app, ["task", "export", "--list-id", "L1", "--output-format", "csv"])
+
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["format"] == "csv"
+        assert data["output_file"] == "tasks.csv"
+        from pathlib import Path
+
+        Path("tasks.csv").unlink(missing_ok=True)
+
+    @patch("clickup.cli.commands.task.get_client")
+    def test_task_export_explicit_output_respected(self, mock_get_client):
+        """--output overrides the default filename for task export."""
+        mock_client = AsyncMock()
+        mock_client.get_tasks.return_value = []
+        mock_get_client.return_value = make_mock_ctx(mock_client)
+
+        with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
+            result = runner.invoke(app, ["task", "export", "--list-id", "L1", "--output", f.name])
+
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["output_file"] == f.name
