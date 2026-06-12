@@ -15,13 +15,14 @@ def test_cli_version():
     """Test version command."""
     result = runner.invoke(app, ["version"])
     assert result.exit_code == 0
-    assert "ClickUp Toolkit CLI" in result.stdout
+    data = json.loads(result.stdout)
+    assert data["name"] == "ClickUp Toolkit CLI"
+    assert "version" in data
 
 
 def test_cli_status_no_token():
     """Test status command without API token."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        # Clear all token environment variables and set a temp HOME
         env_overrides = {
             "HOME": tmpdir,
             "CLICKUP_API_TOKEN": "",
@@ -34,7 +35,8 @@ def test_cli_status_no_token():
         with patch.dict("os.environ", env_overrides, clear=False):
             result = runner.invoke(app, ["status"])
             assert result.exit_code == 0
-            assert "Not configured" in result.stdout
+            data = json.loads(result.stdout)
+            assert data["api_token"] == "Not configured"
 
 
 def test_config_set_token():
@@ -43,34 +45,37 @@ def test_config_set_token():
         with patch.dict("os.environ", {"HOME": tmpdir}):
             result = runner.invoke(app, ["config", "set-token", "test_token_123"])
             assert result.exit_code == 0
-            assert "configured successfully" in result.stdout
+            data = json.loads(result.stdout)
+            assert data["key"] == "api_token"
+            assert data["value"] == "********"
 
 
 def test_config_show():
     """Test showing configuration."""
     with tempfile.TemporaryDirectory() as tmpdir:
         with patch.dict("os.environ", {"HOME": tmpdir}):
-            # First set a token
             runner.invoke(app, ["config", "set-token", "test_token_123"])
 
-            # Then show config
             result = runner.invoke(app, ["config", "show"])
             assert result.exit_code == 0
-            assert "api_token" in result.stdout
+            data = json.loads(result.stdout)
+            assert "api_token" in data
 
 
 def test_config_set_get():
     """Test setting and getting configuration values."""
     with tempfile.TemporaryDirectory() as tmpdir:
         with patch.dict("os.environ", {"HOME": tmpdir}):
-            # Set a value
             result = runner.invoke(app, ["config", "set", "timeout", "60"])
             assert result.exit_code == 0
+            data = json.loads(result.stdout)
+            assert data["key"] == "timeout"
+            assert data["value"] == "60"
 
-            # Get the value
             result = runner.invoke(app, ["config", "get", "timeout"])
             assert result.exit_code == 0
-            assert "60" in result.stdout
+            data = json.loads(result.stdout)
+            assert str(data["value"]) == "60"
 
 
 def test_config_set_unknown_key_warns():
@@ -79,6 +84,8 @@ def test_config_set_unknown_key_warns():
         with patch.dict("os.environ", {"HOME": tmpdir}):
             result = runner.invoke(app, ["config", "set", "some_unknown_key", "value"])
             assert result.exit_code == 0
+            data = json.loads(result.stdout)
+            assert data["key"] == "some_unknown_key"
             assert "not a recognised config key" in result.output
 
 
@@ -122,15 +129,18 @@ def test_template_list():
     """Test listing templates."""
     result = runner.invoke(app, ["template", "list"])
     assert result.exit_code == 0
-    assert "bug_report" in result.stdout
-    assert "feature_request" in result.stdout
+    data = json.loads(result.stdout)
+    names = [r["name"] for r in data["data"]]
+    assert "bug_report" in names
+    assert "feature_request" in names
 
 
 def test_template_show():
     """Test showing template details."""
     result = runner.invoke(app, ["template", "show", "bug_report"])
     assert result.exit_code == 0
-    assert "Bug Description" in result.stdout
+    data = json.loads(result.stdout)
+    assert "Bug Description" in data["description"]
 
 
 def test_template_show_nonexistent():

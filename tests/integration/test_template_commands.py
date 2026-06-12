@@ -38,10 +38,12 @@ def test_template_list_builtin():
     result = runner.invoke(app, ["template", "list"])
 
     assert result.exit_code == 0
-    assert "bug_report" in result.stdout
-    assert "feature_request" in result.stdout
-    assert "sprint_task" in result.stdout
-    assert "meeting_notes" in result.stdout
+    data = json.loads(result.stdout)
+    names = [r["name"] for r in data["data"]]
+    assert "bug_report" in names
+    assert "feature_request" in names
+    assert "sprint_task" in names
+    assert "meeting_notes" in names
 
 
 def test_template_show_builtin():
@@ -49,9 +51,10 @@ def test_template_show_builtin():
     result = runner.invoke(app, ["template", "show", "bug_report"])
 
     assert result.exit_code == 0
-    assert "Bug Description" in result.stdout
-    assert "Steps to Reproduce" in result.stdout
-    assert "2" in result.stdout
+    data = json.loads(result.stdout)
+    assert "Bug Description" in data["description"]
+    assert "Steps to Reproduce" in data["description"]
+    assert data["priority"] == 2
 
 
 def test_template_show_nonexistent():
@@ -104,7 +107,8 @@ async def test_template_create_from_builtin(mock_get_client):
     )
 
     assert result.exit_code == 0
-    assert "Created task" in result.stdout
+    data = json.loads(result.stdout)
+    assert "id" in data
     assert "task123" in result.stdout
 
 
@@ -138,7 +142,8 @@ async def test_template_create_from_custom(mock_get_client, sample_custom_templa
         )
 
         assert result.exit_code == 0
-        assert "Created task" in result.stdout
+        data = json.loads(result.stdout)
+    assert "id" in data
 
 
 def test_template_save_from_task():
@@ -214,7 +219,8 @@ async def test_template_create_with_variable_substitution(mock_get_client):
     )
 
     assert result.exit_code == 0
-    assert "Created task" in result.stdout
+    data = json.loads(result.stdout)
+    assert "id" in data
 
 
 def test_template_show_all_builtins():
@@ -224,7 +230,8 @@ def test_template_show_all_builtins():
     for template in builtin_templates:
         result = runner.invoke(app, ["template", "show", template])
         assert result.exit_code == 0
-        assert template.replace("_", " ").title() in result.stdout or template in result.stdout
+        data = json.loads(result.stdout)
+        assert data["name"] == template
 
 
 def test_template_create_invalid_template_file():
@@ -277,9 +284,72 @@ def test_template_list_with_custom_templates():
     """Test listing templates including custom ones."""
     with tempfile.TemporaryDirectory() as tmpdir:
         with patch("clickup.cli.commands.templates.get_templates_dir", return_value=Path(tmpdir)):
-            # This would test scanning a custom template directory
-            # For now, just test that the command works
             result = runner.invoke(app, ["template", "list", "--include-custom"])
-
-            # Command should work even if no custom templates exist
             assert result.exit_code == 0
+
+
+@patch("clickup.cli.commands.templates.get_client")
+def test_template_save_refuses_overwrite_without_force(mock_get_client):
+    """template save must refuse to overwrite without --force."""
+    from clickup.core.models import PriorityInfo, Task
+
+    mock_client = AsyncMock()
+    mock_client.get_task.return_value = Task(
+        id="t1", name="T", description="D", priority=PriorityInfo(priority="2", id="2")
+    )
+
+    def _ctx():
+        cm = AsyncMock()
+        cm.__aenter__.return_value = mock_client
+        return cm
+
+    mock_get_client.side_effect = _ctx
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with patch("clickup.cli.commands.templates.Path.home", return_value=Path(tmpdir)):
+            result1 = runner.invoke(app, ["template", "save", "overwrite-test", "--from-task", "t1"])
+            assert result1.exit_code == 0, result1.output
+
+            result2 = runner.invoke(app, ["template", "save", "overwrite-test", "--from-task", "t1"])
+            assert result2.exit_code == 2
+            assert "Refusing" in result2.output
+
+            result3 = runner.invoke(app, ["template", "save", "overwrite-test", "--from-task", "t1", "--force"])
+            assert result3.exit_code == 0
+
+
+def test_template_list_json_shape():
+    """template list emits {"data": [...], "count": N} in JSON mode."""
+    result = runner.invoke(app, ["template", "list"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert "data" in data
+    assert "count" in data
+    assert data["count"] == len(data["data"])
+    assert all("name" in r and "type" in r for r in data["data"])
+
+
+def test_template_show_json_shape():
+    """template show emits structured dict in JSON mode."""
+    result = runner.invoke(app, ["template", "show", "bug_report"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["name"] == "bug_report"
+    assert data["type"] == "Built-in"
+    assert "variables" in data
+    assert "description" in data
+
+
+def test_template_list_table_mode():
+    """template list --format table keeps human table."""
+    result = runner.invoke(app, ["--format", "table", "template", "list"])
+    assert result.exit_code == 0
+    assert "bug_report" in result.output
+    assert "Built-in" in result.output
+
+
+def test_template_show_table_mode():
+    """template show --format table keeps human table."""
+    result = runner.invoke(app, ["--format", "table", "template", "show", "bug_report"])
+    assert result.exit_code == 0
+    assert "Bug Description" in result.output

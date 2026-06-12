@@ -574,6 +574,45 @@ def render_comment(comment: Comment) -> None:
     _console.print(table)
 
 
+def render_id_rows(rows: list[dict[str, Any]], title: str | None = None) -> None:
+    """Render a list of flat dicts as a keyed collection (for ``discover ids``)."""
+    if get_format() == "json":
+        _print_json({"data": rows, "count": len(rows)})
+        return
+    if not rows:
+        return
+    cols = list(rows[0].keys())
+    table = Table(title=title, show_header=True)
+    for col in cols:
+        table.add_column(col, style="cyan" if col.lower() == "id" else None)
+    for row in rows:
+        table.add_row(*(escape(str(row.get(c, ""))) for c in cols))
+    _console.print(table)
+
+
+def render_path(
+    lst: dict[str, Any],
+    path: list[dict[str, Any]],
+    found: bool,
+) -> None:
+    """Render a list-path lookup result (for ``discover path``)."""
+    if get_format() == "json":
+        _print_json({"list": lst, "path": path, "found": found})
+        return
+    if not found:
+        render_message(f"Could not find path for list {lst.get('id', '?')}", level="warn")
+        return
+    _console.print()
+    _console.print("[bold]Path to List:[/bold]")
+    _ICONS = {"workspace": "\U0001f3e2", "space": "\U0001f4c1", "folder": "\U0001f4c2", "list": "\U0001f4cb"}
+    _STYLES = {"workspace": "cyan", "space": "blue", "folder": "yellow", "list": "green"}
+    for i, node in enumerate(path):
+        indent = "  " * i
+        icon = _ICONS.get(node["type"], "")
+        style = _STYLES.get(node["type"], "")
+        _console.print(f"{indent}{icon} [{style}]{escape(node['name'])}[/{style}] ([dim]{node['id']}[/dim])")
+
+
 def render_kv(data: dict[str, object], title: str | None = None) -> None:
     """Render an arbitrary key/value mapping."""
     if get_format() == "json":

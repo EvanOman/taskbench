@@ -179,7 +179,7 @@ def test_bulk_import_empty_file(mock_get_client):
         f.flush()
         result = runner.invoke(app, ["bulk", "import-tasks", f.name, "--list-id", "L1"])
     assert result.exit_code == 0
-    assert "No tasks found" in result.output
+    assert result.stdout.strip() == ""
 
 
 @patch("clickup.cli.commands.bulk.get_client")
@@ -209,7 +209,9 @@ def test_bulk_update_dry_run(mock_get_client):
 
     result = runner.invoke(app, ["bulk", "bulk-update", "--list-id", "L1", "--status", "done", "--dry-run"])
     assert result.exit_code == 0
-    assert "dry run" in result.output.lower()
+    data = json.loads(result.stdout)
+    assert data["dry_run"] is True
+    assert data["would_update"] == 1
 
 
 # ---------- discover path -----------------------------------------------------
@@ -233,8 +235,11 @@ def test_discover_path_in_folder(mock_get_client):
 
     result = runner.invoke(app, ["discover", "path", "L1"])
     assert result.exit_code == 0
-    assert "Acme" in result.output
-    assert "Backend" in result.output
+    data = json.loads(result.stdout)
+    assert data["found"] is True
+    path_names = [n["name"] for n in data["path"]]
+    assert "Acme" in path_names
+    assert "Backend" in path_names
 
 
 @patch("clickup.cli.commands.discover.get_client")
@@ -247,7 +252,8 @@ def test_discover_path_not_found(mock_get_client):
 
     result = runner.invoke(app, ["discover", "path", "L999"])
     assert result.exit_code == 0
-    assert "Could not find" in result.output
+    data = json.loads(result.stdout)
+    assert data["found"] is False
 
 
 # ---------- list create errors / api errors ---------------------------------
@@ -354,7 +360,8 @@ def test_templates_create_with_template_file(mock_get_client):
             ],
         )
     assert result.exit_code == 0
-    assert "Created task" in result.output
+    data = json.loads(result.stdout)
+    assert data["id"] == "t1"
 
 
 @patch("clickup.cli.commands.templates.get_client")

@@ -11,7 +11,7 @@ from rich.markup import escape
 from rich.table import Table
 
 from ...core import ClickUpError
-from ..output import render_error, render_kv, render_message
+from ..output import _print_json, get_format, render_error, render_kv, render_message
 from ..shared import get_client, require_list_id, resolve_list_ids
 from ..utils import run_async
 
@@ -151,33 +151,44 @@ def import_tasks(
                 raise typer.Exit(1)
 
             if not tasks_data:
-                console.print("[yellow]No tasks found in file.[/yellow]")
+                render_message("No tasks found in file.", level="info")
                 return
 
-            console.print(f"Found {len(tasks_data)} tasks to import")
+            render_message(f"Found {len(tasks_data)} tasks to import", level="info")
 
             if dry_run:
-                # Preview mode
+                if get_format() == "json":
+                    _print_json(
+                        {
+                            "dry_run": True,
+                            "would_create": len(tasks_data),
+                            "tasks": tasks_data[:10],
+                        }
+                    )
+                    return
+
                 table = Table(title="Import Preview", show_header=True)
                 table.add_column("Name", style="bold")
                 table.add_column("Description", style="dim")
                 table.add_column("Priority", style="yellow")
                 table.add_column("Assignees", style="blue")
 
-                for task_data in tasks_data[:10]:  # Show first 10
+                for task_data in tasks_data[:10]:
                     table.add_row(
-                        task_data.get("name", ""),
-                        task_data.get("description", "")[:50] + "..."
-                        if len(task_data.get("description", "")) > 50
-                        else task_data.get("description", ""),
+                        escape(task_data.get("name", "")),
+                        escape(
+                            task_data.get("description", "")[:50] + "..."
+                            if len(task_data.get("description", "")) > 50
+                            else task_data.get("description", "")
+                        ),
                         str(task_data.get("priority", "")),
-                        task_data.get("assignees", ""),
+                        escape(task_data.get("assignees", "")),
                     )
 
                 console.print(table)
                 if len(tasks_data) > 10:
-                    console.print(f"... and {len(tasks_data) - 10} more tasks")
-                console.print("[yellow]This was a dry run. Use --no-dry-run to actually import.[/yellow]")
+                    render_message(f"... and {len(tasks_data) - 10} more tasks", level="info")
+                render_message("This was a dry run. Use --no-dry-run to actually import.", level="info")
                 return
 
             if not force:
@@ -215,8 +226,9 @@ def import_tasks(
                             created_count += 1
 
                         except Exception as e:
-                            console.print(
-                                f"[yellow]Failed to create task '{task_data.get('name', 'Unknown')}': {e}[/yellow]"
+                            render_message(
+                                f"Failed to create task '{task_data.get('name', 'Unknown')}': {e}",
+                                level="warn",
                             )
                             failed_count += 1
 
@@ -295,18 +307,8 @@ def bulk_update(
                         render_message(f"Failed to fetch tasks from list {lid}: {e}", level="warn")
 
                 if not all_tasks:
-                    console.print("[yellow]No tasks found matching criteria.[/yellow]")
+                    render_message("No tasks found matching criteria.", level="info")
                     return
-
-                # Preview changes
-                table = Table(title="Bulk Update Preview", show_header=True)
-                table.add_column("Task", style="bold")
-                if len(list_ids_to_use) > 1:
-                    table.add_column("List", style="dim")
-                table.add_column("Current Status", style="blue")
-                table.add_column("New Status", style="green")
-                table.add_column("Current Priority", style="yellow")
-                table.add_column("New Priority", style="yellow")
 
                 updates: dict[str, Any] = {}
                 if new_status is not None:
@@ -316,7 +318,28 @@ def bulk_update(
                 if new_assignee is not None:
                     updates["assignees"] = [new_assignee]
 
-                for lid, task in all_tasks[:10]:  # Show first 10
+                if dry_run:
+                    if get_format() == "json":
+                        _print_json(
+                            {
+                                "dry_run": True,
+                                "would_update": len(all_tasks),
+                                "updates": updates,
+                                "tasks": [{"id": task.id, "name": task.name} for _lid, task in all_tasks],
+                            }
+                        )
+                        return
+
+                table = Table(title="Bulk Update Preview", show_header=True)
+                table.add_column("Task", style="bold")
+                if len(list_ids_to_use) > 1:
+                    table.add_column("List", style="dim")
+                table.add_column("Current Status", style="blue")
+                table.add_column("New Status", style="green")
+                table.add_column("Current Priority", style="yellow")
+                table.add_column("New Priority", style="yellow")
+
+                for lid, task in all_tasks[:10]:
                     current_status = task.status.status if task.status else "Unknown"
                     current_priority = (task.priority.priority or "None") if task.priority else "None"
                     row = [escape(task.name[:30] + "..." if len(task.name) > 30 else task.name)]
@@ -324,8 +347,8 @@ def bulk_update(
                         row.append(lid)
                     row.extend(
                         [
-                            current_status,
-                            new_status or current_status,
+                            escape(current_status),
+                            escape(new_status or current_status),
                             current_priority,
                             str(new_priority) if new_priority else current_priority,
                         ]
@@ -334,10 +357,10 @@ def bulk_update(
 
                 console.print(table)
                 if len(all_tasks) > 10:
-                    console.print(f"... and {len(all_tasks) - 10} more tasks")
+                    render_message(f"... and {len(all_tasks) - 10} more tasks", level="info")
 
                 if dry_run:
-                    console.print("[yellow]This was a dry run. Remove --dry-run to apply changes.[/yellow]")
+                    render_message("This was a dry run. Remove --dry-run to apply changes.", level="info")
                     return
 
                 if not force:

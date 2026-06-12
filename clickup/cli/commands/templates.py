@@ -6,11 +6,12 @@ from typing import Any
 
 import typer
 from rich.console import Console
+from rich.markup import escape
 from rich.prompt import Prompt
 from rich.table import Table
 
 from ...core import ClickUpError
-from ..output import render_error
+from ..output import _print_json, get_format, render_error, render_kv, render_message, render_task
 from ..shared import get_client, require_list_id
 from ..utils import run_async
 
@@ -203,25 +204,41 @@ def list_templates(
     built_in = load_built_in_templates()
     templates_dir = get_templates_dir()
 
-    table = Table(title="Available Templates", show_header=True)
-    table.add_column("Name", style="cyan")
-    table.add_column("Type", style="green")
-    table.add_column("Variables", style="yellow")
-
-    # Built-in templates
+    rows: list[dict[str, Any]] = []
     for name, template in built_in.items():
-        table.add_row(name, "Built-in", str(len(template.get("variables", []))))
+        rows.append(
+            {
+                "name": name,
+                "type": "Built-in",
+                "variable_count": len(template.get("variables", [])),
+            }
+        )
 
-    # Custom templates
     if templates_dir.exists():
         for template_file in templates_dir.glob("*.json"):
             try:
                 with open(template_file, encoding="utf-8") as f:
                     template = json.load(f)
-                table.add_row(template_file.stem, "Custom", str(len(template.get("variables", []))))
+                rows.append(
+                    {
+                        "name": template_file.stem,
+                        "type": "Custom",
+                        "variable_count": len(template.get("variables", [])),
+                    }
+                )
             except Exception:
                 continue
 
+    if get_format() == "json":
+        _print_json({"data": rows, "count": len(rows)})
+        return
+
+    table = Table(title="Available Templates", show_header=True)
+    table.add_column("Name", style="cyan")
+    table.add_column("Type", style="green")
+    table.add_column("Variables", style="yellow")
+    for row in rows:
+        table.add_row(escape(row["name"]), row["type"], str(row["variable_count"]))
     console.print(table)
 
 
@@ -254,18 +271,30 @@ def show_template(name: str = typer.Argument(..., help="Template name")) -> None
         render_error(f"Template '{name}' not found")
         raise typer.Exit(1)
 
-    # Display template details
-    table = Table(title=f"Template: {name} ({template_type})", show_header=False)
+    if get_format() == "json":
+        _print_json(
+            {
+                "name": name,
+                "type": template_type,
+                "name_pattern": template.get("name", ""),
+                "description": template.get("description", ""),
+                "priority": template.get("priority"),
+                "variables": template.get("variables", []),
+            }
+        )
+        return
+
+    table = Table(title=f"Template: {escape(name)} ({template_type})", show_header=False)
     table.add_column("Field", style="cyan", width=15)
     table.add_column("Value", style="white")
 
-    table.add_row("Name Pattern", template.get("name", ""))
+    table.add_row("Name Pattern", escape(template.get("name", "")))
     table.add_row("Priority", str(template.get("priority", "")))
     table.add_row("Variables", ", ".join(template.get("variables", [])))
 
     console.print(table)
     console.print("\n[bold]Description Template:[/bold]")
-    console.print(template.get("description", ""))
+    console.print(escape(template.get("description", "")))
 
 
 # Define options as module-level constants to avoid B008 error
@@ -363,16 +392,12 @@ def create_from_template(
         description = template.get("description", "").format(**variables)
         priority = template.get("priority", 3)
 
-        # Create task
         try:
             async with await get_client() as client:
                 task_data = {"name": name, "description": description, "priority": priority}
 
                 task = await client.create_task(list_id_to_use, **task_data)
-                console.print(f"✅ Created task from template: {task.name}")
-                console.print(f"🆔 Task ID: {task.id}")
-                if task.url:
-                    console.print(f"🔗 URL: {task.url}")
+                render_task(task)
 
         except ClickUpError as e:
             render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
@@ -397,6 +422,14 @@ def save_template(
         None,
         "--description-pattern",
         help="Template description pattern (use {variable} syntax). Defaults to the source task description.",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        "-f",
+        "--yes",
+        "-y",
+        help="Required to overwrite an existing template file.",
     ),
 ) -> None:
     """Save a task as a template.
@@ -433,17 +466,30 @@ def save_template(
                 template["variables"] = sorted(variables)
                 variables_list: list[str] = template["variables"]
 
-                # Save template
                 templates_dir = get_templates_dir()
                 template_file = templates_dir / f"{name}.json"
+
+                if template_file.exists() and not force:
+                    render_error(
+                        f"Refusing to overwrite existing template '{name}' without --force/--yes.",
+                        error_type="UsageError",
+                    )
+                    raise typer.Exit(2)
 
                 with open(template_file, "w", encoding="utf-8") as f:
                     json.dump(template, f, indent=2, ensure_ascii=False)
 
-                console.print(f"✅ Saved template: {name}")
-                console.print(f"📁 Location: {template_file}")
-                console.print(f"🔤 Variables: {', '.join(variables_list)}")
+                render_kv(
+                    {
+                        "name": name,
+                        "location": str(template_file),
+                        "variables": variables_list,
+                    }
+                )
+                render_message(f"Saved template: {name}", level="success")
 
+        except typer.Exit:
+            raise
         except ClickUpError as e:
             render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
             raise typer.Exit(1) from e

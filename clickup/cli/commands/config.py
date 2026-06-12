@@ -2,11 +2,12 @@
 
 import typer
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 
 from ...core import Config, get_provider, provider_requires_credentials
 from ...core.config import _CREDENTIAL_KEYS, _DEFAULT_KEYS, is_known_key
-from ..output import render_error
+from ..output import _print_json, get_format, render_error, render_kv, render_message, render_user
 from ..utils import run_async
 
 app = typer.Typer(help="Configuration management")
@@ -18,7 +19,8 @@ def set_client_id(client_id: str = typer.Argument(..., help="ClickUp Client ID")
     """Set your ClickUp Client ID."""
     config = Config()
     config.set_client_id(client_id)
-    console.print("✅ Client ID configured successfully!")
+    render_kv({"key": "client_id", "value": client_id})
+    render_message("Client ID configured successfully!", level="success")
 
 
 @app.command("set-client-secret")
@@ -26,7 +28,8 @@ def set_client_secret(client_secret: str = typer.Argument(..., help="ClickUp Cli
     """Set your ClickUp Client Secret."""
     config = Config()
     config.set_client_secret(client_secret)
-    console.print("✅ Client Secret configured successfully!")
+    render_kv({"key": "client_secret", "value": "***"})
+    render_message("Client Secret configured successfully!", level="success")
 
 
 @app.command("set-token")
@@ -34,7 +37,8 @@ def set_api_token(api_token: str = typer.Argument(..., help="ClickUp API Token")
     """Set your ClickUp API Token."""
     config = Config()
     config.set_api_token(api_token)
-    console.print("✅ API Token configured successfully!")
+    render_kv({"key": "api_token", "value": "********"})
+    render_message("API Token configured successfully!", level="success")
 
 
 @app.command("set")
@@ -49,7 +53,8 @@ def set_config(
     config = Config()
     try:
         config.set(key, value)
-        console.print(f"✅ Set {key} = {value}")
+        render_kv({"key": key, "value": value})
+        render_message(f"Set {key} = {value}", level="success")
     except ValueError as e:
         render_error(f"Error: {e}")
         raise typer.Exit(1) from e
@@ -61,9 +66,10 @@ def get_config(key: str = typer.Argument(..., help="Configuration key")) -> None
     config = Config()
     value = config.get(key)
     if value is not None:
-        console.print(f"{key} = {value}")
+        render_kv({"key": key, "value": value})
     else:
-        console.print(f"[yellow]{key} is not set[/yellow]")
+        render_kv({"key": key, "value": None})
+        render_message(f"{key} is not set", level="info")
 
 
 @app.command("show")
@@ -78,7 +84,6 @@ def show_config(
     config = Config()
     data = config.config.model_dump(exclude_none=True)
 
-    # Build section buckets
     credentials: dict[str, object] = {}
     defaults: dict[str, object] = {}
     other: dict[str, object] = {}
@@ -95,14 +100,26 @@ def show_config(
             unknown[key] = val
 
     def _mask(key: str, val: object) -> str:
-        """Mask sensitive values for display."""
         if key == "api_token":
-            return "********"  # fully masked
+            s = str(val)
+            if len(s) > 8:
+                return f"{s[:4]}...{s[-4:]}"
+            return "********"
         if key in ("client_secret",):
             return "***"
         if key == "client_id" and isinstance(val, str) and len(val) > 12:
             return f"{val[:8]}...{val[-4:]}"
         return str(val)
+
+    if get_format() == "json":
+        masked: dict[str, object] = {}
+        for k, v in {**credentials, **defaults, **other}.items():
+            masked[k] = _mask(k, v)
+        if show_all and unknown:
+            for k, v in unknown.items():
+                masked[k] = _mask(k, v)
+        _print_json(masked)
+        return
 
     def _render_section(title: str, items: dict[str, object]) -> None:
         if not items:
@@ -111,7 +128,7 @@ def show_config(
         table.add_column("Key", style="cyan")
         table.add_column("Value", style="green")
         for k, v in items.items():
-            table.add_row(k, _mask(k, v))
+            table.add_row(escape(k), escape(_mask(k, v)))
         console.print(table)
         console.print()
 
@@ -122,7 +139,7 @@ def show_config(
     if show_all and unknown:
         _render_section("Unknown / Custom", unknown)
     elif unknown:
-        console.print(f"[dim]{len(unknown)} unknown key(s) hidden. Use --all to show them.[/dim]")
+        render_message(f"{len(unknown)} unknown key(s) hidden. Use --all to show them.", level="info")
 
 
 @app.command("set-default-list")
@@ -146,11 +163,12 @@ def set_default_list(
 
     if remove:
         if name not in aliases:
-            console.print(f"[yellow]Alias '{name}' not found in default_lists.[/yellow]")
+            render_error(f"Alias '{name}' not found in default_lists.")
             raise typer.Exit(1)
         del aliases[name]
         config.set("default_lists", aliases)
-        console.print(f"✅ Removed alias '{name}'")
+        render_kv({"action": "removed", "alias": name})
+        render_message(f"Removed alias '{name}'", level="success")
         return
 
     if list_id is None:
@@ -159,7 +177,8 @@ def set_default_list(
 
     aliases[name] = list_id
     config.set("default_lists", aliases)
-    console.print(f"✅ Alias '{name}' -> {list_id}")
+    render_kv({"action": "added", "alias": name, "list_id": list_id})
+    render_message(f"Alias '{name}' -> {list_id}", level="success")
 
 
 @app.command("clean")
@@ -183,18 +202,13 @@ def clean_config(
     unknown = config.unknown_keys()
 
     if not unknown:
-        console.print("[green]Config is clean -- no unknown keys found.[/green]")
+        render_kv({"unknown_keys": 0})
+        render_message("Config is clean -- no unknown keys found.", level="success")
         return
 
-    table = Table(title="Unknown keys to remove", show_header=True)
-    table.add_column("Key", style="cyan")
-    table.add_column("Value", style="yellow")
-    for k, v in unknown.items():
-        table.add_row(k, str(v))
-    console.print(table)
-
     if dry_run:
-        console.print(f"\n[dim]Dry run: {len(unknown)} key(s) would be removed.[/dim]")
+        render_kv({"dry_run": True, "would_remove": len(unknown), "keys": list(unknown.keys())})
+        render_message(f"Dry run: {len(unknown)} key(s) would be removed.", level="info")
         return
 
     if not force:
@@ -205,7 +219,8 @@ def clean_config(
         raise typer.Exit(2)
 
     config.remove_keys(set(unknown.keys()))
-    console.print(f"[green]✅ Removed {len(unknown)} key(s).[/green]")
+    render_kv({"removed": len(unknown), "keys": list(unknown.keys())})
+    render_message(f"Removed {len(unknown)} key(s).", level="success")
 
 
 @app.command("reset")
@@ -225,7 +240,8 @@ def reset_config(
         raise typer.Exit(2)
     config = Config()
     config.config_path.unlink(missing_ok=True)
-    console.print("✅ Configuration reset to defaults")
+    render_kv({"action": "reset"})
+    render_message("Configuration reset to defaults", level="success")
 
 
 @app.command("validate")
@@ -246,26 +262,17 @@ def validate_auth() -> None:
                 is_valid, message, user = await client.validate_auth()
 
                 if is_valid:
-                    console.print(f"[green]{message}[/green]")
+                    render_message(message, level="success")
                     if user:
-                        # Show user details
-                        table = Table(title="User Information", show_header=False)
-                        table.add_column("Field", style="cyan", width=15)
-                        table.add_column("Value", style="white")
-
-                        table.add_row("ID", str(user.id))
-                        table.add_row("Username", user.username)
-                        table.add_row("Email", user.email or "N/A")
-                        table.add_row("Color", user.color or "N/A")
-                        table.add_row("Profile Picture", "✅" if user.profilePicture else "❌")
-
-                        console.print(table)
+                        render_user(user)
                 else:
                     render_error(f"{message}")
                     raise typer.Exit(1)
 
+        except typer.Exit:
+            raise
         except Exception as e:
-            render_error(f"❌ Error validating credentials: {str(e)}")
+            render_error(f"Error validating credentials: {str(e)}")
             raise typer.Exit(1) from e
 
     run_async(_validate())
@@ -288,19 +295,32 @@ def whoami() -> None:
             async with get_provider(config) as client:
                 user = await client.get_user()
 
+                default_team = config.get("default_team_id")
+                default_space = config.get("default_space_id")
+                default_list = config.get("default_list_id")
+
+                if get_format() == "json":
+                    _print_json(
+                        {
+                            "user_id": user.id,
+                            "username": user.username,
+                            "email": user.email,
+                            "color": user.color,
+                            "default_team_id": default_team,
+                            "default_space_id": default_space,
+                            "default_list_id": default_list,
+                        }
+                    )
+                    return
+
                 table = Table(title="Who Am I", show_header=False)
                 table.add_column("Field", style="cyan", width=20)
                 table.add_column("Value", style="white")
 
                 table.add_row("User ID", str(user.id))
-                table.add_row("Username", user.username)
-                table.add_row("Email", user.email or "N/A")
+                table.add_row("Username", escape(user.username))
+                table.add_row("Email", escape(user.email) if user.email else "N/A")
                 table.add_row("Color", user.color or "N/A")
-
-                default_team = config.get("default_team_id")
-                default_space = config.get("default_space_id")
-                default_list = config.get("default_list_id")
-
                 table.add_row("Default Team ID", default_team or "[dim]Not set[/dim]")
                 table.add_row("Default Space ID", default_space or "[dim]Not set[/dim]")
                 table.add_row("Default List ID", default_list or "[dim]Not set[/dim]")
