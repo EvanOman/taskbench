@@ -1,0 +1,35 @@
+{
+  "commit": "35a48b9",
+  "commit_full": "35a48b9",
+  "timestamp": "2026-06-12T04:45:00-05:00",
+  "suite_version": 2,
+  "rubric_version": 3,
+  "summary": {
+    "pass": 18,
+    "partial": 0,
+    "fail": 0,
+    "total_command_count": 53,
+    "total_elapsed_seconds": 990
+  },
+  "notes": "Confirmation run on v0.5.1 after backlog batches 1+2 (#60, #61) -- third consecutive 18/18. All new features validated by agents who had never seen them: variadic task create reduced the batch workflow to 3 commands (was 5), search --name-only used successfully (47 full-text -> 9 name matches), list stats activity default answered 'most active' in one call, config alias frictionless, JSON-default export clean. Zero CLI-caused failures; one speculative flag guess (list stats --all-lists, errored cleanly -- stats already scans all spaces; help-text note idea). Remaining micro-ideas filed in a follow-ups issue: --quiet/--ids-only output mode (3 mentions, token efficiency), status response previous/new diff, --brief help field list, stats scope note.",
+  "tasks": [
+    {"id": 1, "name": "identity", "verdict": "pass", "self_verdict": "pass", "command_count": 1, "elapsed_seconds": 15, "top_friction": "none"},
+    {"id": 2, "name": "list teams", "verdict": "pass", "self_verdict": "pass", "command_count": 1, "elapsed_seconds": 30, "top_friction": "none"},
+    {"id": 3, "name": "hierarchy", "verdict": "pass", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 90, "top_friction": "none; --format position noted but not hit"},
+    {"id": 4, "name": "my tasks", "verdict": "pass", "self_verdict": "pass", "command_count": 3, "elapsed_seconds": 45, "top_friction": "zero-result diagnostic idea for task mine"},
+    {"id": 5, "name": "sort", "verdict": "pass", "self_verdict": "pass", "command_count": 2, "elapsed_seconds": 45, "top_friction": "none"},
+    {"id": 6, "name": "create+delete", "verdict": "pass", "self_verdict": "pass", "command_count": 2, "elapsed_seconds": 45, "top_friction": "none"},
+    {"id": 7, "name": "update flow", "verdict": "pass", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 55, "top_friction": "null-priority representation nit"},
+    {"id": 8, "name": "search", "verdict": "pass", "self_verdict": "pass", "command_count": 3, "elapsed_seconds": 45, "top_friction": "none; --name-only used and praised; truncated-field envelope idea"},
+    {"id": 9, "name": "task get+comments", "verdict": "pass", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 45, "top_friction": "comments subgroup two levels deep; README was the fast path"},
+    {"id": 10, "name": "export", "verdict": "pass", "self_verdict": "pass", "command_count": 2, "elapsed_seconds": 45, "top_friction": "help could note default-list fallback"},
+    {"id": 11, "name": "most-active", "verdict": "pass", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 75, "top_friction": "speculative --all-lists guess on stats (clean error; stats already scans all spaces -- help note idea)"},
+    {"id": 12, "name": "no-flag flow", "verdict": "pass", "self_verdict": "pass", "command_count": 2, "elapsed_seconds": 45, "top_friction": "none"},
+    {"id": 13, "name": "status workflow", "verdict": "pass", "self_verdict": "pass", "command_count": 6, "elapsed_seconds": 90, "top_friction": "none; help cross-reference praised"},
+    {"id": 14, "name": "batch ops", "verdict": "pass", "self_verdict": "pass", "command_count": 3, "elapsed_seconds": 60, "top_friction": "none; variadic create cut workflow to 3 commands; --ids-only idea"},
+    {"id": 15, "name": "triage filter", "verdict": "pass", "self_verdict": "pass", "command_count": 3, "elapsed_seconds": 60, "top_friction": "none"},
+    {"id": 16, "name": "comment flow", "verdict": "pass", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 55, "top_friction": "verbose create JSON; --brief exists"},
+    {"id": 17, "name": "error probe", "verdict": "pass", "self_verdict": "pass", "command_count": 5, "elapsed_seconds": 120, "top_friction": "401 message actionable but still surfaces the 401/err detail first; full NotFoundError reclassification debated (kept honest type deliberately)"},
+    {"id": 18, "name": "alias flow", "verdict": "pass", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 45, "top_friction": "none; config alias frictionless"}
+  ]
+}
