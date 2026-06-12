@@ -1,0 +1,26 @@
+{
+  "commit": "a22824e",
+  "commit_full": "a22824e",
+  "timestamp": "2026-06-11T23:55:00-05:00",
+  "summary": {
+    "pass": 11,
+    "partial": 1,
+    "fail": 0,
+    "total_command_count": 41,
+    "total_elapsed_seconds": 595
+  },
+  "tasks": [
+    {"id": 1, "name": "identity", "verdict": "pass", "command_count": 1, "elapsed_seconds": 15, "top_friction": "status help text doesn't mention 'user'/'auth', so whoami-style keyword discovery is slightly harder"},
+    {"id": 2, "name": "list teams", "verdict": "pass", "command_count": 3, "elapsed_seconds": 30, "top_friction": "no 'team' terminology — agents using ClickUp API naming won't find workspace list without --help"},
+    {"id": 3, "name": "hierarchy", "verdict": "pass", "command_count": 4, "elapsed_seconds": 55, "top_friction": "--format must precede the subcommand, which is non-obvious"},
+    {"id": 4, "name": "my tasks", "verdict": "pass", "command_count": 4, "elapsed_seconds": 45, "top_friction": "README omits task mine; discoverable only via --help"},
+    {"id": 5, "name": "sort", "verdict": "pass", "command_count": 2, "elapsed_seconds": 45, "top_friction": "finding a list ID requires a separate discover hierarchy call"},
+    {"id": 6, "name": "create+delete", "verdict": "pass", "command_count": 2, "elapsed_seconds": 35, "top_friction": "create returns a large JSON blob; no one-line id+url summary"},
+    {"id": 7, "name": "update flow", "verdict": "pass", "command_count": 4, "elapsed_seconds": 45, "top_friction": "update response gives no indication of which fields changed"},
+    {"id": 8, "name": "search", "verdict": "pass", "command_count": 3, "elapsed_seconds": 45, "top_friction": "--format after the subcommand produces an unhandled stack trace instead of a hint"},
+    {"id": 9, "name": "task get+comments", "verdict": "pass", "command_count": 5, "elapsed_seconds": 75, "top_friction": "unknown list alias passed raw to API yields opaque 'List ID invalid' instead of an alias hint"},
+    {"id": 10, "name": "bulk export", "verdict": "pass", "command_count": 3, "elapsed_seconds": 45, "top_friction": "two near-identical export commands (task export vs bulk export-tasks)"},
+    {"id": 11, "name": "most-active list", "verdict": "partial", "command_count": 3, "elapsed_seconds": 95, "top_friction": "no list-level activity summary; requires triangulating hierarchy + task search (known baseline gap)"},
+    {"id": 12, "name": "no-flag flow", "verdict": "pass", "command_count": 7, "elapsed_seconds": 65, "top_friction": "three-hop discovery to find a list ID; setup wizard needs IDs the agent doesn't have yet"}
+  ]
+}
