@@ -16,12 +16,13 @@ When the user asks for an eval / benchmark / agent-usability check, or right aft
 ## Setup checks (do these first, in parallel)
 
 1. Confirm `.env` exists at project root with a real `CLICKUP_API_KEY`. If missing, stop and ask the user to provide one.
-2. **Isolate eval config from real user config.** Run:
+2. **Isolate eval config from real user config — one path PER SUB-AGENT.** Create a base dir, then give every sub-agent its own file:
    ```bash
-   export CLICKUP_CONFIG_PATH="/tmp/clickup-eval-$(date +%s)/config.json"
-   mkdir -p "$(dirname "$CLICKUP_CONFIG_PATH")"
+   EVAL_CFG_BASE="/tmp/clickup-eval-$(date +%s)"
+   mkdir -p "$EVAL_CFG_BASE"
+   # sub-agent N gets: CLICKUP_CONFIG_PATH="$EVAL_CFG_BASE/config-task<N>.json"
    ```
-   This uses the `CLICKUP_CONFIG_PATH` env var (honoured by `Config()`) so the eval's setup wizard, `config set-token`, and any other config writes go to a disposable path instead of `~/.config/clickup-toolkit/config.json`. **Pass this env var to every sub-agent prompt** (see base prompt template below).
+   The env var is honoured by `Config()`, so writes never touch `~/.config/clickup-toolkit/config.json`. Per-agent paths matter: several tasks WRITE config (`setup run --auto`, aliases), and `save_config()` rewrites the whole file — 18 concurrent agents sharing one path clobber each other's defaults (this produced a phantom "setup --auto doesn't persist" finding in the 2026-06-12 r3 run). Substitute the per-agent path into each prompt's `{CLICKUP_CONFIG_PATH}`.
 3. **Purge and re-warm the uvx wheel cache.** uvx caches wheels by name+version, and `--refresh-package` only fixes the *refreshing* invocation — the sub-agents' plain `uvx` calls can still resolve the stale archive (this silently invalidated the 2026-06-12 run: agents evaluated a wheel several PRs old while the version number matched). The only reliable sequence is:
    ```bash
    uv cache clean clickup-toolkit

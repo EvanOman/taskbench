@@ -21,7 +21,7 @@ app = typer.Typer(
     help="ClickUp CLI - Task management from the command line.",
     add_completion=False,
     rich_markup_mode="rich",
-    epilog="New here? Run [bold]clickup setup[/bold] to get started.",
+    epilog="New here? Run [bold]clickup setup run --auto[/bold] to get started non-interactively.",
     # Rich tracebacks on stderr drown the structured error envelope agents
     # parse; main() below renders all expected errors itself.
     pretty_exceptions_enable=False,
@@ -284,6 +284,34 @@ async def async_main() -> None:
     app()
 
 
+def _hoist_global_format(argv: list[str]) -> list[str]:
+    """Move a trailing ``--format <value>`` to the front so it parses globally.
+
+    Agents overwhelmingly append flags (``clickup task list --format json``),
+    but ``--format`` lives on the root callback. Rewriting argv accepts the
+    flag in any position instead of erroring. Skipped when:
+
+    * ``--format`` already appears before the subcommand (nothing to do), or
+    * the invocation targets ``export-tasks``, whose own ``--format`` alias
+      (file format, csv/json) must keep its local meaning.
+    """
+    if "export-tasks" in argv:
+        return argv
+    subcommand_idx = next((i for i, a in enumerate(argv) if not a.startswith("-")), None)
+    if subcommand_idx is None:
+        return argv
+    for i, arg in enumerate(argv):
+        if i < subcommand_idx and (arg == "--format" or arg.startswith("--format=")):
+            return argv
+    for i in range(subcommand_idx, len(argv)):
+        arg = argv[i]
+        if arg.startswith("--format="):
+            return [arg, *argv[:i], *argv[i + 1 :]]
+        if arg == "--format" and i + 1 < len(argv):
+            return [arg, argv[i + 1], *argv[:i], *argv[i + 2 :]]
+    return argv
+
+
 def _wants_json_mode(argv: list[str]) -> bool:
     """Inspect argv for ``--format`` before Click parses it.
 
@@ -338,6 +366,7 @@ def main() -> None:
     usage errors through the structured JSON envelope agents expect, instead
     of letting Click format them as Rich prose on stderr.
     """
+    sys.argv[1:] = _hoist_global_format(sys.argv[1:])
     json_mode = _wants_json_mode(sys.argv[1:])
     try:
         # In non-standalone mode Click *returns* the exit code when a command

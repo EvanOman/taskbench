@@ -384,20 +384,16 @@ class TestFormatHint:
         assert _format_hint(exc) is None
 
 
-def test_main_format_after_subcommand_json_envelope(
+def test_main_format_after_subcommand_now_works(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """``clickup task search --format json`` (default mode) emits JSON envelope with hint on stderr."""
-    monkeypatch.setattr("sys.argv", ["clickup", "task", "search", "--query", "x", "--format", "json"])
-    with pytest.raises(SystemExit) as exit_info:
-        main()
-    assert exit_info.value.code == 2
+    """``clickup version --format json`` (trailing global flag) is hoisted and succeeds."""
+    monkeypatch.setattr("sys.argv", ["clickup", "version", "--format", "json"])
+    main()
     captured = capsys.readouterr()
-    payload = json.loads(captured.err)
-    assert payload["type"] == "NoSuchOption"
-    assert "hint" in payload
-    assert "before the subcommand" in payload["hint"]
+    payload = json.loads(captured.out)
+    assert payload["name"] == "ClickUp Toolkit CLI"
 
 
 def test_main_format_after_subcommand_table_mode_hint(
@@ -427,3 +423,53 @@ def test_main_unknown_option_no_format_hint(
     captured = capsys.readouterr()
     payload = json.loads(captured.err)
     assert "hint" not in payload
+
+
+class TestHoistGlobalFormat:
+    """--format is accepted in any position (hoisted to the root parser)."""
+
+    def test_trailing_format_pair_hoisted(self):
+        from clickup.cli.main import _hoist_global_format
+
+        assert _hoist_global_format(["task", "list", "--format", "table"]) == [
+            "--format",
+            "table",
+            "task",
+            "list",
+        ]
+
+    def test_trailing_format_equals_hoisted(self):
+        from clickup.cli.main import _hoist_global_format
+
+        assert _hoist_global_format(["task", "list", "--format=json"]) == ["--format=json", "task", "list"]
+
+    def test_leading_format_untouched(self):
+        from clickup.cli.main import _hoist_global_format
+
+        argv = ["--format", "json", "task", "list"]
+        assert _hoist_global_format(argv) == argv
+
+    def test_export_tasks_format_untouched(self):
+        from clickup.cli.main import _hoist_global_format
+
+        argv = ["bulk", "export-tasks", "--list-id", "1", "--format", "csv"]
+        assert _hoist_global_format(argv) == argv
+
+    def test_middle_flags_preserved(self):
+        from clickup.cli.main import _hoist_global_format
+
+        assert _hoist_global_format(["task", "list", "--list-id", "5", "--format", "table", "--brief"]) == [
+            "--format",
+            "table",
+            "task",
+            "list",
+            "--list-id",
+            "5",
+            "--brief",
+        ]
+
+    def test_no_format_untouched(self):
+        from clickup.cli.main import _hoist_global_format
+
+        argv = ["task", "list", "--brief"]
+        assert _hoist_global_format(argv) == argv

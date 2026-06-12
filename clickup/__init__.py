@@ -1,6 +1,6 @@
 """ClickUp Toolkit - A powerful CLI for ClickUp task management."""
 
-__version__ = "0.4.3"
+__version__ = "0.4.4"
 
 # Import main modules
 from . import cli, core

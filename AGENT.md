@@ -115,7 +115,7 @@ JSON shape:
 
 ### 2. `--format` is a GLOBAL flag, not per-command
 
-Wired on the root Typer callback in `main.py`. **JSON is the default** — agents are first-class consumers, so the unflagged path emits structured data. Pass `clickup --format table <subcommand> ...` for human-readable output. Per-subcommand `--format` would conflict and confuse agents. Both `task export` and `bulk export-tasks` use `--output-format` for the output FILE format (json/csv), which is unrelated to the global `--format`. `bulk export-tasks` retains `--format` as a deprecated alias for backward compatibility.
+Wired on the root Typer callback in `main.py`. **JSON is the default** — agents are first-class consumers, so the unflagged path emits structured data. Pass `clickup --format table <subcommand> ...` for human-readable output. Since v0.4.4 the flag is also **accepted after the subcommand**: `main()` hoists a trailing `--format <value>` to the front before parsing (`_hoist_global_format`), because agent evals showed 7 of 18 fresh agents instinctively append it. The hoist is skipped for `export-tasks`, whose own `--format` alias (output FILE format, csv/json — deprecated alias of `--output-format`) must keep its local meaning; `task export` uses only `--output-format`. Don't declare `--format` on any new subcommand — the hoist plus root callback already covers it.
 
 ### 3. Modify-if-passed update semantics
 
