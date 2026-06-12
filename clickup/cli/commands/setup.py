@@ -8,6 +8,7 @@ required-but-missing value an error rather than a prompt.
 
 import typer
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 
 from ...core import ClickUpClient, Config
@@ -241,7 +242,7 @@ def setup_wizard(
                     console.print(f"  Found {len(tasks)} tasks. Here are the first {len(sample)}:")
                     for t in sample:
                         status_str = t.status.status if t.status else "?"
-                        console.print(f"    - {t.name} [{status_str}]")
+                        console.print(f"    - {escape(f'{t.name} [{status_str}]')}")
                 else:
                     console.print("  [dim]No tasks in this list yet.[/dim]")
             except Exception as e:

@@ -655,3 +655,28 @@ def test_error_payload_omits_empty_fields():
     assert error_payload("x") == {"error": "x"}
     assert error_payload("x", error_type="T") == {"error": "x", "type": "T"}
     assert error_payload("x", hint="h", command="c") == {"error": "x", "hint": "h", "command": "c"}
+
+
+# ---------------------------------------------------------------------------
+# Rich markup escaping of user data (AGENT.md decision 6)
+# ---------------------------------------------------------------------------
+
+
+def test_render_task_table_escapes_brackets(capture_console):
+    """Task names like '[bug] crash' must render verbatim, not as Rich markup."""
+    render_task(_task(name="[bug] crash on save"))
+    out = capture_console.getvalue()
+    assert "[bug] crash on save" in out
+
+
+def test_render_tasks_table_escapes_brackets(capture_console):
+    render_tasks([_task(name="[WIP] feature"), _task(id="task43", name="[red]alert[/red]")])
+    out = capture_console.getvalue()
+    assert "[WIP] feature" in out
+    assert "[red]alert[/red]" in out
+
+
+def test_render_list_table_escapes_brackets(capture_console):
+    render_list(ClickUpList(id="l1", name="[Q3] roadmap"))
+    out = capture_console.getvalue()
+    assert "[Q3] roadmap" in out

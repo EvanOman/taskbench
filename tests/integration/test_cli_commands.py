@@ -73,13 +73,13 @@ def test_config_set_get():
             assert "60" in result.stdout
 
 
-def test_config_invalid_key():
-    """Test setting invalid configuration key."""
+def test_config_set_unknown_key_warns():
+    """Unknown config keys warn but are stored (forward compat)."""
     with tempfile.TemporaryDirectory() as tmpdir:
         with patch.dict("os.environ", {"HOME": tmpdir}):
-            result = runner.invoke(app, ["config", "set", "invalid_key", "value"])
-            assert result.exit_code == 1
-            assert "Error" in result.output
+            result = runner.invoke(app, ["config", "set", "some_unknown_key", "value"])
+            assert result.exit_code == 0
+            assert "not a recognised config key" in result.output
 
 
 @patch("clickup.cli.commands.task.get_client")

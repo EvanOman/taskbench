@@ -585,13 +585,13 @@ def create_task(
         try:
             task_data: dict[str, Any] = {"name": name}
 
-            if description:
+            if description is not None:
                 task_data["description"] = description
-            if priority:
+            if priority is not None:
                 task_data["priority"] = priority
-            if assignee:
+            if assignee is not None:
                 task_data["assignees"] = [assignee]
-            if due_date:
+            if due_date is not None:
                 task_data["due_date"] = due_date
             if status_to_use:
                 task_data["status"] = status_to_use
