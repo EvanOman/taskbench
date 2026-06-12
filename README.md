@@ -307,7 +307,7 @@ uv run ty check
 - `clickup workspace spaces` - List spaces in a workspace
 - `clickup workspace folders` - List folders in a space
 - `clickup workspace members` - List team members
-- `clickup list` - Manage lists
+- `clickup list` - Manage lists (`clickup list stats` for per-list task/open counts)
 - `clickup discover` - Navigate workspace hierarchy and find IDs
 
 ### Other

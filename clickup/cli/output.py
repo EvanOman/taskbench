@@ -742,3 +742,35 @@ def render_error(
         typer.echo(msg, err=True)
         if hint:
             typer.echo(hint, err=True)
+
+
+def render_list_stats(rows: list[dict[str, Any]]) -> None:
+    """Render per-list statistics (task count, open count, last updated).
+
+    Each row is a dict with keys: ``id``, ``name``, ``space``, ``task_count``,
+    ``open_count``, ``last_updated`` (ISO 8601 string or ``None``).
+    """
+    if get_format() == "json":
+        _print_json({"data": rows, "count": len(rows)})
+        return
+
+    table = Table(title="List Stats", show_header=True)
+    table.add_column("Name", style="bold")
+    table.add_column("ID", style="cyan")
+    table.add_column("Tasks", style="green", justify="right")
+    table.add_column("Open", style="blue", justify="right")
+    table.add_column("Last updated", style="yellow")
+
+    for row in rows:
+        last_updated = row.get("last_updated") or "—"
+        # In table mode, truncate ISO timestamps to date-only for readability
+        if last_updated and last_updated != "—" and "T" in last_updated:
+            last_updated = last_updated[:10]
+        table.add_row(
+            escape(str(row.get("name", ""))),
+            str(row.get("id", "")),
+            str(row.get("task_count", 0)),
+            str(row.get("open_count", 0)),
+            last_updated,
+        )
+    _console.print(table)

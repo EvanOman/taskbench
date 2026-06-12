@@ -66,7 +66,7 @@ console = Console()
 
 @app.command(rich_help_panel="Get started")
 def status() -> None:
-    """Show ClickUp connection status and current configuration."""
+    """Show authenticated user, connection status, and current configuration."""
 
     async def _status() -> None:
         config_manager = Config()

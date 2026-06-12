@@ -13,7 +13,7 @@ from rich.table import Table
 
 from ...core import ClickUpClient, Config
 from ...core.models import List as ClickUpList
-from ..output import render_error, render_message
+from ..output import render_error, render_kv, render_message
 from ..utils import run_async
 
 app = typer.Typer(help="Setup and onboarding")
@@ -53,6 +53,144 @@ def _suggest_most_active(lists: list[ClickUpList]) -> ClickUpList | None:
     return max(lists, key=lambda lst: (lst.task_count or 0, lst.name))
 
 
+def _run_auto_setup(
+    *,
+    token: str | None,
+    team_id: str | None,
+    space_id: str | None,
+    list_id: str | None,
+) -> None:
+    """Fully automatic, non-interactive setup path (``--auto``).
+
+    Never prompts. Picks singletons automatically, resolves ambiguity
+    via the most-tasks heuristic for lists, and exits 2 when a choice
+    cannot be made without explicit flags.
+    """
+
+    async def _auto() -> None:
+        config = Config()
+
+        # ── Token ─────────────────────────────────────────────────────
+        if token:
+            config.set_api_token(token)
+        if not config.has_credentials():
+            render_error(
+                "No API token configured.",
+                hint=(
+                    "Set CLICKUP_API_KEY in your environment (or .env), pass --token, "
+                    "or run 'clickup setup run' interactively."
+                ),
+            )
+            raise typer.Exit(2)
+
+        async with ClickUpClient(config) as client:
+            is_valid, message, user = await client.validate_auth()
+            if not is_valid or user is None:
+                render_error(f"Token validation failed: {message}")
+                raise typer.Exit(2)
+
+            # ── Workspace ─────────────────────────────────────────────
+            teams = await client.get_teams()
+            if not teams:
+                render_error("No workspaces found for this account.")
+                raise typer.Exit(1)
+
+            if team_id is not None:
+                team = next((t for t in teams if t.id == team_id), None)
+                if team is None:
+                    render_error(f"Team/workspace ID {team_id!r} not found in this account.")
+                    raise typer.Exit(2)
+            elif len(teams) == 1:
+                team = teams[0]
+            else:
+                lines = ", ".join(f"{t.name} ({t.id})" for t in teams)
+                render_error(
+                    f"Multiple workspaces found: {lines}.",
+                    hint="Pass --team-id to select one.",
+                )
+                raise typer.Exit(2)
+
+            config.set("default_team_id", team.id)
+
+            # ── Space ─────────────────────────────────────────────────
+            spaces = await client.get_spaces(team.id)
+            if not spaces:
+                render_error("No spaces found in this workspace.")
+                raise typer.Exit(1)
+
+            if space_id is not None:
+                space = next((s for s in spaces if s.id == space_id), None)
+                if space is None:
+                    render_error(f"Space ID {space_id!r} not found in workspace {team.name}.")
+                    raise typer.Exit(2)
+            elif len(spaces) == 1:
+                space = spaces[0]
+            else:
+                lines = ", ".join(f"{s.name} ({s.id})" for s in spaces)
+                render_error(
+                    f"Multiple spaces found: {lines}.",
+                    hint="Pass --space-id to select one.",
+                )
+                raise typer.Exit(2)
+
+            config.set("default_space_id", space.id)
+
+            # ── List ──────────────────────────────────────────────────
+            all_lists: list[ClickUpList] = await client.get_folderless_lists(space.id)
+            folders = await client.get_folders(space.id)
+            for folder in folders:
+                folder_lists = await client.get_lists(folder.id)
+                all_lists.extend(folder_lists)
+
+            if list_id is not None:
+                chosen_list = next((lst for lst in all_lists if lst.id == list_id), None)
+                if chosen_list is None:
+                    render_error(f"List ID {list_id!r} not found in space {space.name}.")
+                    raise typer.Exit(2)
+            elif not all_lists:
+                render_message("No lists found in this space. Skipping list selection.", "warn")
+                chosen_list = None
+            elif len(all_lists) == 1:
+                chosen_list = all_lists[0]
+            else:
+                # Pick the list with the most tasks; tie-break by first occurrence
+                chosen_list = max(all_lists, key=lambda lst: lst.task_count or 0)
+                tc = chosen_list.task_count or 0
+                render_message(
+                    f"Auto-selected list '{chosen_list.name}' ({tc} tasks). Override with --list-id.",
+                    "warn",
+                )
+
+            if chosen_list is not None:
+                config.set("default_list_id", chosen_list.id)
+
+            # ── Smoke test (lightweight — just validate the list) ─────
+            if chosen_list is not None:
+                try:
+                    await client.get_list(chosen_list.id)
+                except Exception:
+                    pass  # Non-fatal; the config is already saved
+
+            # ── Output ────────────────────────────────────────────────
+            result: dict[str, object] = {
+                "default_team_id": team.id,
+                "default_team_name": team.name,
+                "default_space_id": space.id,
+                "default_space_name": space.name,
+            }
+            if chosen_list is not None:
+                result["default_list_id"] = chosen_list.id
+                result["default_list_name"] = chosen_list.name
+
+            render_kv(result, title="Auto-setup complete")
+
+    try:
+        run_async(_auto())
+    except _NeedsInput as e:
+        render_error(str(e))
+        raise typer.Exit(2) from e
+
+
 @app.command("run")
 def setup_wizard(
     token: str | None = typer.Option(None, "--token", help="ClickUp API token (skips token prompt)."),
@@ -66,13 +204,29 @@ def setup_wizard(
         "--non-interactive",
         help="Fail instead of prompting when a value is missing. Use with --token/--team-id/etc.",
     ),
+    auto: bool = typer.Option(
+        False,
+        "--auto",
+        help=(
+            "Fully automatic setup — never prompts. Uses token from env/.env/--token; "
+            "auto-selects workspace/space if only one exists, picks the list with the "
+            "most tasks when multiple are available. Explicit --team-id/--space-id/--list-id "
+            "flags override auto-selection at that level."
+        ),
+    ),
 ) -> None:
     """Setup wizard — configure defaults for the ClickUp CLI.
 
     Interactive by default. To run non-interactively (agent flow), pass
     --token / --team-id / --space-id / --list-id and (optionally)
     --non-interactive to error on any missing value rather than prompt.
+
+    Use --auto for fully automatic setup: never prompts, auto-selects
+    the best option at each level, and outputs the chosen IDs.
     """
+    if auto:
+        _run_auto_setup(token=token, team_id=team_id, space_id=space_id, list_id=list_id)
+        return
 
     async def _setup() -> None:
         config = Config()
