@@ -1,4 +1,10 @@
-"""Tests for template commands."""
+"""Tests for template commands.
+
+Consolidates tests from the original test_template_commands.py, plus template
+tests formerly in test_command_coverage.py and test_final_coverage.py.
+"""
+
+from __future__ import annotations
 
 import json
 import tempfile
@@ -9,6 +15,10 @@ import pytest
 from typer.testing import CliRunner
 
 from clickup.cli.main import app
+from clickup.core.exceptions import ClickUpError
+from clickup.core.models import PriorityInfo, Task
+
+from .conftest import make_mock_ctx
 
 runner = CliRunner()
 
@@ -31,6 +41,11 @@ def sample_custom_template():
         "tags": ["{{team}}", "custom"],
         "custom_fields": {"Department": "{{department}}", "Estimated Hours": "{{hours}}"},
     }
+
+
+# =============================================================================
+# list / show
+# =============================================================================
 
 
 def test_template_list_builtin():
@@ -61,8 +76,116 @@ def test_template_show_nonexistent():
     """Test showing non-existent template."""
     result = runner.invoke(app, ["template", "show", "nonexistent_template"])
 
-    assert result.exit_code != 0
+    assert result.exit_code == 1
     assert "not found" in result.output.lower()
+
+
+def test_template_show_all_builtins():
+    """Test showing all built-in templates."""
+    builtin_templates = ["bug_report", "feature_request", "sprint_task", "meeting_notes"]
+
+    for template in builtin_templates:
+        result = runner.invoke(app, ["template", "show", template])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["name"] == template
+
+
+def test_template_list_json_shape():
+    """template list emits {"data": [...], "count": N} in JSON mode."""
+    result = runner.invoke(app, ["template", "list"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert "data" in data
+    assert "count" in data
+    assert data["count"] == len(data["data"])
+    assert all("name" in r and "type" in r for r in data["data"])
+
+
+def test_template_show_json_shape():
+    """template show emits structured dict in JSON mode."""
+    result = runner.invoke(app, ["template", "show", "bug_report"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["name"] == "bug_report"
+    assert data["type"] == "Built-in"
+    assert "variables" in data
+    assert "description" in data
+
+
+def test_template_list_table_mode():
+    """template list --format table keeps human table."""
+    result = runner.invoke(app, ["--format", "table", "template", "list"])
+    assert result.exit_code == 0
+    assert "bug_report" in result.output
+    assert "Built-in" in result.output
+
+
+def test_template_show_table_mode():
+    """template show --format table keeps human table."""
+    result = runner.invoke(app, ["--format", "table", "template", "show", "bug_report"])
+    assert result.exit_code == 0
+    assert "Bug Description" in result.output
+
+
+def test_template_help():
+    """Test template command help."""
+    result = runner.invoke(app, ["template", "--help"])
+    assert result.exit_code == 0
+    assert "list" in result.stdout
+    assert "show" in result.stdout
+    assert "create" in result.stdout
+    assert "save" in result.stdout
+
+
+# =============================================================================
+# list / show with custom templates
+# =============================================================================
+
+
+def test_template_list_with_custom_templates():
+    """Test listing templates including custom ones."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with patch("clickup.cli.commands.templates.get_templates_dir", return_value=Path(tmpdir)):
+            result = runner.invoke(app, ["template", "list", "--include-custom"])
+            assert result.exit_code == 0
+
+
+def test_template_list_with_include_custom_on_disk():
+    """--include-custom picks up a real template file on disk."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
+            with patch("clickup.cli.commands.templates.Path.home", return_value=Path(tmpdir)):
+                custom_dir = Path(tmpdir) / ".config" / "clickup-toolkit" / "templates"
+                custom_dir.mkdir(parents=True, exist_ok=True)
+                (custom_dir / "my_template.json").write_text(
+                    json.dumps({"name": "Custom {x}", "description": "d", "variables": ["x"]})
+                )
+
+                result = runner.invoke(app, ["template", "list", "--include-custom"])
+                assert result.exit_code == 0
+                assert "my_template" in result.output
+
+
+def test_template_show_custom_from_disk():
+    """Show a custom template loaded from disk."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
+            with patch("clickup.cli.commands.templates.Path.home", return_value=Path(tmpdir)):
+                custom_dir = Path(tmpdir) / ".config" / "clickup-toolkit" / "templates"
+                custom_dir.mkdir(parents=True, exist_ok=True)
+                (custom_dir / "test_t.json").write_text(
+                    json.dumps({"name": "T {x}", "description": "Desc", "priority": 2, "variables": ["x"]})
+                )
+
+                result = runner.invoke(app, ["template", "show", "test_t"])
+                assert result.exit_code == 0
+                assert "Custom" in result.output
+
+
+# =============================================================================
+# create — happy paths
+# =============================================================================
 
 
 @patch("clickup.cli.commands.templates.get_client")
@@ -146,35 +269,6 @@ async def test_template_create_from_custom(mock_get_client, sample_custom_templa
     assert "id" in data
 
 
-def test_template_save_from_task():
-    """Test saving template from existing task."""
-    # Mock task data
-    _ = {"name": "Sample Task", "description": "Sample description", "priority": "high", "tags": ["sample", "test"]}
-
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-        runner.invoke(
-            app, ["template", "save", "--task-id", "task123", "--output", f.name, "--name", "My Custom Template"]
-        )
-
-        # This will likely fail without proper mocking, but tests the command structure
-        # In a real implementation, we'd mock the get_client and task retrieval
-
-
-def test_template_create_missing_list():
-    """Test template create without list ID — error + hint go to stderr."""
-    result = runner.invoke(app, ["template", "create", "--template", "bug_report"])
-
-    assert result.exit_code != 0
-    assert "list-id" in result.output
-
-
-def test_template_create_missing_template():
-    """Test template create without template specification."""
-    result = runner.invoke(app, ["template", "create", "--list-id", "list123"])
-
-    assert result.exit_code != 0
-
-
 @patch("clickup.cli.commands.templates.get_client")
 async def test_template_create_with_variable_substitution(mock_get_client):
     """Test template variable substitution."""
@@ -223,15 +317,163 @@ async def test_template_create_with_variable_substitution(mock_get_client):
     assert "id" in data
 
 
-def test_template_show_all_builtins():
-    """Test showing all built-in templates."""
-    builtin_templates = ["bug_report", "feature_request", "sprint_task", "meeting_notes"]
+@patch("clickup.cli.commands.templates.get_client")
+def test_template_create_with_variables_file(mock_get_client):
+    """Use --variables file path with all bug_report vars."""
+    mock_client = AsyncMock()
+    mock_client.create_task.return_value = Task(id="t1", name="[Bug] login")
+    mock_get_client.return_value = make_mock_ctx(mock_client)
 
-    for template in builtin_templates:
-        result = runner.invoke(app, ["template", "show", template])
-        assert result.exit_code == 0
-        data = json.loads(result.stdout)
-        assert data["name"] == template
+    bug_vars = {
+        "title": "login",
+        "description": "broken",
+        "step1": "x",
+        "step2": "y",
+        "step3": "z",
+        "expected": "ok",
+        "actual": "fail",
+        "environment": "mac",
+        "version": "1.0",
+        "attachments": "none",
+        "severity": "high",
+    }
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(bug_vars, f)
+        f.flush()
+        result = runner.invoke(
+            app,
+            [
+                "template",
+                "create",
+                "--template",
+                "bug_report",
+                "--list-id",
+                "L1",
+                "--variables",
+                f.name,
+                "--no-interactive",
+            ],
+        )
+    assert result.exit_code == 0, result.output
+    data = json.loads(result.stdout)
+    assert data["id"] == "t1"
+
+
+@patch("clickup.cli.commands.templates.get_client")
+def test_template_create_with_template_file(mock_get_client):
+    """Provide a custom template file via --template-file."""
+    mock_client = AsyncMock()
+    mock_client.create_task.return_value = Task(id="t1", name="custom_task")
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump({"name": "{x}", "description": "y", "priority": 3, "variables": ["x"]}, f)
+        f.flush()
+        result = runner.invoke(
+            app,
+            [
+                "template",
+                "create",
+                "--list-id",
+                "L1",
+                "--template-file",
+                f.name,
+                "--var",
+                "x=test",
+                "--no-interactive",
+            ],
+        )
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["id"] == "t1"
+
+
+@patch("clickup.cli.commands.templates.get_client")
+def test_template_create_custom_template_by_name(mock_get_client):
+    """--template <name> resolves to a custom file on disk if not built-in."""
+    mock_client = AsyncMock()
+    mock_client.create_task.return_value = Task(id="t1", name="my_task")
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with patch("clickup.cli.commands.templates.Path.home", return_value=Path(tmpdir)):
+            custom_dir = Path(tmpdir) / ".config" / "clickup-toolkit" / "templates"
+            custom_dir.mkdir(parents=True, exist_ok=True)
+            (custom_dir / "my_t.json").write_text(
+                json.dumps({"name": "{n}", "description": "d", "priority": 3, "variables": ["n"]})
+            )
+
+            result = runner.invoke(
+                app,
+                [
+                    "template",
+                    "create",
+                    "--list-id",
+                    "L1",
+                    "--template",
+                    "my_t",
+                    "--var",
+                    "n=foo",
+                    "--no-interactive",
+                ],
+            )
+            assert result.exit_code == 0
+
+
+# =============================================================================
+# create — error paths
+# =============================================================================
+
+
+def test_template_create_missing_list():
+    """Test template create without list ID — error + hint go to stderr."""
+    result = runner.invoke(app, ["template", "create", "--template", "bug_report"])
+
+    assert result.exit_code == 2
+    assert "list-id" in result.output
+
+
+def test_template_create_missing_template():
+    """Test template create without template specification."""
+    result = runner.invoke(app, ["template", "create", "--list-id", "list123"])
+
+    assert result.exit_code == 1
+
+
+def test_template_create_no_list_no_interactive():
+    """template create --no-interactive without --list-id is a usage error (exit 2)."""
+    result = runner.invoke(app, ["template", "create", "--template", "bug_report", "--no-interactive"])
+    assert result.exit_code == 2
+
+
+def test_template_create_no_template_no_interactive():
+    """template create --no-interactive without --template is a usage error (exit 2)."""
+    result = runner.invoke(app, ["template", "create", "--list-id", "L1", "--no-interactive"])
+    assert result.exit_code == 1
+
+
+@patch("clickup.cli.commands.templates.get_client")
+def test_template_create_invalid_var_format(mock_get_client):
+    """--var without an = sign is rejected."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(
+        app,
+        [
+            "template",
+            "create",
+            "--template",
+            "bug_report",
+            "--list-id",
+            "L1",
+            "--var",
+            "no_equals_sign",
+            "--no-interactive",
+        ],
+    )
+    assert result.exit_code == 1
+    assert "Invalid variable format" in result.output
 
 
 def test_template_create_invalid_template_file():
@@ -245,14 +487,87 @@ def test_template_create_invalid_template_file():
         assert result.exit_code != 0
 
 
-def test_template_help():
-    """Test template command help."""
-    result = runner.invoke(app, ["template", "--help"])
-    assert result.exit_code == 0
-    assert "list" in result.stdout
-    assert "show" in result.stdout
-    assert "create" in result.stdout
-    assert "save" in result.stdout
+@patch("clickup.cli.commands.templates.get_client")
+def test_template_create_template_file_missing(mock_get_client):
+    """A nonexistent --template-file path errors."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(
+        app,
+        [
+            "template",
+            "create",
+            "--list-id",
+            "L1",
+            "--template-file",
+            "/nonexistent/path.json",
+            "--no-interactive",
+        ],
+    )
+    assert result.exit_code == 1
+    assert "Error loading template" in result.output
+
+
+@patch("clickup.cli.commands.templates.get_client")
+def test_template_create_api_error(mock_get_client):
+    """API failure during create propagates cleanly."""
+    mock_client = AsyncMock()
+    mock_client.create_task.side_effect = ClickUpError("rate limit")
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    bug_vars = {
+        "title": "x",
+        "description": "x",
+        "step1": "x",
+        "step2": "x",
+        "step3": "x",
+        "expected": "x",
+        "actual": "x",
+        "environment": "x",
+        "version": "x",
+        "attachments": "x",
+        "severity": "x",
+    }
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(bug_vars, f)
+        f.flush()
+        result = runner.invoke(
+            app,
+            [
+                "template",
+                "create",
+                "--template",
+                "bug_report",
+                "--list-id",
+                "L1",
+                "--variables",
+                f.name,
+                "--no-interactive",
+            ],
+        )
+    assert result.exit_code == 1
+    assert "rate limit" in result.stderr
+
+
+def test_template_create_variables_file_missing():
+    """--variables file that doesn't exist errors out."""
+    result = runner.invoke(
+        app,
+        [
+            "template",
+            "create",
+            "--template",
+            "bug_report",
+            "--list-id",
+            "L1",
+            "--variables",
+            "/nonexistent.json",
+            "--no-interactive",
+        ],
+    )
+    assert result.exit_code == 1
+    assert "variables file" in result.output.lower() or "error" in result.output.lower()
 
 
 @patch("clickup.cli.commands.templates.get_client")
@@ -261,7 +576,6 @@ async def test_template_create_missing_variables(mock_get_client):
     mock_client = AsyncMock()
     mock_get_client.return_value.__aenter__.return_value = mock_client
 
-    # Try to use bug_report template without providing required variables
     result = runner.invoke(
         app,
         [
@@ -271,28 +585,60 @@ async def test_template_create_missing_variables(mock_get_client):
             "list123",
             "--template",
             "bug_report",
-            # Missing required variables like bug_title, bug_description, etc.
         ],
     )
 
-    # Should either succeed with default values or prompt for missing variables
-    # The exact behavior depends on implementation
-    assert result.exit_code in [0, 1]  # Allow either success or failure
+    assert result.exit_code in [0, 1]
 
 
-def test_template_list_with_custom_templates():
-    """Test listing templates including custom ones."""
+# =============================================================================
+# save
+# =============================================================================
+
+
+def test_template_save_from_task():
+    """Test saving template from existing task."""
+    _ = {"name": "Sample Task", "description": "Sample description", "priority": "high", "tags": ["sample", "test"]}
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        runner.invoke(
+            app, ["template", "save", "--task-id", "task123", "--output", f.name, "--name", "My Custom Template"]
+        )
+
+
+@patch("clickup.cli.commands.templates.get_client")
+def test_template_save_with_pattern_flags(mock_get_client):
+    """Non-interactive save with --name-pattern / --description-pattern."""
+    mock_client = AsyncMock()
+    mock_client.get_task.return_value = Task(
+        id="t1", name="Sample task", description="Sample {what}", priority=PriorityInfo(priority="2", id="2")
+    )
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("clickup.cli.commands.templates.get_templates_dir", return_value=Path(tmpdir)):
-            result = runner.invoke(app, ["template", "list", "--include-custom"])
+        with patch("clickup.cli.commands.templates.Path.home", return_value=Path(tmpdir)):
+            result = runner.invoke(
+                app,
+                [
+                    "template",
+                    "save",
+                    "test-template",
+                    "--from-task",
+                    "t1",
+                    "--name-pattern",
+                    "[{kind}] {title}",
+                    "--description-pattern",
+                    "Doing {what}",
+                ],
+            )
             assert result.exit_code == 0
+            data = json.loads(result.stdout)
+            assert data["name"] == "test-template"
 
 
 @patch("clickup.cli.commands.templates.get_client")
 def test_template_save_refuses_overwrite_without_force(mock_get_client):
     """template save must refuse to overwrite without --force."""
-    from clickup.core.models import PriorityInfo, Task
-
     mock_client = AsyncMock()
     mock_client.get_task.return_value = Task(
         id="t1", name="T", description="D", priority=PriorityInfo(priority="2", id="2")
@@ -316,40 +662,3 @@ def test_template_save_refuses_overwrite_without_force(mock_get_client):
 
             result3 = runner.invoke(app, ["template", "save", "overwrite-test", "--from-task", "t1", "--force"])
             assert result3.exit_code == 0
-
-
-def test_template_list_json_shape():
-    """template list emits {"data": [...], "count": N} in JSON mode."""
-    result = runner.invoke(app, ["template", "list"])
-    assert result.exit_code == 0
-    data = json.loads(result.stdout)
-    assert "data" in data
-    assert "count" in data
-    assert data["count"] == len(data["data"])
-    assert all("name" in r and "type" in r for r in data["data"])
-
-
-def test_template_show_json_shape():
-    """template show emits structured dict in JSON mode."""
-    result = runner.invoke(app, ["template", "show", "bug_report"])
-    assert result.exit_code == 0
-    data = json.loads(result.stdout)
-    assert data["name"] == "bug_report"
-    assert data["type"] == "Built-in"
-    assert "variables" in data
-    assert "description" in data
-
-
-def test_template_list_table_mode():
-    """template list --format table keeps human table."""
-    result = runner.invoke(app, ["--format", "table", "template", "list"])
-    assert result.exit_code == 0
-    assert "bug_report" in result.output
-    assert "Built-in" in result.output
-
-
-def test_template_show_table_mode():
-    """template show --format table keeps human table."""
-    result = runner.invoke(app, ["--format", "table", "template", "show", "bug_report"])
-    assert result.exit_code == 0
-    assert "Bug Description" in result.output

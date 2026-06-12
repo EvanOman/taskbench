@@ -1,28 +1,27 @@
-"""Tests for `clickup setup run` — non-interactive flag-driven flows.
+"""Tests for `clickup setup run` — non-interactive and interactive flows.
 
-The wizard is interactive by default but accepts --token / --team-id /
---space-id / --list-id / --non-interactive for agent use. These tests pin
-both behaviors and exercise the auto-selection / mismatch / refusal paths.
+Consolidates tests from the original test_setup_wizard.py, plus setup tests
+formerly in test_final_coverage.py and test_more_coverage.py.
 """
 
 from __future__ import annotations
 
+import tempfile
+from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
 from typer.testing import CliRunner
 
 from clickup.cli.main import app
 
+from .conftest import make_mock_ctx, named_mock
+
 runner = CliRunner()
 
 
 def _named(**kw):
     """Build a Mock where `.name` is a real string."""
-    name = kw.pop("name", None)
-    m = Mock(**kw)
-    if name is not None:
-        m.name = name
-    return m
+    return named_mock(**kw)
 
 
 def _mock_client(*, validate_ok=True, teams=None, spaces=None, lists=None, folders=None, tasks=None):
@@ -227,3 +226,135 @@ def test_setup_no_lists_warns_but_succeeds(mock_client_cls):
     result = runner.invoke(app, ["setup", "run", "--token", "pk_test", "--non-interactive"])
     assert result.exit_code == 0
     assert "No lists found" in result.output
+
+
+# =============================================================================
+# interactive paths — from test_final_coverage.py
+# =============================================================================
+
+
+@patch("clickup.cli.commands.setup.typer.prompt")
+@patch("clickup.cli.commands.setup.ClickUpClient")
+def test_setup_interactive_token_prompt(mock_client_cls, mock_prompt):
+    """User enters a valid token at the prompt."""
+    mock_prompt.return_value = "pk_entered"
+    mock_client = AsyncMock()
+    mock_client.validate_auth.return_value = (True, "ok", _named(id=1, username="u", email="u@x.com"))
+    mock_client.get_teams.return_value = [_named(id="T1", name="A")]
+    mock_client.get_spaces.return_value = [_named(id="S1", name="X")]
+    mock_client.get_folders.return_value = []
+    mock_client.get_folderless_lists.return_value = []
+    mock_client.get_tasks.return_value = []
+    mock_client_cls.return_value = make_mock_ctx(mock_client)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
+            result = runner.invoke(app, ["setup", "run"])
+            assert result.exit_code == 0
+            assert mock_prompt.called
+
+
+@patch("clickup.cli.commands.setup.typer.prompt")
+@patch("clickup.cli.commands.setup.ClickUpClient")
+def test_setup_interactive_pick_workspace_menu(mock_client_cls, mock_prompt):
+    """Two workspaces -> _pick_from_menu prompts for selection."""
+    mock_prompt.return_value = "1"
+    mock_client = AsyncMock()
+    mock_client.validate_auth.return_value = (True, "ok", _named(id=1, username="u", email="u@x.com"))
+    teams = [_named(id="T1", name="A"), _named(id="T2", name="B")]
+    spaces = [_named(id="S1", name="X")]
+    mock_client.get_teams.return_value = teams
+    mock_client.get_spaces.return_value = spaces
+    mock_client.get_folders.return_value = []
+    mock_client.get_folderless_lists.return_value = []
+    mock_client.get_tasks.return_value = []
+    mock_client_cls.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["setup", "run", "--token", "pk"])
+    assert result.exit_code == 0
+    assert "A" in result.output
+
+
+@patch("clickup.cli.commands.setup.typer.confirm")
+@patch("clickup.cli.commands.setup.ClickUpClient")
+def test_setup_interactive_list_use_suggested(mock_client_cls, mock_confirm):
+    """confirm=Yes accepts the suggested list."""
+    mock_confirm.return_value = True
+    mock_client = AsyncMock()
+    mock_client.validate_auth.return_value = (True, "ok", _named(id=1, username="u", email="u@x.com"))
+    mock_client.get_teams.return_value = [_named(id="T1", name="A")]
+    mock_client.get_spaces.return_value = [_named(id="S1", name="X")]
+    mock_client.get_folders.return_value = []
+    mock_client.get_folderless_lists.return_value = [
+        _named(id="L1", name="High", task_count=10),
+        _named(id="L2", name="Low", task_count=2),
+    ]
+    mock_client.get_tasks.return_value = []
+    mock_client_cls.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["setup", "run", "--token", "pk"])
+    assert result.exit_code == 0
+    assert "High" in result.output
+
+
+@patch("clickup.cli.commands.setup.typer.prompt")
+@patch("clickup.cli.commands.setup.typer.confirm")
+@patch("clickup.cli.commands.setup.ClickUpClient")
+def test_setup_interactive_list_pick_alternative(mock_client_cls, mock_confirm, mock_prompt):
+    """confirm=No, then user enters a list number."""
+    mock_confirm.return_value = False
+    mock_prompt.return_value = "2"
+    mock_client = AsyncMock()
+    mock_client.validate_auth.return_value = (True, "ok", _named(id=1, username="u", email="u@x.com"))
+    mock_client.get_teams.return_value = [_named(id="T1", name="A")]
+    mock_client.get_spaces.return_value = [_named(id="S1", name="X")]
+    mock_client.get_folders.return_value = []
+    mock_client.get_folderless_lists.return_value = [
+        _named(id="L1", name="High", task_count=10),
+        _named(id="L2", name="Low", task_count=2),
+    ]
+    mock_client.get_tasks.return_value = []
+    mock_client_cls.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["setup", "run", "--token", "pk"])
+    assert result.exit_code == 0
+
+
+@patch("clickup.cli.commands.setup.ClickUpClient")
+def test_setup_token_validation_then_smoke_test(mock_client_cls):
+    """End-to-end happy path: token works, defaults set, smoke test fetches tasks."""
+    mock_client = AsyncMock()
+    mock_client.validate_auth.return_value = (True, "ok", _named(id=1, username="u", email="u@x.com"))
+    mock_client.get_teams.return_value = [_named(id="T1", name="A")]
+    mock_client.get_spaces.return_value = [_named(id="S1", name="X")]
+    mock_client.get_folders.return_value = []
+    mock_client.get_folderless_lists.return_value = [_named(id="L1", name="Sprint", task_count=5)]
+    mock_client.get_tasks.return_value = [
+        Mock(name="task one", status=Mock(status="open")),
+        Mock(name="task two", status=Mock(status="open")),
+    ]
+    mock_client_cls.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(
+        app,
+        ["--format", "table", "setup", "run", "--token", "pk", "--list-id", "L1", "--non-interactive"],
+    )
+    assert result.exit_code == 0
+    assert "smoke test" in result.output.lower()
+
+
+# =============================================================================
+# setup error paths — from test_more_coverage.py
+# =============================================================================
+
+
+@patch("clickup.cli.commands.setup.ClickUpClient")
+def test_setup_token_validation_fails_in_non_interactive(mock_client_cls):
+    """Bad --token in --non-interactive mode errors."""
+    mock_client = AsyncMock()
+    mock_client.validate_auth.return_value = (False, "rejected", None)
+    mock_client_cls.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["setup", "run", "--token", "pk_bad", "--non-interactive"])
+    assert result.exit_code == 2
+    assert "Token rejected" in result.stderr

@@ -1,15 +1,26 @@
-"""Tests for list management commands."""
+"""Tests for list management commands.
+
+Consolidates tests from the original test_list_commands.py, plus list tests
+formerly in test_command_coverage.py and test_final_coverage.py.
+"""
+
+from __future__ import annotations
 
 import json
+from io import StringIO
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from typer.testing import CliRunner
 
+from clickup.cli import output
 from clickup.cli.main import app
+from clickup.cli.output import FormatChoice, set_format
 from clickup.core.config import Config
 from clickup.core.exceptions import ClickUpError
 from clickup.core.models import List as ClickUpList
+
+from .conftest import make_mock_ctx
 
 runner = CliRunner()
 
@@ -344,3 +355,223 @@ async def test_list_show_defaults_to_json(mock_get_client, isolated_config):
     payload = json.loads(result.stdout)
     assert payload["count"] == 1
     assert payload["data"][0]["id"] == "list1"
+
+
+# =============================================================================
+# list commands — from test_command_coverage.py (sync tests)
+# =============================================================================
+
+
+@patch("clickup.cli.commands.list.get_client")
+def test_list_show_in_folder_sync(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.get_lists.return_value = [ClickUpList(id="L1", name="Sprint", task_count=5)]
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["list", "show", "--folder-id", "F1"])
+    assert result.exit_code == 0
+    assert "Sprint" in result.output
+
+
+@patch("clickup.cli.commands.list.get_client")
+def test_list_show_in_space_sync(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.get_folderless_lists.return_value = [ClickUpList(id="L1", name="Sprint", task_count=5)]
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["list", "show", "--space-id", "S1"])
+    assert result.exit_code == 0
+    assert "Sprint" in result.output
+
+
+def test_list_show_no_args_errors():
+    result = runner.invoke(app, ["list", "show"])
+    assert result.exit_code == 1
+
+
+@patch("clickup.cli.commands.list.get_client")
+def test_list_get_sync(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.get_list.return_value = ClickUpList(
+        id="L1",
+        name="Sprint",
+        task_count=5,
+        content="some content",
+        orderindex=0,
+    )
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["list", "get", "--list-id", "L1"])
+    assert result.exit_code == 0
+    assert "Sprint" in result.output
+
+
+@patch("clickup.cli.commands.list.get_client")
+def test_list_create_in_folder_sync(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.create_list.return_value = ClickUpList(id="L1", name="New", task_count=0)
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["list", "create", "New", "--folder-id", "F1"])
+    assert result.exit_code == 0
+
+
+@patch("clickup.cli.commands.list.get_client")
+def test_list_create_in_space_sync(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.create_folderless_list.return_value = ClickUpList(id="L1", name="New", task_count=0)
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["list", "create", "New", "--space-id", "S1"])
+    assert result.exit_code == 0
+
+
+def test_list_create_no_parent_errors():
+    result = runner.invoke(app, ["list", "create", "New"])
+    assert result.exit_code == 1
+
+
+# =============================================================================
+# list error paths — from test_final_coverage.py
+# =============================================================================
+
+
+@patch("clickup.cli.commands.list.get_client")
+def test_list_show_api_error(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.get_lists.side_effect = ClickUpError("nope")
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["list", "show", "--folder-id", "F1"])
+    assert result.exit_code == 1
+
+
+@patch("clickup.cli.commands.list.get_client")
+def test_list_create_with_all_fields(mock_get_client):
+    """Exercise the create_list path with all option flags set."""
+    mock_client = AsyncMock()
+    mock_client.create_list.return_value = ClickUpList(id="L1", name="New", task_count=0)
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(
+        app,
+        [
+            "list",
+            "create",
+            "New",
+            "--folder-id",
+            "F1",
+            "--content",
+            "desc",
+            "--due-date",
+            "2026-12-01",
+            "--priority",
+            "2",
+            "--assignee",
+            "u1",
+        ],
+    )
+    assert result.exit_code == 0
+
+
+# ---------------------------------------------------------------------------
+# list noun/verb aliases (issue #35 item 5)
+# ---------------------------------------------------------------------------
+
+
+class TestListAliases:
+    """``list list`` and ``list ls`` should be registered commands."""
+
+    def test_list_list_alias_registered(self):
+        from clickup.cli.commands.list import app as list_app
+
+        command_names = [cmd.name for cmd in list_app.registered_commands]
+        assert "list" in command_names
+
+    def test_list_ls_alias_registered(self):
+        from clickup.cli.commands.list import app as list_app
+
+        command_names = [cmd.name for cmd in list_app.registered_commands]
+        assert "ls" in command_names
+
+    def test_show_still_registered(self):
+        from clickup.cli.commands.list import app as list_app
+
+        command_names = [cmd.name for cmd in list_app.registered_commands]
+        assert "show" in command_names
+
+
+# ---------------------------------------------------------------------------
+# list show --space-id folderless-only info (issue #35 item 6)
+# ---------------------------------------------------------------------------
+
+
+class TestListShowSpaceIdInfo:
+    """--space-id emits an info message about folderless-only semantics."""
+
+    @pytest.fixture(autouse=True)
+    def _reset_fmt(self):
+        set_format(FormatChoice.table)
+        yield
+        set_format(FormatChoice.table)
+
+    @pytest.fixture
+    def capture_console(self, monkeypatch):
+        from rich.console import Console as RConsole
+
+        buf = StringIO()
+        monkeypatch.setattr(output, "_console", RConsole(file=buf, force_terminal=False, width=200))
+        return buf
+
+    def test_space_id_info_message_json(self, capsys):
+        """In JSON mode info-level messages are suppressed (render_message contract)."""
+        from clickup.cli.commands.list import list_lists
+
+        set_format("json")
+
+        mock_client = AsyncMock()
+        mock_client.get_folderless_lists = AsyncMock(
+            return_value=[ClickUpList(id="L1", name="Sprint 42", task_count=7)]
+        )
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("clickup.cli.commands.list.get_client", return_value=mock_client):
+            list_lists(folder_id=None, space_id="S1")
+
+        captured = capsys.readouterr()
+        assert captured.err == ""
+
+    def test_space_id_info_message_table(self, capture_console, capsys):
+        """In table mode the info message mentions 'discover hierarchy'."""
+        from clickup.cli.commands.list import list_lists
+
+        mock_client = AsyncMock()
+        mock_client.get_folderless_lists = AsyncMock(
+            return_value=[ClickUpList(id="L1", name="Sprint 42", task_count=7)]
+        )
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("clickup.cli.commands.list.get_client", return_value=mock_client):
+            list_lists(folder_id=None, space_id="S1")
+
+        console_out = capture_console.getvalue()
+        assert "folderless" in console_out.lower() or "discover hierarchy" in console_out.lower()
+
+    def test_folder_id_no_info_message(self, capsys):
+        """--folder-id does NOT emit the folderless info."""
+        from clickup.cli.commands.list import list_lists
+
+        set_format("json")
+
+        mock_client = AsyncMock()
+        mock_client.get_lists = AsyncMock(return_value=[ClickUpList(id="L1", name="Sprint 42", task_count=7)])
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("clickup.cli.commands.list.get_client", return_value=mock_client):
+            list_lists(folder_id="F1", space_id=None)
+
+        captured = capsys.readouterr()
+        assert "folderless" not in captured.err.lower()

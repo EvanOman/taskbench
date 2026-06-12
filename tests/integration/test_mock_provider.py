@@ -411,3 +411,52 @@ def test_all_lists_without_aliases_gives_actionable_error(tmp_path, monkeypatch)
     err = json.loads(result.stderr)
     assert "default_lists" in err["error"]
     assert "hint" in err
+
+
+# ---------------------------------------------------------------------------
+# End-to-end modify-if-passed via JsonProvider
+# ---------------------------------------------------------------------------
+
+
+def test_task_update_clears_description_with_empty_string(tmp_path, monkeypatch):
+    """task update <id> --description '' clears description in the store.
+
+    This validates the modify-if-passed contract end-to-end: passing
+    --description "" sets the stored description to empty/None rather
+    than being treated as "not provided."
+    """
+    monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
+    store_path = tmp_path / "mock-store.json"
+    result = runner.invoke(app, ["mock", "init", "--path", str(store_path)])
+    assert result.exit_code == 0
+
+    # Verify the seed task has a description
+    original = json.loads(runner.invoke(app, ["task", "get", "mock_1001"]).stdout)
+    assert original["description"]  # non-empty
+
+    # Clear it via --description ""
+    result = runner.invoke(app, ["task", "update", "mock_1001", "--description", ""])
+    assert result.exit_code == 0
+    updated = json.loads(result.stdout)
+    assert updated["description"] == "" or updated["description"] is None
+
+    # Verify the store persisted the change
+    refetched = json.loads(runner.invoke(app, ["task", "get", "mock_1001"]).stdout)
+    assert refetched["description"] == "" or refetched["description"] is None
+
+
+def test_task_update_name_only_preserves_description(tmp_path, monkeypatch):
+    """Updating only the name leaves description untouched (modify-if-passed)."""
+    monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
+    store_path = tmp_path / "mock-store.json"
+    result = runner.invoke(app, ["mock", "init", "--path", str(store_path)])
+    assert result.exit_code == 0
+
+    original = json.loads(runner.invoke(app, ["task", "get", "mock_1001"]).stdout)
+    original_desc = original["description"]
+
+    result = runner.invoke(app, ["task", "update", "mock_1001", "--name", "Renamed task"])
+    assert result.exit_code == 0
+    updated = json.loads(result.stdout)
+    assert updated["name"] == "Renamed task"
+    assert updated["description"] == original_desc  # unchanged

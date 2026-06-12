@@ -1,23 +1,29 @@
-"""Tests for discovery commands."""
+"""Tests for discovery commands.
+
+Consolidates tests from the original test_discovery_commands.py, plus discover
+tests formerly in test_command_coverage.py, test_final_coverage.py, and
+test_more_coverage.py.
+"""
+
+from __future__ import annotations
 
 import json as _json
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from typer.testing import CliRunner
 
 from clickup.cli.main import app
+from clickup.core.exceptions import ClickUpError
+
+from .conftest import make_mock_ctx, named_mock
 
 runner = CliRunner()
 
 
 def _named_mock(**kwargs):
     """Build a Mock where `.name` is a real string (Mock(name=...) is special)."""
-    name = kwargs.pop("name", None)
-    m = Mock(**kwargs)
-    if name is not None:
-        m.name = name
-    return m
+    return named_mock(**kwargs)
 
 
 @pytest.fixture
@@ -319,3 +325,174 @@ def test_discover_path_table_mode(mock_get_client, sample_hierarchy):
     assert result.exit_code == 0
     assert "Test List" in result.output
     assert "Path to List" in result.output
+
+
+# =============================================================================
+# discover ids — from test_command_coverage.py
+# =============================================================================
+
+
+@patch("clickup.cli.commands.discover.get_client")
+def test_discover_ids_lists_in_folder(mock_get_client):
+    from clickup.core.models import List as ClickUpList
+
+    mock_client = AsyncMock()
+    lst = ClickUpList(id="L1", name="Sprint", task_count=5)
+    mock_client.get_lists.return_value = [lst]
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["discover", "ids", "--folder-id", "F1"])
+    assert result.exit_code == 0
+    data = _json.loads(result.stdout)
+    assert data["data"][0]["name"] == "Sprint"
+
+
+@patch("clickup.cli.commands.discover.get_client")
+def test_discover_ids_in_space_mixed(mock_get_client):
+    """discover ids --space-id returns both folders and folderless lists."""
+    mock_client = AsyncMock()
+    mock_client.get_folders.return_value = [_named_mock(id="F1", name="Backend", task_count=10)]
+    mock_client.get_folderless_lists.return_value = [_named_mock(id="L1", name="Loose", task_count=2)]
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["discover", "ids", "--space-id", "S1"])
+    assert result.exit_code == 0
+    data = _json.loads(result.stdout)
+    names = [r["name"] for r in data["data"]]
+    assert "Backend" in names
+    assert "Loose" in names
+
+
+@patch("clickup.cli.commands.discover.get_client")
+def test_discover_ids_in_workspace(mock_get_client):
+    from clickup.core.models import Space
+
+    mock_client = AsyncMock()
+    mock_client.get_spaces.return_value = [
+        Space(id="S1", name="Eng", private=False, statuses=[], multiple_assignees=True)
+    ]
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["discover", "ids", "--workspace-id", "W1"])
+    assert result.exit_code == 0
+    data = _json.loads(result.stdout)
+    assert data["data"][0]["name"] == "Eng"
+
+
+@patch("clickup.cli.commands.discover.get_client")
+def test_discover_ids_no_args_lists_workspaces(mock_get_client):
+    from clickup.core.models import Team
+
+    mock_client = AsyncMock()
+    mock_client.get_teams.return_value = [Team(id="T1", name="Acme", color="#fff", members=[])]
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["discover", "ids"])
+    assert result.exit_code == 0
+    data = _json.loads(result.stdout)
+    assert data["data"][0]["name"] == "Acme"
+
+
+# =============================================================================
+# discover path — from test_command_coverage.py and test_final_coverage.py
+# =============================================================================
+
+
+@patch("clickup.cli.commands.discover.get_client")
+def test_discover_path_finds_list_folderless(mock_get_client):
+    """Path traversal finds a folderless list."""
+    mock_client = AsyncMock()
+    workspace = _named_mock(id="W1", name="Acme")
+    space = _named_mock(id="S1", name="Eng")
+    target_list = _named_mock(id="L1", name="Sprint")
+    mock_client.get_list.return_value = target_list
+    mock_client.get_teams.return_value = [workspace]
+    mock_client.get_spaces.return_value = [space]
+    mock_client.get_folderless_lists.return_value = [target_list]
+    mock_client.get_folders.return_value = []
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["discover", "path", "L1"])
+    assert result.exit_code == 0
+    data = _json.loads(result.stdout)
+    assert data["found"] is True
+    assert data["list"]["name"] == "Sprint"
+
+
+@patch("clickup.cli.commands.discover.get_client")
+def test_discover_path_in_folder(mock_get_client):
+    """Path traversal that finds the list inside a folder."""
+    mock_client = AsyncMock()
+    workspace = _named_mock(id="W1", name="Acme")
+    space = _named_mock(id="S1", name="Eng")
+    folder = _named_mock(id="F1", name="Backend")
+    target = _named_mock(id="L1", name="Sprint")
+    mock_client.get_list.return_value = target
+    mock_client.get_teams.return_value = [workspace]
+    mock_client.get_spaces.return_value = [space]
+    mock_client.get_folderless_lists.return_value = []
+    mock_client.get_folders.return_value = [folder]
+    mock_client.get_lists.return_value = [target]
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["discover", "path", "L1"])
+    assert result.exit_code == 0
+    data = _json.loads(result.stdout)
+    assert data["found"] is True
+    path_names = [n["name"] for n in data["path"]]
+    assert "Acme" in path_names
+    assert "Backend" in path_names
+
+
+@patch("clickup.cli.commands.discover.get_client")
+def test_discover_path_not_found_empty_workspace(mock_get_client):
+    """Path that doesn't find the list anywhere."""
+    mock_client = AsyncMock()
+    mock_client.get_list.return_value = _named_mock(id="L999", name="Missing")
+    mock_client.get_teams.return_value = []
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["discover", "path", "L999"])
+    assert result.exit_code == 0
+    data = _json.loads(result.stdout)
+    assert data["found"] is False
+
+
+# =============================================================================
+# error paths — from test_more_coverage.py
+# =============================================================================
+
+
+@patch("clickup.cli.commands.discover.get_client")
+def test_discover_hierarchy_api_error(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.get_teams.side_effect = ClickUpError("server fault")
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["discover", "hierarchy"])
+    assert result.exit_code == 1
+    assert "server fault" in result.stderr
+
+
+@patch("clickup.cli.commands.discover.get_client")
+def test_discover_ids_api_error(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.get_teams.side_effect = ClickUpError("server fault")
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["discover", "ids"])
+    assert result.exit_code == 1
+
+
+def test_discover_hierarchy_no_credentials():
+    import tempfile
+    from pathlib import Path
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
+            from os import environ
+
+            for k in [k for k in environ if k.startswith("CLICKUP_")]:
+                environ.pop(k, None)
+            result = runner.invoke(app, ["discover", "hierarchy"])
+            assert result.exit_code != 0

@@ -1,4 +1,10 @@
-"""Tests for task management commands."""
+"""Tests for task management commands.
+
+Consolidates tests from the original test_task_commands.py, plus task tests
+formerly in test_task_coverage.py and test_final_coverage.py.
+"""
+
+from __future__ import annotations
 
 import json
 import tempfile
@@ -9,8 +15,11 @@ from typer.testing import CliRunner
 
 from clickup.cli.main import app
 from clickup.core import Config
+from clickup.core.exceptions import ClickUpError
+from clickup.core.models import Comment, PriorityInfo, StatusInfo, Task, Team, User
 from clickup.core.models import List as ClickUpList
-from clickup.core.models import PriorityInfo, StatusInfo
+
+from .conftest import make_mock_ctx
 
 runner = CliRunner()
 
@@ -1143,3 +1152,406 @@ def test_bulk_export_format_back_compat(mock_get_client):
         assert result.exit_code == 0
         data = json.loads(result.stdout)
         assert data["format"] == "csv"
+
+
+# =============================================================================
+# task commands — from test_task_coverage.py
+# =============================================================================
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_create_minimal(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.create_task.return_value = Task(id="t1", name="New", url="https://x")
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["task", "create", "New", "--list-id", "L1"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["id"] == "t1"
+    assert data["name"] == "New"
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_create_all_fields(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.create_task.return_value = Task(id="t1", name="Full")
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(
+        app,
+        [
+            "task",
+            "create",
+            "Full",
+            "--list-id",
+            "L1",
+            "--description",
+            "desc",
+            "--priority",
+            "2",
+            "--assignee",
+            "u1",
+            "--due-date",
+            "2026-12-01",
+            "--status",
+            "on-deck",
+        ],
+    )
+    assert result.exit_code == 0
+    call_kwargs = mock_client.create_task.call_args.kwargs
+    assert call_kwargs["name"] == "Full"
+    assert call_kwargs["description"] == "desc"
+    assert call_kwargs["priority"] == 2
+    assert call_kwargs["status"] == "on-deck"
+
+
+def test_task_create_no_list_errors():
+    result = runner.invoke(app, ["task", "create", "X"])
+    assert result.exit_code == 2
+    assert "list" in result.output.lower()
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_create_api_error(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.create_task.side_effect = ClickUpError("rate limited")
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["task", "create", "X", "--list-id", "L1"])
+    assert result.exit_code == 1
+    assert "rate limited" in result.stderr
+
+
+# --- update from test_task_coverage.py ---
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_update_name_and_description(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.update_task.return_value = Task(id="t1", name="Renamed")
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["task", "update", "t1", "--name", "Renamed", "--description", "d"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["id"] == "t1"
+    assert data["name"] == "Renamed"
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_update_clear_description_with_empty_string(mock_get_client):
+    """`--description ''` should clear the field — the modify-if-passed contract."""
+    mock_client = AsyncMock()
+    mock_client.update_task.return_value = Task(id="t1", name="X")
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["task", "update", "t1", "--description", ""])
+    assert result.exit_code == 0
+    call_kwargs = mock_client.update_task.call_args.kwargs
+    assert call_kwargs["description"] == ""
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_update_no_fields_warns(mock_get_client):
+    mock_client = AsyncMock()
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["task", "update", "t1"])
+    assert result.exit_code == 0
+    assert "No updates specified" in result.stderr
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_update_archived(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.update_task.return_value = Task(id="t1", name="X")
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["task", "update", "t1", "--archived"])
+    assert result.exit_code == 0
+    assert mock_client.update_task.call_args.kwargs["archived"] is True
+
+
+# --- status from test_task_coverage.py ---
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_status_change(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.update_task.return_value = Task(id="t1", name="X")
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["task", "status", "--task-id", "t1", "--status", "done"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["id"] == "t1"
+    assert data["name"] == "X"
+
+
+def test_task_status_missing_id_errors():
+    result = runner.invoke(app, ["task", "status", "--status", "done"])
+    assert result.exit_code == 2
+    assert "Task ID" in result.stderr
+
+
+def test_task_status_missing_status_errors():
+    result = runner.invoke(app, ["task", "status", "--task-id", "t1"])
+    assert result.exit_code == 2
+    assert "Status" in result.stderr
+
+
+# --- search from test_task_coverage.py ---
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_search_finds_results(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.search_tasks.return_value = [Task(id="t1", name="Match")]
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["task", "search", "--query", "foo", "--workspace-id", "W1"])
+    assert result.exit_code == 0
+    assert "Match" in result.output
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_search_empty(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.search_tasks.return_value = []
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["task", "search", "--query", "foo", "--workspace-id", "W1"])
+    assert result.exit_code == 0
+    assert "No tasks found" in result.stderr
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_search_bare_enumerates_all(mock_get_client):
+    """Omitting --query is valid: workspace-wide enumeration (empty query returns all)."""
+    mock_client = AsyncMock()
+    mock_client.search_tasks.return_value = [Task(id="t1", name="All")]
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["task", "search", "--workspace-id", "W1"])
+    assert result.exit_code == 0
+    assert "All" in result.output
+    mock_client.search_tasks.assert_awaited_once_with("W1", "")
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_search_no_workspace_errors(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.get_teams.return_value = []
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+    result = runner.invoke(app, ["task", "search", "--query", "foo"])
+    assert result.exit_code == 1
+    assert "workspace" in result.stderr.lower()
+
+
+# --- export from test_task_coverage.py ---
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_export_json_cov(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.get_tasks.return_value = [Task(id="t1", name="One")]
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        result = runner.invoke(
+            app,
+            ["task", "export", "--list-id", "L1", "--output", f.name, "--output-format", "json"],
+        )
+    assert result.exit_code == 0
+    from pathlib import Path
+
+    data = json.loads(Path(f.name).read_text())
+    assert data[0]["name"] == "One"
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_export_csv_cov(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.get_tasks.return_value = [Task(id="t1", name="One")]
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
+        result = runner.invoke(
+            app,
+            ["task", "export", "--list-id", "L1", "--output", f.name, "--output-format", "csv"],
+        )
+    assert result.exit_code == 0
+    from pathlib import Path
+
+    content = Path(f.name).read_text()
+    assert "id,name,status" in content
+    assert "One" in content
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_export_unsupported_format_errors(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.get_tasks.return_value = []
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    with tempfile.NamedTemporaryFile(suffix=".xml") as f:
+        result = runner.invoke(
+            app,
+            ["task", "export", "--list-id", "L1", "--output", f.name, "--output-format", "xml"],
+        )
+    assert result.exit_code == 1
+    assert "Unsupported" in result.stderr
+
+
+def test_task_export_no_list_errors():
+    result = runner.invoke(app, ["task", "export"])
+    assert result.exit_code != 0
+
+
+# --- mine from test_task_coverage.py ---
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_mine_with_explicit_workspace(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.get_user.return_value = User(id=42, username="evan", email="e@x.com")
+    mock_client.search_tasks.return_value = [Task(id="t1", name="Mine")]
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["task", "mine", "--workspace-id", "W1"])
+    assert result.exit_code == 0
+    assert "Mine" in result.output
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_mine_auto_detects_single_workspace(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.get_user.return_value = User(id=42, username="evan", email="e@x.com")
+    mock_client.get_teams.return_value = [Team(id="W1", name="Solo", color="#000", members=[])]
+    mock_client.search_tasks.return_value = []
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["task", "mine"])
+    assert result.exit_code == 0
+    assert "No tasks assigned" in result.stderr
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_mine_no_workspaces_errors(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.get_user.return_value = User(id=42, username="evan", email="e@x.com")
+    mock_client.get_teams.return_value = []
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["task", "mine"])
+    assert result.exit_code == 1
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_mine_multiple_workspaces_errors(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.get_user.return_value = User(id=42, username="evan", email="e@x.com")
+    mock_client.get_teams.return_value = [
+        Team(id="W1", name="A", color="#000", members=[]),
+        Team(id="W2", name="B", color="#000", members=[]),
+    ]
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["task", "mine"])
+    assert result.exit_code == 1
+
+
+# --- comments from test_task_coverage.py ---
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_comments_list(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.get_task_comments.return_value = [
+        Comment(
+            id="c1",
+            comment=[{"text": "hi"}],
+            comment_text="hi",
+            user=User(id=1, username="u", email="u@x.com"),
+            date="1700000000000",
+        )
+    ]
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["task", "comments", "list", "t1"])
+    assert result.exit_code == 0
+    assert "hi" in result.output
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_comments_list_empty(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.get_task_comments.return_value = []
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["task", "comments", "list", "t1"])
+    assert result.exit_code == 0
+    assert "No comments" in result.stderr
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_comments_add(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.create_comment.return_value = Mock(id="c1")
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["task", "comments", "add", "t1", "hello"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data["id"] == "c1"
+
+
+# --- task error paths from test_final_coverage.py ---
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_get_api_error(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.get_task.side_effect = ClickUpError("not found")
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["task", "get", "t1"])
+    assert result.exit_code == 1
+    assert "not found" in result.stderr
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_list_api_error(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.get_tasks.side_effect = ClickUpError("rate limit")
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["task", "list", "--list-id", "L1"])
+    assert result.exit_code == 1
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_list_with_filters_cov(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.get_tasks.return_value = [Task(id="t1", name="X")]
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(
+        app,
+        [
+            "task",
+            "list",
+            "--list-id",
+            "L1",
+            "--status",
+            "open",
+            "--assignee",
+            "u1",
+            "--sort",
+            "created",
+            "--reverse",
+        ],
+    )
+    assert result.exit_code == 0
+    assert "X" in result.output
