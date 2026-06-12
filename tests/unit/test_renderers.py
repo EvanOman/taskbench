@@ -13,12 +13,14 @@ import pytest
 
 from clickup.cli import output
 from clickup.cli.output import (
+    _BRIEF_TASK_FIELDS,
     FormatChoice,
     format_timestamp,
     get_format,
     render_comment,
     render_comments,
     render_error,
+    render_folder,
     render_folders,
     render_hierarchy,
     render_kv,
@@ -680,3 +682,190 @@ def test_render_list_table_escapes_brackets(capture_console):
     render_list(ClickUpList(id="l1", name="[Q3] roadmap"))
     out = capture_console.getvalue()
     assert "[Q3] roadmap" in out
+
+
+# ---------------------------------------------------------------------------
+# Hierarchy truncation markers (issue #35 item 3)
+# ---------------------------------------------------------------------------
+
+
+class TestHierarchyTruncation:
+    """Truncated nodes carry ``truncated_at_depth`` in JSON; table mode gets a stderr warning."""
+
+    def test_truncation_marker_depth_1_json(self, capsys):
+        """depth=1 truncates workspaces — spaces are empty, marker present."""
+        set_format("json")
+        data = {"workspaces": [{"id": "T1", "name": "Acme", "spaces": [], "truncated_at_depth": True}]}
+        render_hierarchy(data)
+        result = json.loads(capsys.readouterr().out)
+        assert result["workspaces"][0]["truncated_at_depth"] is True
+
+    def test_truncation_marker_depth_3_folders(self, capsys):
+        """depth=3 truncates folders — lists are empty, marker present on folders."""
+        set_format("json")
+        data = {
+            "workspaces": [
+                {
+                    "id": "T1",
+                    "name": "Acme",
+                    "spaces": [
+                        {
+                            "id": "S1",
+                            "name": "Eng",
+                            "folders": [{"id": "F1", "name": "Backend", "lists": [], "truncated_at_depth": True}],
+                            "folderless_lists": [],
+                        }
+                    ],
+                }
+            ]
+        }
+        render_hierarchy(data)
+        result = json.loads(capsys.readouterr().out)
+        assert result["workspaces"][0]["spaces"][0]["folders"][0]["truncated_at_depth"] is True
+
+    def test_truncation_marker_depth_2_spaces(self, capsys):
+        """depth=2 truncates spaces — folders/lists are empty, marker present on spaces."""
+        set_format("json")
+        data = {
+            "workspaces": [
+                {
+                    "id": "T1",
+                    "name": "Acme",
+                    "spaces": [
+                        {
+                            "id": "S1",
+                            "name": "Eng",
+                            "folders": [],
+                            "folderless_lists": [],
+                            "truncated_at_depth": True,
+                        }
+                    ],
+                }
+            ]
+        }
+        render_hierarchy(data)
+        result = json.loads(capsys.readouterr().out)
+        assert result["workspaces"][0]["spaces"][0]["truncated_at_depth"] is True
+
+    def test_no_marker_when_full_depth(self, capsys):
+        """Full-depth hierarchy has no truncation markers."""
+        set_format("json")
+        data = {
+            "workspaces": [
+                {
+                    "id": "T1",
+                    "name": "Acme",
+                    "spaces": [
+                        {
+                            "id": "S1",
+                            "name": "Eng",
+                            "folders": [
+                                {
+                                    "id": "F1",
+                                    "name": "Backend",
+                                    "lists": [{"id": "L1", "name": "Sprint", "task_count": 5}],
+                                }
+                            ],
+                            "folderless_lists": [],
+                        }
+                    ],
+                }
+            ]
+        }
+        render_hierarchy(data)
+        raw = capsys.readouterr().out
+        assert "truncated_at_depth" not in raw
+
+    def test_table_mode_truncation_warning(self, capture_console, capsys):
+        """In table mode, truncated hierarchy triggers a stderr warning."""
+        from unittest.mock import AsyncMock, patch
+
+        from clickup.cli.commands.discover import show_hierarchy
+
+        mock_team = _team()
+
+        async def fake_get_team(tid: str) -> Team:
+            return mock_team
+
+        async def fake_get_teams() -> list[Team]:
+            return [mock_team]
+
+        mock_client = AsyncMock()
+        mock_client.get_teams = fake_get_teams
+        mock_client.get_team = fake_get_team
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=None)
+
+        with patch("clickup.cli.commands.discover.get_client", return_value=mock_client):
+            show_hierarchy(workspace_id=None, team_id=None, max_depth=1)
+
+        stderr = capsys.readouterr().err
+        assert "truncated" in stderr.lower() or "depth" in stderr.lower()
+
+
+# ---------------------------------------------------------------------------
+# Brief date_updated (issue #35 item 8)
+# ---------------------------------------------------------------------------
+
+
+class TestBriefDateUpdated:
+    """date_updated is now in the brief field set."""
+
+    def test_date_updated_in_brief_fields(self):
+        assert "date_updated" in _BRIEF_TASK_FIELDS
+
+    def test_brief_json_includes_date_updated(self, capsys):
+        set_format("json")
+        render_task(_task(), brief=True)
+        data = json.loads(capsys.readouterr().out)
+        assert "date_updated" in data
+        assert data["date_updated"].endswith("Z")
+
+
+# ---------------------------------------------------------------------------
+# Brief on folder/list get (issue #35 item 8)
+# ---------------------------------------------------------------------------
+
+
+class TestFolderBrief:
+    """render_folder(brief=True) strips to identity fields only."""
+
+    def test_brief_json(self, capsys):
+        set_format("json")
+        render_folder(_folder(), brief=True)
+        data = json.loads(capsys.readouterr().out)
+        assert "id" in data
+        assert "name" in data
+        assert "task_count" in data
+        assert "orderindex" not in data
+        assert "override_statuses" not in data
+
+    def test_full_json(self, capsys):
+        set_format("json")
+        render_folder(_folder())
+        data = json.loads(capsys.readouterr().out)
+        assert "orderindex" in data
+
+
+class TestListBrief:
+    """render_list(brief=True) strips to identity fields only."""
+
+    def test_brief_json(self, capsys):
+        set_format("json")
+        render_list(_list(), brief=True)
+        data = json.loads(capsys.readouterr().out)
+        assert "id" in data
+        assert "name" in data
+        assert "task_count" in data
+        assert "archived" not in data
+        assert "due_date" not in data
+
+    def test_brief_table_no_content(self, capture_console):
+        render_list(_list(content="Secret details"), brief=True)
+        out = capture_console.getvalue()
+        assert "Secret details" not in out
+
+    def test_full_table_has_content(self, capture_console):
+        render_list(_list(content="Secret details"), brief=False)
+        out = capture_console.getvalue()
+        assert "Secret details" in out

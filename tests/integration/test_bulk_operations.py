@@ -1,13 +1,25 @@
-"""Tests for bulk operations commands."""
+"""Tests for bulk operations commands.
+
+Consolidates tests from the original test_bulk_operations.py, plus bulk tests
+formerly in test_command_coverage.py, test_final_coverage.py, and
+test_more_coverage.py.
+"""
+
+from __future__ import annotations
 
 import json
 import tempfile
-from unittest.mock import AsyncMock, Mock, patch
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
 from typer.testing import CliRunner
 
 from clickup.cli.main import app
+from clickup.core.exceptions import ClickUpError
+from clickup.core.models import Assignee, PriorityInfo, StatusInfo, Task
+
+from .conftest import make_mock_ctx
 
 runner = CliRunner()
 
@@ -496,3 +508,323 @@ def test_bulk_import_partial_failure_exits_1(mock_get_client, sample_tasks_json)
         data = json.loads(result.stdout)
         assert data["created"] == 2
         assert data["failed"] == 1
+
+
+# =============================================================================
+# bulk — from test_command_coverage.py
+# =============================================================================
+
+
+@patch("clickup.cli.commands.bulk.get_client")
+def test_bulk_export_csv_sync(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.get_tasks.return_value = [Task(id="t1", name="One")]
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
+        result = runner.invoke(
+            app,
+            ["bulk", "export-tasks", "--list-id", "L1", "--output", f.name, "--format", "csv"],
+        )
+    assert result.exit_code == 0
+
+
+@patch("clickup.cli.commands.bulk.get_client")
+def test_bulk_import_dry_run_no_force_required(mock_get_client):
+    """--dry-run should not require --force."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump([{"name": "t1"}, {"name": "t2"}], f)
+        f.flush()
+        result = runner.invoke(
+            app,
+            ["bulk", "import-tasks", f.name, "--list-id", "L1", "--dry-run"],
+        )
+    assert result.exit_code == 0
+
+
+# =============================================================================
+# bulk error paths — from test_final_coverage.py and test_more_coverage.py
+# =============================================================================
+
+
+@patch("clickup.cli.commands.bulk.get_client")
+def test_bulk_import_unsupported_xml_format(mock_get_client):
+    mock_client = AsyncMock()
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".xml", delete=False) as f:
+        f.write("<x/>")
+        f.flush()
+        result = runner.invoke(app, ["bulk", "import-tasks", f.name, "--list-id", "L1"])
+    assert result.exit_code == 1
+    assert "Unsupported" in result.output or "format" in result.output.lower()
+
+
+@patch("clickup.cli.commands.bulk.get_client")
+def test_bulk_import_empty_file(mock_get_client):
+    mock_client = AsyncMock()
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump([], f)
+        f.flush()
+        result = runner.invoke(app, ["bulk", "import-tasks", f.name, "--list-id", "L1"])
+    assert result.exit_code == 0
+    assert result.stdout.strip() == ""
+
+
+@patch("clickup.cli.commands.bulk.get_client")
+def test_bulk_export_unsupported_format(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.get_tasks.return_value = []
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    with tempfile.NamedTemporaryFile(suffix=".xml") as f:
+        result = runner.invoke(
+            app,
+            ["bulk", "export-tasks", "--list-id", "L1", "--output", f.name, "--format", "xml"],
+        )
+    assert result.exit_code == 1
+
+
+@patch("clickup.cli.commands.bulk.get_client")
+def test_bulk_update_dry_run_sync(mock_get_client):
+    mock_client = AsyncMock()
+    task = Mock()
+    task.id = "t1"
+    task.name = "X"
+    task.status = Mock(status="todo")
+    task.priority = Mock(priority="medium")
+    mock_client.get_tasks.return_value = [task]
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["bulk", "bulk-update", "--list-id", "L1", "--status", "done", "--dry-run"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["dry_run"] is True
+    assert data["would_update"] == 1
+
+
+@patch("clickup.cli.commands.bulk.get_client")
+def test_bulk_export_api_error(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.get_tasks.side_effect = ClickUpError("nope")
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    with tempfile.NamedTemporaryFile(suffix=".json") as f:
+        result = runner.invoke(
+            app,
+            ["bulk", "export-tasks", "--list-id", "L1", "--output", f.name],
+        )
+    assert result.exit_code == 1
+    assert "nope" in result.stderr
+
+
+@patch("clickup.cli.commands.bulk.get_client")
+def test_bulk_update_no_updates_specified(mock_get_client):
+    mock_client = AsyncMock()
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["bulk", "bulk-update", "--list-id", "L1"])
+    assert result.exit_code == 1
+    assert "at least one update" in result.stderr.lower()
+
+
+@patch("clickup.cli.commands.bulk.get_client")
+def test_bulk_update_no_matches_warns(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.get_tasks.return_value = []
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["bulk", "bulk-update", "--list-id", "L1", "--status", "done", "--yes"])
+    assert result.exit_code == 0
+    assert result.stdout.strip() == ""
+
+
+# ---------------------------------------------------------------------------
+# --all-lists bulk-update (issue #35 item 4)
+# ---------------------------------------------------------------------------
+
+
+def _bulk_task(**kw: Any) -> Task:
+    base: dict[str, Any] = {
+        "id": "task42",
+        "name": "Ship the thing",
+        "description": "A description",
+        "status": StatusInfo(status="open"),
+        "priority": PriorityInfo(priority="2", id="2"),
+        "assignees": [Assignee(id=1, username="evan")],
+        "date_created": "1700000000000",
+        "date_updated": "1700100000000",
+        "due_date": "1700500000000",
+    }
+    base.update(kw)
+    return Task(**base)
+
+
+def _mock_config_with_lists(aliases: dict[str, str] | None) -> MagicMock:
+    """Build a MagicMock Config whose .get("default_lists") returns *aliases*."""
+
+    def _get(key: str, default: Any = None) -> Any:
+        if key == "default_lists":
+            return aliases
+        return default
+
+    return MagicMock(get=_get, resolve_list_id=lambda v: v)
+
+
+class TestBulkUpdateAllLists:
+    """--all-lists iterates configured aliases; dry-run and failure-continuation work."""
+
+    def _make_mock_client(self, tasks_by_list: dict[str, list[Task]]) -> AsyncMock:
+        client = AsyncMock()
+
+        async def get_tasks(list_id: str, **kw: Any) -> list[Task]:
+            return tasks_by_list.get(list_id, [])
+
+        client.get_tasks = get_tasks
+        client.update_task = AsyncMock()
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=None)
+        return client
+
+    _TWO_LISTS = {"inbox": "list_a", "active": "list_b"}
+
+    def test_all_lists_dry_run(self, tmp_path, capsys):
+        """--all-lists --dry-run previews tasks across multiple lists."""
+        from clickup.cli.commands.bulk import bulk_update
+
+        tasks_a = [_bulk_task(id="t1", name="Task A")]
+        tasks_b = [_bulk_task(id="t2", name="Task B")]
+        client = self._make_mock_client({"list_a": tasks_a, "list_b": tasks_b})
+
+        with (
+            patch("clickup.cli.commands.bulk.get_client", return_value=client),
+            patch("clickup.cli.shared.Config", return_value=_mock_config_with_lists(self._TWO_LISTS)),
+        ):
+            bulk_update(
+                list_id=None,
+                all_lists=True,
+                filter_status=None,
+                new_status="in progress",
+                new_priority=None,
+                new_assignee=None,
+                dry_run=True,
+                force=False,
+            )
+
+        out = capsys.readouterr().out
+        assert "dry run" in out.lower() or "Task A" in out
+
+    def test_all_lists_force_updates(self, tmp_path, capsys):
+        """--all-lists --force actually applies updates across lists."""
+        from clickup.cli.commands.bulk import bulk_update
+
+        tasks_a = [_bulk_task(id="t1", name="Task A")]
+        tasks_b = [_bulk_task(id="t2", name="Task B")]
+        client = self._make_mock_client({"list_a": tasks_a, "list_b": tasks_b})
+
+        with (
+            patch("clickup.cli.commands.bulk.get_client", return_value=client),
+            patch("clickup.cli.shared.Config", return_value=_mock_config_with_lists(self._TWO_LISTS)),
+        ):
+            bulk_update(
+                list_id=None,
+                all_lists=True,
+                filter_status=None,
+                new_status="done",
+                new_priority=None,
+                new_assignee=None,
+                dry_run=False,
+                force=True,
+            )
+
+        assert client.update_task.call_count == 2
+
+    def test_all_lists_refuses_without_force(self, tmp_path, capsys):
+        """Without --force, exits 2."""
+        import typer as _typer
+
+        from clickup.cli.commands.bulk import bulk_update
+
+        tasks_a = [_bulk_task(id="t1", name="Task A")]
+        client = self._make_mock_client({"list_a": tasks_a})
+
+        with (
+            patch("clickup.cli.commands.bulk.get_client", return_value=client),
+            patch("clickup.cli.shared.Config", return_value=_mock_config_with_lists({"inbox": "list_a"})),
+            pytest.raises(_typer.Exit) as exc_info,
+        ):
+            bulk_update(
+                list_id=None,
+                all_lists=True,
+                filter_status=None,
+                new_status="done",
+                new_priority=None,
+                new_assignee=None,
+                dry_run=False,
+                force=False,
+            )
+
+        assert exc_info.value.exit_code == 2
+
+    def test_all_lists_no_aliases_errors(self, capsys):
+        """--all-lists with no configured aliases is a usage error (exit 2)."""
+        import typer as _typer
+
+        from clickup.cli.commands.bulk import bulk_update
+
+        with (
+            patch("clickup.cli.shared.Config", return_value=_mock_config_with_lists(None)),
+            pytest.raises(_typer.Exit) as exc_info,
+        ):
+            bulk_update(
+                list_id=None,
+                all_lists=True,
+                filter_status=None,
+                new_status="done",
+                new_priority=None,
+                new_assignee=None,
+                dry_run=False,
+                force=True,
+            )
+
+        assert exc_info.value.exit_code == 2
+
+    def test_all_lists_continues_through_per_list_failure(self, capsys):
+        """Per-list fetch failure doesn't abort remaining lists."""
+        from clickup.cli.commands.bulk import bulk_update
+
+        tasks_b = [_bulk_task(id="t2", name="Task B")]
+        client = AsyncMock()
+
+        async def get_tasks(list_id: str, **kw: Any) -> list[Task]:
+            if list_id == "list_a":
+                raise ClickUpError("API error")
+            return tasks_b
+
+        client.get_tasks = get_tasks
+        client.update_task = AsyncMock()
+        client.__aenter__ = AsyncMock(return_value=client)
+        client.__aexit__ = AsyncMock(return_value=None)
+
+        with (
+            patch("clickup.cli.commands.bulk.get_client", return_value=client),
+            patch("clickup.cli.shared.Config", return_value=_mock_config_with_lists(self._TWO_LISTS)),
+        ):
+            bulk_update(
+                list_id=None,
+                all_lists=True,
+                filter_status=None,
+                new_status="done",
+                new_priority=None,
+                new_assignee=None,
+                dry_run=False,
+                force=True,
+            )
+
+        # list_a failed but list_b's task was still updated
+        assert client.update_task.call_count == 1

@@ -1,4 +1,10 @@
-"""Tests for workspace management commands."""
+"""Tests for workspace management commands.
+
+Consolidates tests from the original test_workspace_commands.py, plus workspace
+tests formerly in test_command_coverage.py and test_more_coverage.py.
+"""
+
+from __future__ import annotations
 
 import tempfile
 from pathlib import Path
@@ -8,6 +14,9 @@ import pytest
 from typer.testing import CliRunner
 
 from clickup.cli.main import app
+from clickup.core.exceptions import ClickUpError
+
+from .conftest import make_mock_ctx
 
 runner = CliRunner()
 
@@ -306,3 +315,79 @@ async def test_workspace_error_handling(mock_get_client):
 
     assert result.exit_code != 0
     assert "error" in result.output.lower() or "failed" in result.output.lower()
+
+
+# =============================================================================
+# workspace — from test_command_coverage.py (sync, using make_mock_ctx)
+# =============================================================================
+
+
+@patch("clickup.cli.commands.workspace.get_client")
+def test_workspace_list_empty_sync(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.get_teams.return_value = []
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["workspace", "list"])
+    assert result.exit_code == 0
+    assert "No workspaces" in result.output
+
+
+@patch("clickup.cli.commands.workspace.get_client")
+def test_workspace_spaces_empty_sync(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.get_spaces.return_value = []
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["workspace", "spaces", "--workspace-id", "W1"])
+    assert result.exit_code == 0
+    assert "No spaces" in result.output
+
+
+@patch("clickup.cli.commands.workspace.get_client")
+def test_workspace_folders_empty_sync(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.get_folders.return_value = []
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["workspace", "folders", "--space-id", "S1"])
+    assert result.exit_code == 0
+    assert "No folders" in result.output
+
+
+@patch("clickup.cli.commands.workspace.get_client")
+def test_workspace_members_empty_sync(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.get_team_members.return_value = []
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["workspace", "members", "--workspace-id", "W1"])
+    assert result.exit_code == 0
+    assert "No members" in result.output
+
+
+# =============================================================================
+# workspace error paths — from test_more_coverage.py
+# =============================================================================
+
+
+@patch("clickup.cli.commands.workspace.get_client")
+def test_workspace_list_api_error(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.get_teams.side_effect = ClickUpError("rate limited")
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["workspace", "list"])
+    assert result.exit_code == 1
+    assert "rate limited" in result.stderr
+
+
+@patch("clickup.cli.commands.workspace.get_client")
+def test_workspace_list_unexpected_error(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.get_teams.side_effect = RuntimeError("kapow")
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["workspace", "list"])
+    assert result.exit_code == 1
+    assert "kapow" in result.stderr
