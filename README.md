@@ -13,7 +13,7 @@ The fastest way for an AI agent to use this CLI -- no clone, no install:
 uvx --from git+https://github.com/EvanOman/clickup-tools.git clickup --help
 ```
 
-Three-command happy path:
+Four-command happy path:
 
 ```bash
 # 1. Interactive setup -- stores your API token and picks defaults
@@ -22,7 +22,10 @@ uvx --from git+https://github.com/EvanOman/clickup-tools.git clickup setup
 # 2. Verify everything works
 uvx --from git+https://github.com/EvanOman/clickup-tools.git clickup status
 
-# 3. List tasks in your default list
+# 3. Discover list IDs in your workspace
+uvx --from git+https://github.com/EvanOman/clickup-tools.git clickup discover hierarchy
+
+# 4. List tasks in your default list
 uvx --from git+https://github.com/EvanOman/clickup-tools.git clickup task list
 ```
 
@@ -72,7 +75,17 @@ clickup status   # should print "Auth Status: Valid"
 
 Get a personal token from **ClickUp → Settings → Apps → API Token**.
 
-### 3. Configure aliases for your spaces and a default status
+### 3. Discover your list IDs
+
+Before configuring aliases, find the numeric list IDs for the lists you want agents to target:
+
+```bash
+clickup discover hierarchy          # prints workspace > space > folder > list tree with IDs
+```
+
+Or use `clickup setup run --non-interactive --token <token> --team-id <id> --space-id <id> --list-id <id>` for fully scriptable setup.
+
+### 4. Configure aliases for your spaces and a default status
 
 Agents shouldn't have to run discovery commands every time they create a task. Map your real list IDs to short aliases so the agent can route by name:
 
@@ -85,9 +98,9 @@ clickup config set-default-list personal <list-id>
 clickup config set default_status on-deck   # tasks land in your "ready" column by default
 ```
 
-Find the IDs with `clickup discover hierarchy --depth 5`.
+Find the IDs with `clickup discover hierarchy --depth 5`. The `--list-id` flag accepts both numeric IDs and configured aliases (e.g. `--list-id omegapoint`).
 
-### 4. Add a shell alias (optional)
+### 5. Add a shell alias (optional)
 
 Short one-liner so the agent (and you) can type `cup` instead of the full binary name:
 
@@ -98,7 +111,7 @@ alias cup='clickup'
 # alias cup='uv run --project /path/to/clickup-tools clickup'
 ```
 
-### 5. Teach your agent how to use it
+### 6. Teach your agent how to use it
 
 Drop this snippet into your agent's global instructions file. For Claude Code that's `~/.claude/CLAUDE.md`; for Cursor it's `.cursorrules` (project-level) or the user-level rules file; for Codex CLI it's `~/.codex/AGENTS.md` (project-level `AGENTS.md` works too); for Aider it's `~/.aider.conf.yml`'s `read` setting.
 
@@ -228,6 +241,16 @@ clickup task get task123
 
 # Update a task
 clickup task update task123 --name "Updated name"
+
+# Search tasks across your workspace
+clickup task search --query "keyword"
+
+# List tasks assigned to you
+clickup task mine
+
+# View and add comments
+clickup task comments list <task-id>
+clickup task comments add <task-id> "Comment text"
 ```
 
 ### 4. Configuration
@@ -274,6 +297,10 @@ uv run ty check
 - `clickup task get` - Get task details
 - `clickup task update` - Update existing tasks
 - `clickup task delete` - Delete tasks
+- `clickup task mine` - List tasks assigned to you across all configured lists
+- `clickup task search` - Search tasks by keyword across a workspace
+- `clickup task comments list` - List comments on a task
+- `clickup task comments add` - Add a comment to a task
 
 ### Workspace navigation
 - `clickup workspace list` - List workspaces/teams

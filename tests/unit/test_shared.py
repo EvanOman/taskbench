@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import asyncio
+import json
 
 import pytest
 import typer
 
-from clickup.cli.shared import gather_bounded, get_client, handle_clickup_errors, require_list_id
+from clickup.cli.shared import gather_bounded, get_client, handle_clickup_errors, require_list_id, resolve_list_id
 from clickup.core.exceptions import ClickUpError
 
 
@@ -19,13 +20,102 @@ class TestRequireListId:
         Config().set("default_list_id", "L42")
         assert require_list_id(None) == "L42"
 
-    def test_explicit_id_passes_through(self):
-        assert require_list_id("explicit123") == "explicit123"
+    def test_explicit_numeric_id_passes_through(self):
+        assert require_list_id("12345") == "12345"
 
     def test_missing_id_exits_2(self):
         with pytest.raises(typer.Exit) as exc:
             require_list_id(None)
         assert exc.value.exit_code == 2
+
+
+class TestResolveListIdValidation:
+    """Tests for unknown-alias detection in resolve_list_id (item 2)."""
+
+    def test_unknown_alias_clickup_provider_exits_2(self, monkeypatch, tmp_path):
+        """Non-numeric, non-alias value with clickup provider should exit 2."""
+        monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
+        monkeypatch.setenv("CLICKUP_API_KEY", "pk_test_token")
+        monkeypatch.delenv("CLICKUP_PROVIDER", raising=False)
+        from clickup.core import Config
+
+        config = Config()
+        config.set("provider", "clickup")
+        config.set("default_lists", {"inbox": "123", "work": "456"})
+
+        with pytest.raises(typer.Exit) as exc:
+            resolve_list_id("bogusalias")
+        assert exc.value.exit_code == 2
+
+    def test_known_alias_resolves(self, monkeypatch, tmp_path):
+        """A configured alias should resolve to its numeric ID."""
+        monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
+        monkeypatch.setenv("CLICKUP_API_KEY", "pk_test_token")
+        monkeypatch.delenv("CLICKUP_PROVIDER", raising=False)
+        from clickup.core import Config
+
+        config = Config()
+        config.set("provider", "clickup")
+        config.set("default_lists", {"inbox": "123"})
+
+        assert resolve_list_id("inbox") == "123"
+
+    def test_numeric_id_passes_through(self, monkeypatch, tmp_path):
+        """A numeric ID should pass through without error."""
+        monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
+        monkeypatch.delenv("CLICKUP_PROVIDER", raising=False)
+        from clickup.core import Config
+
+        Config().set("provider", "clickup")
+        assert resolve_list_id("999") == "999"
+
+    def test_json_provider_passes_nonnumeric(self, monkeypatch, tmp_path):
+        """json provider should pass non-numeric IDs through untouched."""
+        monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
+        monkeypatch.setenv("CLICKUP_PROVIDER", "json")
+
+        result = resolve_list_id("list_inbox")
+        assert result == "list_inbox"
+
+    def test_unknown_alias_error_lists_configured_aliases(self, monkeypatch, tmp_path, capsys):
+        """The error message should include the configured alias names."""
+        monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
+        monkeypatch.setenv("CLICKUP_API_KEY", "pk_test_token")
+        monkeypatch.delenv("CLICKUP_PROVIDER", raising=False)
+        from clickup.cli.output import set_format
+        from clickup.core import Config
+
+        set_format("json")
+        config = Config()
+        config.set("provider", "clickup")
+        config.set("default_lists", {"alpha": "1", "beta": "2"})
+
+        with pytest.raises(typer.Exit):
+            resolve_list_id("gamma")
+
+        captured = capsys.readouterr()
+        payload = json.loads(captured.err)
+        assert "alpha" in payload["error"]
+        assert "beta" in payload["error"]
+        assert "gamma" in payload["error"]
+
+    def test_unknown_alias_no_aliases_configured(self, monkeypatch, tmp_path, capsys):
+        """When no aliases are configured, error should say '(none)'."""
+        monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
+        monkeypatch.setenv("CLICKUP_API_KEY", "pk_test_token")
+        monkeypatch.delenv("CLICKUP_PROVIDER", raising=False)
+        from clickup.cli.output import set_format
+        from clickup.core import Config
+
+        set_format("json")
+        Config().set("provider", "clickup")
+
+        with pytest.raises(typer.Exit):
+            resolve_list_id("bogus")
+
+        captured = capsys.readouterr()
+        payload = json.loads(captured.err)
+        assert "(none)" in payload["error"]
 
 
 class TestHandleClickupErrors:

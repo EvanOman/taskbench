@@ -15,7 +15,7 @@ import click
 import pytest
 from typer.testing import CliRunner
 
-from clickup.cli.main import _emit_click_error_envelope, _wants_json_mode, app, main
+from clickup.cli.main import _emit_click_error_envelope, _format_hint, _wants_json_mode, app, main
 from clickup.core.models import List as ClickUpList
 from clickup.core.models import Space, Team
 
@@ -361,3 +361,69 @@ def test_main_json_mode_suppresses_info_on_stderr(
     data = json.loads(captured.out)
     assert data["count"] >= 1
     assert captured.err == ""
+
+
+# =============================================================================
+# --format hint when placed after subcommand (item 1)
+# =============================================================================
+
+
+class TestFormatHint:
+    def test_format_hint_detects_format_option(self) -> None:
+        exc = click.exceptions.NoSuchOption("--format")
+        assert _format_hint(exc) is not None
+        assert "--format" in _format_hint(exc)
+        assert "before the subcommand" in _format_hint(exc)
+
+    def test_format_hint_ignores_other_options(self) -> None:
+        exc = click.exceptions.NoSuchOption("--foo")
+        assert _format_hint(exc) is None
+
+    def test_format_hint_ignores_non_nosuchoption(self) -> None:
+        exc = click.exceptions.UsageError("some error")
+        assert _format_hint(exc) is None
+
+
+def test_main_format_after_subcommand_json_envelope(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``clickup task search --format json`` (default mode) emits JSON envelope with hint on stderr."""
+    monkeypatch.setattr("sys.argv", ["clickup", "task", "search", "--query", "x", "--format", "json"])
+    with pytest.raises(SystemExit) as exit_info:
+        main()
+    assert exit_info.value.code == 2
+    captured = capsys.readouterr()
+    payload = json.loads(captured.err)
+    assert payload["type"] == "NoSuchOption"
+    assert "hint" in payload
+    assert "before the subcommand" in payload["hint"]
+
+
+def test_main_format_after_subcommand_table_mode_hint(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``clickup --format table task search --format table`` shows hint on stderr."""
+    argv = ["clickup", "--format", "table", "task", "search", "--query", "x", "--format", "table"]
+    monkeypatch.setattr("sys.argv", argv)
+    with pytest.raises(SystemExit) as exit_info:
+        main()
+    assert exit_info.value.code == 2
+    captured = capsys.readouterr()
+    assert "Hint:" in captured.err
+    assert "before the subcommand" in captured.err
+
+
+def test_main_unknown_option_no_format_hint(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """An unknown option that isn't --format gets no hint."""
+    monkeypatch.setattr("sys.argv", ["clickup", "version", "--bogus"])
+    with pytest.raises(SystemExit) as exit_info:
+        main()
+    assert exit_info.value.code == 2
+    captured = capsys.readouterr()
+    payload = json.loads(captured.err)
+    assert "hint" not in payload
