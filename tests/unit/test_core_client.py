@@ -346,7 +346,8 @@ async def test_401_on_resource_endpoint_raises_resource_access_error(mock_clicku
         await mock_clickup_client._request("GET", "/task/doesnotexist123")
     msg = str(exc.value)
     assert "Team not authorized" in msg
-    assert "resource IDs" in msg
+    assert "401 for /task/doesnotexist123" in msg
+    assert "the ID does not exist" in msg
 
 
 @pytest.mark.asyncio
