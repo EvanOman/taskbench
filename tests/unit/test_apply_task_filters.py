@@ -1,4 +1,4 @@
-"""Unit tests for ``_apply_task_filters`` and the ``task search`` filter flags.
+"""Unit tests for ``apply_task_filters`` and the ``task search`` filter flags.
 
 These pin the shared filter pipeline's contract directly, then exercise the
 new search flags via CliRunner against mocked providers.
@@ -11,8 +11,8 @@ from unittest.mock import AsyncMock, Mock, patch
 
 from typer.testing import CliRunner
 
-from clickup.cli.commands.task import _apply_task_filters
 from clickup.cli.main import app
+from clickup.cli.task_filters import apply_task_filters
 from clickup.core.models import PriorityInfo, StatusInfo, Task
 
 runner = CliRunner()
@@ -52,7 +52,7 @@ def _make_task(
 
 
 # ---------------------------------------------------------------------------
-# _apply_task_filters unit tests
+# apply_task_filters unit tests
 # ---------------------------------------------------------------------------
 
 
@@ -63,12 +63,12 @@ class TestApplyTaskFiltersStatus:
             _make_task("2", "B", status="in progress"),
             _make_task("3", "C", status="complete"),
         ]
-        result = _apply_task_filters(tasks, statuses={"to do"})
+        result = apply_task_filters(tasks, statuses={"to do"})
         assert [t.id for t in result] == ["1"]
 
     def test_status_filter_is_case_insensitive(self):
         tasks = [_make_task("1", "A", status="In Progress")]
-        result = _apply_task_filters(tasks, statuses={"in progress"})
+        result = apply_task_filters(tasks, statuses={"in progress"})
         assert [t.id for t in result] == ["1"]
 
     def test_multiple_statuses(self):
@@ -77,12 +77,12 @@ class TestApplyTaskFiltersStatus:
             _make_task("2", "B", status="in progress"),
             _make_task("3", "C", status="complete"),
         ]
-        result = _apply_task_filters(tasks, statuses={"to do", "complete"})
+        result = apply_task_filters(tasks, statuses={"to do", "complete"})
         assert {t.id for t in result} == {"1", "3"}
 
     def test_none_statuses_no_filter(self):
         tasks = [_make_task("1", "A"), _make_task("2", "B")]
-        result = _apply_task_filters(tasks, statuses=None)
+        result = apply_task_filters(tasks, statuses=None)
         assert len(result) == 2
 
 
@@ -92,12 +92,12 @@ class TestApplyTaskFiltersUpdatedSince:
             _make_task("1", "Old", date_updated="1000"),
             _make_task("2", "New", date_updated="2000"),
         ]
-        result = _apply_task_filters(tasks, updated_since_ms=1500)
+        result = apply_task_filters(tasks, updated_since_ms=1500)
         assert [t.id for t in result] == ["2"]
 
     def test_none_updated_since_no_filter(self):
         tasks = [_make_task("1", "A"), _make_task("2", "B")]
-        result = _apply_task_filters(tasks, updated_since_ms=None)
+        result = apply_task_filters(tasks, updated_since_ms=None)
         assert len(result) == 2
 
 
@@ -107,7 +107,7 @@ class TestApplyTaskFiltersOpenOnly:
             _make_task("1", "Open", status="to do", status_type="open"),
             _make_task("2", "Closed", status="complete", status_type="closed"),
         ]
-        result = _apply_task_filters(tasks, open_only=True)
+        result = apply_task_filters(tasks, open_only=True)
         assert [t.id for t in result] == ["1"]
 
     def test_open_only_false_keeps_all(self):
@@ -115,7 +115,7 @@ class TestApplyTaskFiltersOpenOnly:
             _make_task("1", "Open", status="to do", status_type="open"),
             _make_task("2", "Closed", status="complete", status_type="closed"),
         ]
-        result = _apply_task_filters(tasks, open_only=False)
+        result = apply_task_filters(tasks, open_only=False)
         assert len(result) == 2
 
 
@@ -126,7 +126,7 @@ class TestApplyTaskFiltersSort:
             _make_task("2", "Urgent", priority="1"),
             _make_task("3", "High", priority="2"),
         ]
-        result = _apply_task_filters(tasks, sort_field="priority", sort_descending=False)
+        result = apply_task_filters(tasks, sort_field="priority", sort_descending=False)
         assert [t.id for t in result] == ["2", "3", "1"]
 
     def test_sorts_by_priority_desc(self):
@@ -134,7 +134,7 @@ class TestApplyTaskFiltersSort:
             _make_task("1", "Low", priority="4"),
             _make_task("2", "Urgent", priority="1"),
         ]
-        result = _apply_task_filters(tasks, sort_field="priority", sort_descending=True)
+        result = apply_task_filters(tasks, sort_field="priority", sort_descending=True)
         assert [t.id for t in result] == ["1", "2"]
 
     def test_sorts_by_updated(self):
@@ -142,12 +142,12 @@ class TestApplyTaskFiltersSort:
             _make_task("1", "Old", date_updated="3000"),
             _make_task("2", "New", date_updated="1000"),
         ]
-        result = _apply_task_filters(tasks, sort_field="updated", sort_descending=False)
+        result = apply_task_filters(tasks, sort_field="updated", sort_descending=False)
         assert [t.id for t in result] == ["2", "1"]
 
     def test_none_sort_preserves_order(self):
         tasks = [_make_task("1", "A"), _make_task("2", "B")]
-        result = _apply_task_filters(tasks, sort_field=None)
+        result = apply_task_filters(tasks, sort_field=None)
         assert [t.id for t in result] == ["1", "2"]
 
 
@@ -158,7 +158,7 @@ class TestApplyTaskFiltersCombined:
             _make_task("2", "B", status="in progress", priority="1"),
             _make_task("3", "C", status="to do", priority="1"),
         ]
-        result = _apply_task_filters(tasks, statuses={"to do"}, sort_field="priority", sort_descending=False)
+        result = apply_task_filters(tasks, statuses={"to do"}, sort_field="priority", sort_descending=False)
         assert [t.id for t in result] == ["3", "1"]
 
     def test_all_filters_combined(self):
@@ -168,7 +168,7 @@ class TestApplyTaskFiltersCombined:
             _make_task("3", "New closed", status="complete", status_type="closed", date_updated="2000"),
             _make_task("4", "New progress", status="in progress", status_type="custom", date_updated="2000"),
         ]
-        result = _apply_task_filters(
+        result = apply_task_filters(
             tasks,
             statuses={"to do", "in progress"},
             updated_since_ms=1000,

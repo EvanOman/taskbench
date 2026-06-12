@@ -1,7 +1,5 @@
 """Task management commands."""
 
-import re
-from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import typer
@@ -29,6 +27,16 @@ from ..shared import (
     split_csv,
     usage_error,
 )
+from ..task_filters import (
+    annotate_source_list,
+    apply_task_filters,
+    epoch_ms,
+    parse_sort,
+    set_exclusive_date_filter,
+    statuses_from_list,
+    validate_priority,
+    validate_task_name,
+)
 from ..utils import run_async
 
 app = typer.Typer(help="Task management")
@@ -36,223 +44,6 @@ app = typer.Typer(help="Task management")
 # Subgroup for comments
 comments_app = typer.Typer(help="Task comment operations")
 app.add_typer(comments_app, name="comments")
-
-
-_RELATIVE_TIME_RE = re.compile(r"^(?P<count>\d+)(?P<unit>[dhw])$")
-
-
-def _epoch_ms(value: str) -> int:
-    """Parse an epoch-ms, ISO date/datetime, or relative duration into epoch milliseconds."""
-    trimmed = value.strip()
-    if not trimmed:
-        usage_error("Error: date filter value is empty.")
-    if trimmed.isdigit():
-        return int(trimmed)
-
-    relative = _RELATIVE_TIME_RE.match(trimmed.lower())
-    if relative:
-        count = int(relative.group("count"))
-        unit = relative.group("unit")
-        delta = {
-            "d": timedelta(days=count),
-            "h": timedelta(hours=count),
-            "w": timedelta(weeks=count),
-        }[unit]
-        return int((datetime.now(tz=UTC) - delta).timestamp() * 1000)
-
-    try:
-        if len(trimmed) == 10 and trimmed[4] == "-" and trimmed[7] == "-":
-            dt = datetime.fromisoformat(trimmed).replace(tzinfo=UTC)
-        else:
-            dt = datetime.fromisoformat(trimmed.replace("Z", "+00:00"))
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=UTC)
-            else:
-                dt = dt.astimezone(UTC)
-    except ValueError as exc:
-        _ = exc
-        usage_error(
-            "Error: date filters accept epoch milliseconds, YYYY-MM-DD, ISO datetime, or relative values like 7d."
-        )
-    return int(dt.timestamp() * 1000)
-
-
-def _set_exclusive_date_filter(filters: dict[str, Any], key: str, values: list[tuple[str, str | None]]) -> None:
-    """Set a ClickUp date filter when exactly one of several aliases is provided."""
-    provided = [(name, value) for name, value in values if value is not None]
-    if len(provided) > 1:
-        names = ", ".join(name for name, _value in provided)
-        usage_error(f"Error: conflicting date filters for {key}: {names}.")
-    if provided:
-        filters[key] = _epoch_ms(provided[0][1])
-
-
-def _annotate_source_list(task: Any, list_id: str) -> Any:
-    """Attach source list metadata when a fanout query merges multiple lists."""
-    try:
-        task.source_list_id = list_id
-    except (AttributeError, TypeError):
-        pass
-    return task
-
-
-def _parse_sort(sort: str | None, reverse_flag: bool) -> tuple[str | None, bool]:
-    """Parse ``--sort`` (with optional direction) and the ``--reverse`` flag.
-
-    Returns ``(field, descending)``. Accepted forms for ``sort``:
-
-        field          → (field, reverse_flag)        # plain, --reverse applies
-        field:asc      → (field, False)
-        field:desc     → (field, True)
-        -field         → (field, True)                 # git/jq-style
-        +field         → (field, False)
-
-    Surrounding whitespace is trimmed. Direction tokens are case-insensitive.
-    Empty/whitespace-only input, empty field after prefix/colon, invalid
-    direction, and combining an explicit direction with ``--reverse`` are
-    all usage errors (exit 2) so an agent never gets silent input swallowing
-    or double-toggle behavior.
-    """
-    if sort is None:
-        return None, reverse_flag
-
-    sort = sort.strip()
-    if not sort:
-        usage_error("Error: --sort value is empty.")
-
-    field: str
-    explicit_desc: bool | None = None
-
-    if sort.startswith("-"):
-        field, explicit_desc = sort[1:].strip(), True
-    elif sort.startswith("+"):
-        field, explicit_desc = sort[1:].strip(), False
-    elif ":" in sort:
-        raw_field, _, direction = sort.partition(":")
-        field = raw_field.strip()
-        direction = direction.strip().lower()
-        if direction == "desc":
-            explicit_desc = True
-        elif direction == "asc":
-            explicit_desc = False
-        else:
-            usage_error(f"Error: invalid sort direction '{direction}'. Use 'asc' or 'desc'.")
-    else:
-        field = sort
-
-    if explicit_desc is None:
-        return field, reverse_flag
-
-    if not field:
-        usage_error("Error: --sort field name is empty.")
-    if reverse_flag:
-        usage_error("Error: --reverse can't be combined with an explicit direction in --sort.")
-
-    return field, explicit_desc
-
-
-# Priority is a fixed 1..4 scale (1=urgent, 4=low). Reject anything else
-# at the CLI boundary instead of letting it slip through to the backend.
-_VALID_PRIORITIES: set[int] = {1, 2, 3, 4}
-
-
-def _validate_priority(priority: int | None) -> None:
-    """Reject priorities outside ClickUp's 1..4 scale with a usage error."""
-    if priority is None:
-        return
-    if priority not in _VALID_PRIORITIES:
-        usage_error(f"Error: --priority must be 1 (urgent), 2 (high), 3 (normal), or 4 (low). Got {priority}.")
-
-
-def _validate_task_name(name: str | None, *, field: str = "task name") -> None:
-    """Reject empty/whitespace-only task names."""
-    if name is None:
-        return
-    if not name.strip():
-        usage_error(f"Error: {field} cannot be empty or whitespace-only.")
-
-
-# Fields we can sort tasks by client-side. Server-side sort isn't reliable
-# (priority in particular isn't natively orderable), and multi-list queries
-# need a global re-sort over the merged result set anyway, so we just sort
-# everything ourselves.
-_SORTABLE_FIELDS = {"created", "updated", "due_date", "priority"}
-
-
-def _task_sort_value(task: Any, field: str) -> int | None:
-    """Return the sortable int value for the chosen field, or None if missing.
-
-    All four sortable fields are epoch-ms strings (created/updated/due_date)
-    or priority strings ("1".."4"). Anything that doesn't coerce to int is
-    treated as missing — mixing types in the sort key would crash ``sorted``.
-    """
-    if field == "priority":
-        raw = task.priority.priority if task.priority is not None else None
-    elif field == "created":
-        raw = task.date_created
-    elif field == "updated":
-        raw = task.date_updated
-    elif field == "due_date":
-        raw = task.due_date
-    else:
-        return None
-    if raw is None:
-        return None
-    try:
-        return int(raw)
-    except (TypeError, ValueError):
-        return None
-
-
-def _filter_open_only(tasks: list[Any]) -> list[Any]:
-    """Drop tasks whose status type is ``closed``.
-
-    Lets agents say "show me what's still active" without having to first
-    enumerate every non-closed status name on every list.
-    """
-    return [t for t in tasks if not (t.status and getattr(t.status, "type", None) == "closed")]
-
-
-def _sort_tasks_locally(tasks: list[Any], field: str | None, descending: bool) -> list[Any]:
-    """Globally sort tasks client-side. No-op when ``field`` is None.
-
-    Tasks missing the field always sort last regardless of direction so a
-    pile of None entries never pushes the values an agent actually wants out
-    of the top of a `--reverse` view.
-    """
-    if not field:
-        return tasks
-    if field not in _SORTABLE_FIELDS:
-        usage_error(f"Error: invalid --sort field '{field}'. Use one of: {', '.join(sorted(_SORTABLE_FIELDS))}.")
-    present = [t for t in tasks if _task_sort_value(t, field) is not None]
-    missing = [t for t in tasks if _task_sort_value(t, field) is None]
-    present.sort(key=lambda t: _task_sort_value(t, field), reverse=descending)
-    return present + missing
-
-
-def _apply_task_filters(
-    tasks: list[Any],
-    *,
-    statuses: set[str] | None = None,
-    updated_since_ms: int | None = None,
-    open_only: bool = False,
-    sort_field: str | None = None,
-    sort_descending: bool = False,
-) -> list[Any]:
-    """Shared client-side post-filter + sort pipeline.
-
-    Used by ``task list``, ``task mine``, and ``task search`` so the
-    ``--status``/``--sort``/``--updated-since``/``--open-only`` filters
-    behave identically everywhere.
-    """
-    if statuses:
-        tasks = [t for t in tasks if t.status and t.status.status and t.status.status.lower() in statuses]
-    if updated_since_ms is not None:
-        tasks = [t for t in tasks if t.date_updated and int(t.date_updated) >= updated_since_ms]
-    if open_only:
-        tasks = _filter_open_only(tasks)
-    tasks = _sort_tasks_locally(tasks, sort_field, sort_descending)
-    return tasks
 
 
 @app.command("list")
@@ -313,7 +104,7 @@ def list_tasks(
     Supports the same --status/--sort/--updated-since/--open-only filters
     as ``task mine`` and ``task search``.
     """
-    order_by, descending = _parse_sort(sort, reverse)
+    order_by, descending = parse_sort(sort, reverse)
 
     async def _list_tasks() -> None:
         list_ids_to_use = resolve_list_ids(list_id, all_lists=all_lists)
@@ -333,29 +124,29 @@ def list_tasks(
                     filters["assignees"] = [assignee]
                 # Sort is applied client-side after the merge so multi-list
                 # queries get a global order, not a per-list-then-concat one.
-                _set_exclusive_date_filter(
+                set_exclusive_date_filter(
                     filters,
                     "date_created_gt",
                     [("--created-since", created_since), ("--created-after", created_after)],
                 )
-                _set_exclusive_date_filter(filters, "date_created_lt", [("--created-before", created_before)])
-                _set_exclusive_date_filter(
+                set_exclusive_date_filter(filters, "date_created_lt", [("--created-before", created_before)])
+                set_exclusive_date_filter(
                     filters,
                     "date_updated_gt",
                     [("--updated-since", updated_since), ("--updated-after", updated_after)],
                 )
-                _set_exclusive_date_filter(filters, "date_updated_lt", [("--updated-before", updated_before)])
+                set_exclusive_date_filter(filters, "date_updated_lt", [("--updated-before", updated_before)])
 
                 tasks = []
                 include_source = len(list_ids_to_use) > 1
                 for list_id_to_use in list_ids_to_use:
                     list_tasks_result = await client.get_tasks(list_id_to_use, **filters)
                     if include_source:
-                        list_tasks_result = [_annotate_source_list(task, list_id_to_use) for task in list_tasks_result]
+                        list_tasks_result = [annotate_source_list(task, list_id_to_use) for task in list_tasks_result]
                     tasks.extend(list_tasks_result)
                 # Client-side filter + sort pipeline. open_only and sort are
                 # applied here (status/date filters already went to the API).
-                tasks = _apply_task_filters(
+                tasks = apply_task_filters(
                     tasks,
                     open_only=open_only,
                     sort_field=order_by,
@@ -434,9 +225,9 @@ def my_tasks(
     Supports the same --status/--sort/--updated-since/--open-only filters
     as ``task list`` and ``task search``.
     """
-    order_by, descending = _parse_sort(sort, reverse)
+    order_by, descending = parse_sort(sort, reverse)
     status_filter = {s.lower() for s in split_csv(status)} if status else None
-    updated_since_ms = _epoch_ms(updated_since) if updated_since else None
+    updated_since_ms = epoch_ms(updated_since) if updated_since else None
 
     async def _my_tasks() -> None:
         with handle_clickup_errors():
@@ -454,7 +245,7 @@ def my_tasks(
                 )
 
                 # Client-side filter + sort via shared pipeline.
-                tasks = _apply_task_filters(
+                tasks = apply_task_filters(
                     tasks,
                     statuses=status_filter,
                     updated_since_ms=updated_since_ms,
@@ -493,8 +284,8 @@ def create_task(
     ),
 ) -> None:
     """Create a new task."""
-    _validate_task_name(name)
-    _validate_priority(priority)
+    validate_task_name(name)
+    validate_priority(priority)
 
     async def _create_task() -> None:
         list_id_to_use = require_list_id(list_id)
@@ -553,9 +344,9 @@ def update_task(
     archived: bool | None = typer.Option(None, "--archived/--unarchived", help="Archive state"),
 ) -> None:
     """Update a task. Only fields you pass are changed; everything else stays the same."""
-    _validate_priority(priority)
+    validate_priority(priority)
     if name is not None:
-        _validate_task_name(name)
+        validate_task_name(name)
     if description is not None and description_append is not None:
         usage_error("Error: --description and --description-append are mutually exclusive.")
 
@@ -665,34 +456,6 @@ async def _do_status_change_many(task_ids: list[str], status: str) -> None:
         raise typer.Exit(1)
 
 
-def _normalise_status(status: Any) -> dict[str, Any]:
-    """Convert ClickUp status shapes into a stable JSON/table dict."""
-    if isinstance(status, dict):
-        return {
-            "status": status.get("status"),
-            "type": status.get("type"),
-            "color": status.get("color"),
-            "orderindex": status.get("orderindex"),
-        }
-    return {
-        "status": getattr(status, "status", str(status)),
-        "type": getattr(status, "type", None),
-        "color": getattr(status, "color", None),
-        "orderindex": getattr(status, "orderindex", None),
-    }
-
-
-def _statuses_from_list(list_obj: Any) -> list[dict[str, Any]]:
-    """Extract allowed statuses from list metadata returned by ClickUp."""
-    raw_statuses = (getattr(list_obj, "model_extra", None) or {}).get("statuses")
-    if isinstance(raw_statuses, list):
-        return [_normalise_status(status) for status in raw_statuses]
-    list_status = getattr(list_obj, "status", None)
-    if list_status is not None:
-        return [_normalise_status(list_status)]
-    return []
-
-
 @app.command("statuses")
 def list_task_statuses(
     list_id: str | None = typer.Option(None, "--list-id", "-l", help="List ID or alias to inspect"),
@@ -705,7 +468,7 @@ def list_task_statuses(
         with handle_clickup_errors():
             async with await get_client() as client:
                 list_obj = await client.get_list(list_id_to_use)
-                statuses = _statuses_from_list(list_obj)
+                statuses = statuses_from_list(list_obj)
                 render_statuses(statuses, list_id=list_obj.id, list_name=list_obj.name)
 
     run_async(_list_task_statuses())
@@ -907,9 +670,9 @@ def search_tasks(
     Supports the same --status/--sort/--updated-since/--open-only filters
     as ``task list`` and ``task mine``.
     """
-    order_by, descending = _parse_sort(sort, reverse)
+    order_by, descending = parse_sort(sort, reverse)
     status_filter = {s.lower() for s in split_csv(status)} if status else None
-    updated_since_ms = _epoch_ms(updated_since) if updated_since else None
+    updated_since_ms = epoch_ms(updated_since) if updated_since else None
 
     async def _search_tasks() -> None:
         with handle_clickup_errors():
@@ -917,7 +680,7 @@ def search_tasks(
                 id_to_use = await resolve_workspace_id(client, workspace_id or team_id)
                 tasks = await client.search_tasks(id_to_use, query or "")
                 # Client-side filter + sort via shared pipeline.
-                tasks = _apply_task_filters(
+                tasks = apply_task_filters(
                     tasks,
                     statuses=status_filter,
                     updated_since_ms=updated_since_ms,

@@ -65,10 +65,13 @@ clickup-toolkit/
 │   │   ├── providers.py    # TaskProvider protocol + get_provider() factory
 │   │   ├── client.py       # ClickUp adapter (default)
 │   │   ├── json_provider.py    # zero-infra local adapter
-│   │   └── planka_provider.py  # Planka adapter (reference for new adapters)
+│   │   ├── planka_provider.py  # Planka adapter (reference for new adapters)
+│   │   └── params.py       # CLI parameter constants/enums
 │   ├── cli/
 │   │   ├── main.py         # Typer root, --format callback, status, version
 │   │   ├── output.py       # ALL output rendering (see "Output contract")
+│   │   ├── shared.py       # cross-command helpers (get_client, usage_error, resolve_*)
+│   │   ├── task_filters.py # pure filter/sort/validation helpers for task commands
 │   │   ├── utils.py        # run_async + no-op spinner shim
 │   │   └── commands/       # per-feature subcommands
 │   └── nlp/                # PARKED — see "Parked features"
