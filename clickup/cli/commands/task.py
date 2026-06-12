@@ -282,6 +282,7 @@ def create_task(
         "-s",
         help="Initial status (e.g. 'on-deck'). Falls back to config default_status, then list default.",
     ),
+    brief: bool = typer.Option(False, "--brief", help="Return a stripped projection (see `task get --brief`)."),
 ) -> None:
     """Create a new task."""
     validate_task_name(name)
@@ -310,7 +311,7 @@ def create_task(
             async with await get_client() as client:
                 task = await client.create_task(list_id_to_use, **task_data)
                 if get_format() == "json":
-                    render_task(task)
+                    render_task(task, brief=brief)
                     return
                 render_message(f"Created task: {task.name} (ID: {task.id})", "success")
                 if task.url:
@@ -342,6 +343,7 @@ def update_task(
     ),
     due_date: str | None = typer.Option(None, "--due-date", help="New due date (ms timestamp)"),
     archived: bool | None = typer.Option(None, "--archived/--unarchived", help="Archive state"),
+    brief: bool = typer.Option(False, "--brief", help="Return a stripped projection (see `task get --brief`)."),
 ) -> None:
     """Update a task. Only fields you pass are changed; everything else stays the same."""
     validate_priority(priority)
@@ -403,9 +405,9 @@ def update_task(
                         tasks.append(result)
                 if get_format() == "json":
                     if len(tasks) == 1:
-                        render_task(tasks[0])
+                        render_task(tasks[0], brief=brief)
                     else:
-                        render_tasks(tasks)
+                        render_tasks(tasks, brief=brief)
                     return
                 if len(tasks) == 1:
                     render_message(f"Updated task: {tasks[0].name} (ID: {tasks[0].id})", "success")
@@ -415,7 +417,7 @@ def update_task(
     run_async(_update_task())
 
 
-async def _do_status_change_many(task_ids: list[str], status: str) -> None:
+async def _do_status_change_many(task_ids: list[str], status: str, *, brief: bool = False) -> None:
     """Shared implementation for `task status` and short verb aliases.
 
     Each task is attempted independently — one bad ID doesn't abort the rest
@@ -442,9 +444,9 @@ async def _do_status_change_many(task_ids: list[str], status: str) -> None:
     if succeeded:
         if get_format() == "json":
             if len(task_ids) == 1:
-                render_task(succeeded[0])
+                render_task(succeeded[0], brief=brief)
             else:
-                render_tasks(succeeded)
+                render_tasks(succeeded, brief=brief)
         elif len(succeeded) == 1 and not failures:
             render_message(f"Updated task status: {succeeded[0].name} -> {status}", "success")
         else:
@@ -493,6 +495,7 @@ def change_status(
     status_flag: str | None = typer.Option(
         None, "--status", "-s", help="New status (back-compat alias for positional)"
     ),
+    brief: bool = typer.Option(False, "--brief", help="Return a stripped projection (see `task get --brief`)."),
 ) -> None:
     """Change task status.
 
@@ -522,25 +525,27 @@ def change_status(
 
     # Type-narrow for the type checker; the _usage_error calls above raise on None.
     assert status is not None
-    run_async(_do_status_change_many(task_ids, status))
+    run_async(_do_status_change_many(task_ids, status, brief=brief))
 
 
 @app.command("done")
 def task_done(
     task_ids: list[str] = typer.Argument(..., metavar="TASK_ID...", help="One or more task IDs"),
     status: str = typer.Option(_DONE_STATUS, "--status", "-s", help=f"Target status name (default: '{_DONE_STATUS}')"),
+    brief: bool = typer.Option(False, "--brief", help="Return a stripped projection (see `task get --brief`)."),
 ) -> None:
     """Close one or more tasks. Sets status to 'complete' unless --status overrides."""
-    run_async(_do_status_change_many(task_ids, status))
+    run_async(_do_status_change_many(task_ids, status, brief=brief))
 
 
 @app.command("close")
 def task_close(
     task_ids: list[str] = typer.Argument(..., metavar="TASK_ID...", help="One or more task IDs"),
     status: str = typer.Option(_DONE_STATUS, "--status", "-s", help=f"Target status name (default: '{_DONE_STATUS}')"),
+    brief: bool = typer.Option(False, "--brief", help="Return a stripped projection (see `task get --brief`)."),
 ) -> None:
     """Close one or more tasks. Alias for `task done`."""
-    run_async(_do_status_change_many(task_ids, status))
+    run_async(_do_status_change_many(task_ids, status, brief=brief))
 
 
 @app.command("start")
@@ -549,24 +554,30 @@ def task_start(
     status: str = typer.Option(
         _START_STATUS, "--status", "-s", help=f"Target status name (default: '{_START_STATUS}')"
     ),
+    brief: bool = typer.Option(False, "--brief", help="Return a stripped projection (see `task get --brief`)."),
 ) -> None:
     """Move one or more tasks to 'in progress' unless --status overrides."""
-    run_async(_do_status_change_many(task_ids, status))
+    run_async(_do_status_change_many(task_ids, status, brief=brief))
 
 
 @app.command("park")
 def task_park(
     task_ids: list[str] = typer.Argument(..., metavar="TASK_ID...", help="One or more task IDs"),
     status: str = typer.Option(_PARK_STATUS, "--status", "-s", help=f"Target status name (default: '{_PARK_STATUS}')"),
+    brief: bool = typer.Option(False, "--brief", help="Return a stripped projection (see `task get --brief`)."),
 ) -> None:
     """Park one or more tasks on the on-deck queue unless --status overrides."""
-    run_async(_do_status_change_many(task_ids, status))
+    run_async(_do_status_change_many(task_ids, status, brief=brief))
 
 
 @app.command("delete")
 def delete_task(
-    task_id: str | None = typer.Argument(None, help="Task ID"),
-    task_ids: str | None = typer.Option(None, "--task-ids", help="Comma-separated task IDs to delete"),
+    task_ids_args: list[str] | None = typer.Argument(
+        None,
+        metavar="TASK_ID...",
+        help="One or more task IDs to delete",
+    ),
+    task_ids: str | None = typer.Option(None, "--task-ids", help="Comma-separated task IDs to delete (back-compat)"),
     force: bool = typer.Option(
         False,
         "--force",
@@ -578,14 +589,16 @@ def delete_task(
 ) -> None:
     """Delete one or more tasks.
 
-    Positional form: clickup task delete TASK_ID --force
-    Batch form: clickup task delete --task-ids ID1,ID2 --force
+    Positional form: clickup task delete ID1 ID2 ID3 --force
+    Flag form (back-compat): clickup task delete --task-ids ID1,ID2 --force
     """
 
     async def _delete_task() -> None:
-        if task_id is not None and task_ids is not None:
-            usage_error("Error: pass TASK_ID either as a positional argument OR via --task-ids, not both.")
-        target_ids = [task_id] if task_id is not None else split_csv(task_ids)
+        has_positional = bool(task_ids_args)
+        has_flag = task_ids is not None
+        if has_positional and has_flag:
+            usage_error("Error: pass TASK_ID either as positional arguments OR via --task-ids, not both.")
+        target_ids = list(task_ids_args or []) if has_positional else split_csv(task_ids)
         if not target_ids:
             usage_error("Error: Task ID or --task-ids is required.")
 

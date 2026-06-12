@@ -20,6 +20,12 @@ class AuthenticationError(ClickUpError):
     pass
 
 
+class ResourceAccessError(ClickUpError):
+    """401 from a resource endpoint: invalid token OR unknown/inaccessible resource ID."""
+
+    pass
+
+
 class AuthorizationError(ClickUpError):
     """Authorization failed (insufficient permissions)."""
 

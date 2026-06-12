@@ -13,6 +13,7 @@ from clickup.core import (
     NotFoundError,
     RateLimitError,
     RequestTimeoutError,
+    ResourceAccessError,
     ValidationError,
 )
 
@@ -60,8 +61,9 @@ async def test_not_found_error(mock_clickup_client):
 
     mock_clickup_client.client.request.return_value = mock_response
 
-    with pytest.raises(NotFoundError):
-        await mock_clickup_client._request("GET", "/test")
+    with pytest.raises(NotFoundError) as exc:
+        await mock_clickup_client._request("GET", "/task/86aj0p7b2")
+    assert "/task/86aj0p7b2" in str(exc.value)
 
 
 @pytest.mark.asyncio
@@ -331,8 +333,8 @@ async def test_timeout_retries_then_raises(mock_sleep, mock_clickup_client):
 
 
 @pytest.mark.asyncio
-async def test_401_message_mentions_resource_ambiguity(mock_clickup_client):
-    """ClickUp returns 401 for unknown resource IDs; the message must say so."""
+async def test_401_on_resource_endpoint_raises_resource_access_error(mock_clickup_client):
+    """ClickUp returns 401 for unknown resource IDs; must raise ResourceAccessError."""
     mock_response = Mock()
     mock_response.status_code = 401
     mock_response.content = b'{"err": "Team not authorized"}'
@@ -340,11 +342,25 @@ async def test_401_message_mentions_resource_ambiguity(mock_clickup_client):
 
     mock_clickup_client.client.request.return_value = mock_response
 
-    with pytest.raises(AuthenticationError) as exc:
+    with pytest.raises(ResourceAccessError) as exc:
         await mock_clickup_client._request("GET", "/task/doesnotexist123")
     msg = str(exc.value)
     assert "Team not authorized" in msg
     assert "resource IDs" in msg
+
+
+@pytest.mark.asyncio
+async def test_401_on_user_endpoint_stays_authentication_error(mock_clickup_client):
+    """401 on /user (non-resource endpoint) must stay AuthenticationError."""
+    mock_response = Mock()
+    mock_response.status_code = 401
+    mock_response.content = b'{"err": "Unauthorized"}'
+    mock_response.json.return_value = {"err": "Unauthorized"}
+
+    mock_clickup_client.client.request.return_value = mock_response
+
+    with pytest.raises(AuthenticationError):
+        await mock_clickup_client._request("GET", "/user")
 
 
 @pytest.mark.asyncio

@@ -16,8 +16,10 @@ uvx --from git+https://github.com/EvanOman/clickup-tools.git clickup --help
 Four-command happy path:
 
 ```bash
-# 1. Interactive setup -- stores your API token and picks defaults
-uvx --from git+https://github.com/EvanOman/clickup-tools.git clickup setup
+# 1. Non-interactive setup -- with CLICKUP_API_KEY in the env or .env, this
+#    auto-picks your workspace/space/list (agents: always prefer --auto;
+#    humans can drop the flag for interactive prompts)
+uvx --from git+https://github.com/EvanOman/clickup-tools.git clickup setup run --auto
 
 # 2. Verify everything works
 uvx --from git+https://github.com/EvanOman/clickup-tools.git clickup status
@@ -83,14 +85,15 @@ Before configuring aliases, find the numeric list IDs for the lists you want age
 clickup discover hierarchy          # prints workspace > space > folder > list tree with IDs
 ```
 
-Or use `clickup setup run --non-interactive --token <token> --team-id <id> --space-id <id> --list-id <id>` for fully scriptable setup.
+Or skip discovery entirely: `clickup setup run --auto` picks the only workspace/space automatically (and the largest list when several exist) — zero-to-working `clickup task list` in one non-interactive command. Pass explicit `--team-id/--space-id/--list-id` to override any level, or use `--non-interactive` with all IDs for fully pinned setup.
 
 ### 4. Configure aliases for your spaces and a default status
 
 Agents shouldn't have to run discovery commands every time they create a task. Map your real list IDs to short aliases so the agent can route by name:
 
 ```bash
-clickup setup run            # one-shot: picks default workspace/space/list interactively
+clickup setup run --auto     # one-shot non-interactive: auto-picks workspace/space/list
+clickup setup run            # same, but interactive prompts (for humans)
 # or set the alias map by hand:
 clickup config set-default-list omegapoint <list-id>
 clickup config set-default-list overhead <list-id>
@@ -287,8 +290,7 @@ uv run ty check
 
 ### Get started
 - `clickup setup` - Interactive first-run setup (API token + defaults)
-- `clickup status` - Show connection status and configuration
-- `clickup whoami` - Show the authenticated user
+- `clickup status` - Show the authenticated user, connection status, and configuration
 - `clickup config` - Manage configuration and validate credentials
 
 ### Task workflow
