@@ -233,7 +233,7 @@ def test_task_export_json(mock_get_client):
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         result = runner.invoke(
             app,
-            ["task", "export", "--list-id", "L1", "--output", f.name, "--format", "json"],
+            ["task", "export", "--list-id", "L1", "--output", f.name, "--output-format", "json"],
         )
     assert result.exit_code == 0
     data = json.loads(Path(f.name).read_text())
@@ -249,7 +249,7 @@ def test_task_export_csv(mock_get_client):
     with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
         result = runner.invoke(
             app,
-            ["task", "export", "--list-id", "L1", "--output", f.name, "--format", "csv"],
+            ["task", "export", "--list-id", "L1", "--output", f.name, "--output-format", "csv"],
         )
     assert result.exit_code == 0
     content = Path(f.name).read_text()
@@ -266,7 +266,7 @@ def test_task_export_unsupported_format_errors(mock_get_client):
     with tempfile.NamedTemporaryFile(suffix=".xml") as f:
         result = runner.invoke(
             app,
-            ["task", "export", "--list-id", "L1", "--output", f.name, "--format", "xml"],
+            ["task", "export", "--list-id", "L1", "--output", f.name, "--output-format", "xml"],
         )
     assert result.exit_code != 0
     assert "Unsupported" in result.stderr

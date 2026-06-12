@@ -106,6 +106,39 @@ def test_config_file_precedence(temp_config_dir, monkeypatch):
     assert config.get_api_token() == "file_token"
 
 
+class TestKeyAliases:
+    """Tests for KEY_ALIASES (e.g. default_list -> default_list_id)."""
+
+    def test_set_via_alias_stores_canonical_key(self, temp_config_dir):
+        """``config.set('default_list', ...)`` stores as ``default_list_id``."""
+        config = Config(config_path=temp_config_dir / "config.json")
+        config.set("default_list", "12345")
+        assert config.get("default_list_id") == "12345"
+
+    def test_get_via_alias_returns_canonical_value(self, temp_config_dir):
+        """``config.get('default_list')`` reads from ``default_list_id``."""
+        config = Config(config_path=temp_config_dir / "config.json")
+        config.set("default_list_id", "67890")
+        assert config.get("default_list") == "67890"
+
+    def test_alias_round_trip(self, temp_config_dir):
+        """Set via alias, reload, get via alias."""
+        path = temp_config_dir / "config.json"
+        config = Config(config_path=path)
+        config.set("default_list", "round_trip_id")
+
+        config2 = Config(config_path=path)
+        assert config2.get("default_list") == "round_trip_id"
+        assert config2.get("default_list_id") == "round_trip_id"
+
+    def test_alias_does_not_trigger_unknown_key_warning(self, temp_config_dir, capsys):
+        """Setting via alias should NOT produce the unknown-key warning."""
+        config = Config(config_path=temp_config_dir / "config.json")
+        config.set("default_list", "no_warning")
+        captured = capsys.readouterr()
+        assert "not a recognised config key" not in captured.err
+
+
 class TestClickupConfigPathEnvVar:
     """Tests for CLICKUP_CONFIG_PATH environment variable support."""
 

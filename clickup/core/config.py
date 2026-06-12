@@ -57,10 +57,18 @@ KNOWN_CONFIG_KEYS: set[str] = {
 # Nested prefixes that are always allowed (e.g. "ui.theme", "api.retry")
 KNOWN_NESTED_PREFIXES: set[str] = {"ui", "api"}
 
+# Aliases that normalise to canonical key names. Checked by both ``set`` and
+# ``get`` so there is exactly one stored source of truth.
+KEY_ALIASES: dict[str, str] = {
+    "default_list": "default_list_id",
+}
+
 
 def is_known_key(key: str) -> bool:
-    """Return True if *key* is a recognised configuration key."""
+    """Return True if *key* is a recognised configuration key or alias."""
     if key in KNOWN_CONFIG_KEYS:
+        return True
+    if key in KEY_ALIASES:
         return True
     # Allow any nested key under known prefixes
     if "." in key:
@@ -190,6 +198,9 @@ class Config:
 
     def get(self, key: str, default: Any = None, from_env: bool = False) -> Any:
         """Get configuration value with support for nested keys."""
+        # Resolve aliases before anything else
+        key = KEY_ALIASES.get(key, key)
+
         if from_env and key == "default_team_id":
             env_value = os.getenv("CLICKUP_DEFAULT_TEAM_ID")
             if env_value:
@@ -214,6 +225,9 @@ class Config:
         Prints a warning to stderr for unrecognised keys but does not error,
         preserving backward compatibility.
         """
+        # Resolve aliases before anything else
+        key = KEY_ALIASES.get(key, key)
+
         # Warn (but don't error) on unknown keys for forward compat
         if not is_known_key(key):
             print(
