@@ -181,8 +181,7 @@ def list_stats(
 ) -> None:
     """Show per-list statistics: task count, open count, and last updated.
 
-    Enumerates every list in the workspace (folders + folderless) and
-    fetches tasks to compute stats. Use --space-id to limit scope.
+    Scans every list in the workspace by default; use --space-id to narrow.
     """
 
     async def _stats() -> None:
