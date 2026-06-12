@@ -330,7 +330,7 @@ def test_workspace_list_empty_sync(mock_get_client):
 
     result = runner.invoke(app, ["workspace", "list"])
     assert result.exit_code == 0
-    assert "No workspaces" in result.output
+    assert "No workspaces" not in result.stdout  # info-level notice suppressed in JSON mode
 
 
 @patch("clickup.cli.commands.workspace.get_client")
@@ -341,7 +341,7 @@ def test_workspace_spaces_empty_sync(mock_get_client):
 
     result = runner.invoke(app, ["workspace", "spaces", "--workspace-id", "W1"])
     assert result.exit_code == 0
-    assert "No spaces" in result.output
+    assert "No spaces" not in result.stdout  # info-level notice suppressed in JSON mode
 
 
 @patch("clickup.cli.commands.workspace.get_client")
@@ -352,7 +352,7 @@ def test_workspace_folders_empty_sync(mock_get_client):
 
     result = runner.invoke(app, ["workspace", "folders", "--space-id", "S1"])
     assert result.exit_code == 0
-    assert "No folders" in result.output
+    assert "No folders" not in result.stdout  # info-level notice suppressed in JSON mode
 
 
 @patch("clickup.cli.commands.workspace.get_client")
@@ -363,7 +363,7 @@ def test_workspace_members_empty_sync(mock_get_client):
 
     result = runner.invoke(app, ["workspace", "members", "--workspace-id", "W1"])
     assert result.exit_code == 0
-    assert "No members" in result.output
+    assert "No members" not in result.stdout  # info-level notice suppressed in JSON mode
 
 
 # =============================================================================

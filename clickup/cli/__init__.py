@@ -1,6 +1,6 @@
 """ClickUp Toolkit CLI - Command-line interface for ClickUp."""
 
-__version__ = "0.4.4"
+__version__ = "0.4.5"
 
 from .main import app, main
 

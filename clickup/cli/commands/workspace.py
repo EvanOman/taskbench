@@ -19,7 +19,7 @@ def list_workspaces() -> None:
             async with await get_client() as client:
                 teams = await client.get_teams()
                 if not teams:
-                    render_message("No workspaces found.", "warn")
+                    render_message("No workspaces found.", "info")
                     return
                 render_teams(teams)
         except ClickUpError as e:
@@ -57,7 +57,7 @@ def list_spaces(
             async with await get_client() as client:
                 spaces = await client.get_spaces(workspace_id_to_use)
                 if not spaces:
-                    render_message("No spaces found.", "warn")
+                    render_message("No spaces found.", "info")
                     return
                 render_spaces(spaces)
         except ClickUpError as e:
@@ -94,7 +94,7 @@ def list_folders(
             async with await get_client() as client:
                 folders = await client.get_folders(space_id_to_use)
                 if not folders:
-                    render_message("No folders found.", "warn")
+                    render_message("No folders found.", "info")
                     return
                 render_folders(folders)
         except ClickUpError as e:
@@ -132,7 +132,7 @@ def list_members(
             async with await get_client() as client:
                 members = await client.get_team_members(workspace_id_to_use)
                 if not members:
-                    render_message("No members found.", "warn")
+                    render_message("No members found.", "info")
                     return
                 render_users(members, title="Workspace Members")
         except ClickUpError as e:
