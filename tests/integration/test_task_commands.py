@@ -890,7 +890,9 @@ def test_task_export_json(mock_get_client, sample_tasks):
     mock_get_client.side_effect = create_mock_client
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-        result = runner.invoke(app, ["task", "export", "--list-id", "list123", "--output", f.name, "--format", "json"])
+        result = runner.invoke(
+            app, ["task", "export", "--list-id", "list123", "--output", f.name, "--output-format", "json"]
+        )
 
         assert result.exit_code == 0
         # New behavior: structured result envelope, not a success message.
@@ -965,3 +967,179 @@ def test_task_create_omitted_fields_not_sent(mock_get_client):
     assert "priority" not in kwargs
     assert "assignees" not in kwargs
     assert "due_date" not in kwargs
+
+
+# --- task delete --task-ids batch tests ---
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_delete_task_ids_batch(mock_get_client):
+    """`task delete --task-ids` deletes multiple tasks in one invocation."""
+    mock_client = AsyncMock()
+    mock_client.delete_task.return_value = True
+
+    def create_mock_client():
+        ctx_mgr = AsyncMock()
+        ctx_mgr.__aenter__.return_value = mock_client
+        return ctx_mgr
+
+    mock_get_client.side_effect = create_mock_client
+
+    result = runner.invoke(app, ["task", "delete", "--task-ids", "task1,task2,task3", "--force"])
+
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["count"] == 3
+    assert all(item["deleted"] is True for item in data["data"])
+    assert [item["id"] for item in data["data"]] == ["task1", "task2", "task3"]
+    assert mock_client.delete_task.await_count == 3
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_delete_single_positional_still_works(mock_get_client):
+    """Single positional task_id still works for backward compat."""
+    mock_client = AsyncMock()
+    mock_client.delete_task.return_value = True
+
+    def create_mock_client():
+        ctx_mgr = AsyncMock()
+        ctx_mgr.__aenter__.return_value = mock_client
+        return ctx_mgr
+
+    mock_get_client.side_effect = create_mock_client
+
+    result = runner.invoke(app, ["task", "delete", "task999", "--force"])
+
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data == {"id": "task999", "deleted": True}
+
+
+def test_task_delete_both_positional_and_task_ids_exits_2():
+    """Passing both positional TASK_ID and --task-ids is a usage error."""
+    result = runner.invoke(app, ["task", "delete", "task1", "--task-ids", "task2", "--force"])
+    assert result.exit_code == 2
+    assert "either as a positional argument OR via --task-ids" in result.stderr
+
+
+def test_task_delete_neither_positional_nor_task_ids_exits_2():
+    """Passing neither positional TASK_ID nor --task-ids is a usage error."""
+    result = runner.invoke(app, ["task", "delete", "--force"])
+    assert result.exit_code == 2
+    assert "Task ID or --task-ids is required" in result.stderr
+
+
+def test_task_delete_batch_without_force_exits_2():
+    """--task-ids without --force is refused (exit 2)."""
+    result = runner.invoke(app, ["task", "delete", "--task-ids", "task1,task2"])
+    assert result.exit_code == 2
+    assert "Refusing to delete" in result.stderr
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_delete_partial_failure_reflects_in_output(mock_get_client):
+    """When some deletions fail, output shows deleted=false and exit code is 1."""
+    from clickup.core import ClickUpError
+
+    mock_client = AsyncMock()
+    mock_client.delete_task.side_effect = [
+        True,
+        ClickUpError("Not found"),
+        True,
+    ]
+
+    def create_mock_client():
+        ctx_mgr = AsyncMock()
+        ctx_mgr.__aenter__.return_value = mock_client
+        return ctx_mgr
+
+    mock_get_client.side_effect = create_mock_client
+
+    result = runner.invoke(app, ["task", "delete", "--task-ids", "task1,task2,task3", "--force"])
+
+    assert result.exit_code == 1
+    data = json.loads(result.stdout)
+    assert data["count"] == 3
+    # task1 succeeded, task2 failed, task3 succeeded
+    assert data["data"][0] == {"id": "task1", "deleted": True}
+    assert data["data"][1] == {"id": "task3", "deleted": True}
+    assert data["data"][2] == {"id": "task2", "deleted": False}
+
+
+# --- task export --output-format tests ---
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_export_output_format_csv(mock_get_client, sample_tasks):
+    """`task export --output-format csv` writes CSV."""
+    mock_client = AsyncMock()
+    mock_client.get_tasks.return_value = sample_tasks
+
+    def create_mock_client():
+        ctx_mgr = AsyncMock()
+        ctx_mgr.__aenter__.return_value = mock_client
+        return ctx_mgr
+
+    mock_get_client.side_effect = create_mock_client
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
+        result = runner.invoke(
+            app, ["task", "export", "--list-id", "list123", "--output", f.name, "--output-format", "csv"]
+        )
+
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["format"] == "csv"
+
+
+def test_task_export_old_format_flag_rejected():
+    """`task export --format json` is no longer accepted (exit 2)."""
+    result = runner.invoke(app, ["task", "export", "--list-id", "list123", "--format", "json"])
+    assert result.exit_code == 2
+
+
+# --- bulk export-tasks --output-format + --format back-compat ---
+
+
+@patch("clickup.cli.commands.bulk.get_client")
+def test_bulk_export_output_format_flag(mock_get_client):
+    """`bulk export-tasks --output-format csv` works."""
+    mock_client = AsyncMock()
+    mock_client.get_tasks.return_value = []
+
+    def create_mock_client():
+        ctx_mgr = AsyncMock()
+        ctx_mgr.__aenter__.return_value = mock_client
+        return ctx_mgr
+
+    mock_get_client.side_effect = create_mock_client
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
+        result = runner.invoke(
+            app, ["bulk", "export-tasks", "--list-id", "123", "--output-format", "csv", "--output", f.name]
+        )
+
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["format"] == "csv"
+
+
+@patch("clickup.cli.commands.bulk.get_client")
+def test_bulk_export_format_back_compat(mock_get_client):
+    """`bulk export-tasks --format csv` still works (deprecated alias)."""
+    mock_client = AsyncMock()
+    mock_client.get_tasks.return_value = []
+
+    def create_mock_client():
+        ctx_mgr = AsyncMock()
+        ctx_mgr.__aenter__.return_value = mock_client
+        return ctx_mgr
+
+    mock_get_client.side_effect = create_mock_client
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False) as f:
+        result = runner.invoke(app, ["bulk", "export-tasks", "--list-id", "123", "--format", "csv", "--output", f.name])
+
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["format"] == "csv"

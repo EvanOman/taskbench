@@ -104,7 +104,7 @@ PR changes `TaskProvider` or the models, it must update the spec too.
 Every user-visible output is rendered via functions in `clickup/cli/output.py`:
 `render_user`, `render_team(s)`, `render_space(s)`, `render_list(s)`, `render_task(s)`, `render_comments`, `render_kv`, `render_message`. They read the global format setting via `get_format()` and emit either a Rich table or structured JSON.
 
-Direct `console.print` of structured data is a regression — route it through a renderer instead. Some legacy commands (`discover hierarchy`, `workspace list`) still bypass this; migrating them is a known follow-up.
+Direct `console.print` of structured data is a regression — route it through a renderer instead. All commands now route through `output.py` renderers.
 
 JSON shape:
 - Collections: `{"data": [...], "count": N}`
@@ -112,7 +112,7 @@ JSON shape:
 
 ### 2. `--format` is a GLOBAL flag, not per-command
 
-Wired on the root Typer callback in `main.py`. **JSON is the default** — agents are first-class consumers, so the unflagged path emits structured data. Pass `clickup --format table <subcommand> ...` for human-readable output. Per-subcommand `--format` would conflict and confuse agents. The `bulk export-tasks` command's pre-existing `--format` (for output FILE format) is the one exception and is unrelated.
+Wired on the root Typer callback in `main.py`. **JSON is the default** — agents are first-class consumers, so the unflagged path emits structured data. Pass `clickup --format table <subcommand> ...` for human-readable output. Per-subcommand `--format` would conflict and confuse agents. Both `task export` and `bulk export-tasks` use `--output-format` for the output FILE format (json/csv), which is unrelated to the global `--format`. `bulk export-tasks` retains `--format` as a deprecated alias for backward compatibility.
 
 ### 3. Modify-if-passed update semantics
 

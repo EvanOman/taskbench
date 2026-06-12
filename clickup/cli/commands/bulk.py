@@ -23,7 +23,7 @@ console = Console()
 def export_tasks(
     list_id: str | None = typer.Option(None, "--list-id", help="List ID to export tasks from"),
     output_file: str = typer.Option("tasks.csv", "--output", "-o", help="Output file path"),
-    format: str = typer.Option("csv", "--format", "-f", help="Output format (csv, json)"),
+    output_format: str = typer.Option("csv", "--output-format", "--format", "-f", help="Output format (csv, json)"),
     include_completed: bool = typer.Option(True, "--include-completed", help="Include completed tasks"),
 ) -> None:
     """Export tasks to CSV or JSON file."""
@@ -39,7 +39,7 @@ def export_tasks(
 
                 tasks = await client.get_tasks(list_id_to_use, **filters)
 
-                if format.lower() == "csv":
+                if output_format.lower() == "csv":
                     # Export to CSV
                     with open(output_file, "w", newline="", encoding="utf-8") as csvfile:
                         fieldnames = [
@@ -77,7 +77,7 @@ def export_tasks(
                                 }
                             )
 
-                elif format.lower() == "json":
+                elif output_format.lower() == "json":
                     # Export to JSON
                     task_data = []
                     for task in tasks:
@@ -95,9 +95,9 @@ def export_tasks(
                         json.dump(task_data, jsonfile, indent=2, ensure_ascii=False)
 
                 else:
-                    render_error(f"Unsupported format: {format}")
+                    render_error(f"Unsupported format: {output_format}")
                     raise typer.Exit(1) from None
-                render_kv({"exported": len(tasks), "output_file": output_file, "format": format.lower()})
+                render_kv({"exported": len(tasks), "output_file": output_file, "format": output_format.lower()})
 
         except ClickUpError as e:
             render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)

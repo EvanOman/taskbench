@@ -8,6 +8,7 @@ import typer
 
 from ...core import ClickUpError, Config
 from ..output import (
+    _print_json,
     get_format,
     render_comment,
     render_comments,
@@ -779,7 +780,8 @@ def task_park(
 
 @app.command("delete")
 def delete_task(
-    task_id: str = typer.Argument(..., help="Task ID"),
+    task_id: str | None = typer.Argument(None, help="Task ID"),
+    task_ids: str | None = typer.Option(None, "--task-ids", help="Comma-separated task IDs to delete"),
     force: bool = typer.Option(
         False,
         "--force",
@@ -789,20 +791,53 @@ def delete_task(
         help="Required to confirm deletion. No interactive prompt.",
     ),
 ) -> None:
-    """Delete a task."""
+    """Delete one or more tasks.
+
+    Positional form: clickup task delete TASK_ID --force
+    Batch form: clickup task delete --task-ids ID1,ID2 --force
+    """
 
     async def _delete_task() -> None:
+        if task_id is not None and task_ids is not None:
+            usage_error("Error: pass TASK_ID either as a positional argument OR via --task-ids, not both.")
+        target_ids = [task_id] if task_id is not None else split_csv(task_ids)
+        if not target_ids:
+            usage_error("Error: Task ID or --task-ids is required.")
+
         if not force:
             render_error("Refusing to delete without --force/--yes (this CLI never prompts).", error_type="UsageError")
             raise typer.Exit(2)
 
-        with handle_clickup_errors():
-            async with await get_client() as client:
-                await client.delete_task(task_id)
-                if get_format() == "json":
-                    render_kv({"id": task_id, "deleted": True})
-                    return
-                render_message(f"Deleted task {task_id}", "success")
+        succeeded: list[dict[str, object]] = []
+        failures: list[tuple[str, Exception]] = []
+        async with await get_client() as client:
+            for tid in target_ids:
+                try:
+                    await client.delete_task(tid)
+                    succeeded.append({"id": tid, "deleted": True})
+                except ClickUpError as e:
+                    failures.append((tid, e))
+                    render_message(f"Failed to delete task {tid}: {e}", "warn")
+
+        if get_format() == "json":
+            if len(target_ids) == 1 and not failures:
+                render_kv({"id": target_ids[0], "deleted": True})
+            else:
+                results = list(succeeded) + [{"id": tid, "deleted": False} for tid, _ in failures]
+                _print_json({"data": results, "count": len(results)})
+        else:
+            if succeeded and not failures:
+                if len(succeeded) == 1:
+                    render_message(f"Deleted task {succeeded[0]['id']}", "success")
+                else:
+                    render_message(f"Deleted {len(succeeded)} tasks.", "success")
+            elif succeeded:
+                render_message(f"Deleted {len(succeeded)}/{len(target_ids)} tasks ({len(failures)} failed).", "warn")
+
+        for tid, exc in failures:
+            render_error(f"ClickUp API Error ({tid}): {exc}", error_type=type(exc).__name__)
+        if failures:
+            raise typer.Exit(1)
 
     run_async(_delete_task())
 
@@ -883,7 +918,7 @@ def search_tasks(
 def export_tasks(
     list_id: str | None = typer.Option(None, "--list-id", "-l", help="List ID to export tasks from"),
     output_file: str = typer.Option("tasks.json", "--output", "-o", help="Output file path"),
-    format: str = typer.Option("json", "--format", "-f", help="Output format (json, csv)"),
+    output_format: str = typer.Option("json", "--output-format", help="Output format (json, csv)"),
     include_completed: bool = typer.Option(True, "--include-completed", help="Include completed tasks"),
 ) -> None:
     """Export tasks from a list to a file."""
@@ -898,7 +933,7 @@ def export_tasks(
                     filters["include_closed"] = False
 
                 tasks = await client.get_tasks(list_id_to_use, **filters)
-                if format.lower() == "json":
+                if output_format.lower() == "json":
                     import json
 
                     task_data = []
@@ -916,7 +951,7 @@ def export_tasks(
                     with open(output_file, "w", encoding="utf-8") as jsonfile:
                         json.dump(task_data, jsonfile, indent=2, ensure_ascii=False)
 
-                elif format.lower() == "csv":
+                elif output_format.lower() == "csv":
                     import csv
 
                     with open(output_file, "w", newline="", encoding="utf-8") as csvfile:
@@ -941,10 +976,10 @@ def export_tasks(
                                 }
                             )
                 else:
-                    render_error(f"Unsupported format: {format}")
+                    render_error(f"Unsupported format: {output_format}")
                     raise typer.Exit(1)
 
-                render_kv({"exported": len(tasks), "output_file": output_file, "format": format.lower()})
+                render_kv({"exported": len(tasks), "output_file": output_file, "format": output_format.lower()})
 
     run_async(_export_tasks())
 
