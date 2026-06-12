@@ -266,6 +266,20 @@ def _wants_json_mode(argv: list[str]) -> bool:
     return True
 
 
+def _format_hint(exc: click.ClickException) -> str | None:
+    """Return a targeted hint when --format is misplaced after a subcommand.
+
+    ``--format`` is a global flag on the root Typer callback. When agents
+    place it after the subcommand (e.g. ``clickup task search --format table``),
+    Click raises ``NoSuchOption`` because the subcommand doesn't declare it.
+    This helper detects that specific case and returns an actionable hint.
+    """
+    option_name = getattr(exc, "option_name", None)
+    if option_name and option_name.lstrip("-") == "format":
+        return "Global flag --format goes before the subcommand: clickup --format <table|json> <command> ..."
+    return None
+
+
 def _emit_click_error_envelope(exc: click.ClickException) -> None:
     """Render a click.ClickException as the canonical JSON error envelope.
 
@@ -277,7 +291,8 @@ def _emit_click_error_envelope(exc: click.ClickException) -> None:
     """
     ctx = getattr(exc, "ctx", None)
     command = ctx.command_path if ctx is not None and ctx.command_path else None
-    payload = error_payload(exc.format_message(), error_type=exc.__class__.__name__, command=command)
+    hint = _format_hint(exc)
+    payload = error_payload(exc.format_message(), error_type=exc.__class__.__name__, command=command, hint=hint)
     typer.echo(json.dumps(payload), err=True)
 
 
@@ -303,6 +318,9 @@ def main() -> None:
             _emit_click_error_envelope(e)
         else:
             e.show()
+            hint = _format_hint(e)
+            if hint:
+                typer.echo(f"Hint: {hint}", err=True)
         sys.exit(e.exit_code or 2)
     except click.exceptions.ClickException as e:
         # UsageError + its subclasses (NoSuchOption, BadParameter, etc.) are

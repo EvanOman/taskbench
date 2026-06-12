@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, NoReturn
 import typer
 from rich.console import Console
 
-from ..core import ClickUpError, Config, get_provider, provider_requires_credentials
+from ..core import ClickUpError, Config, get_provider, provider_name, provider_requires_credentials
 from .output import render_error
 
 if TYPE_CHECKING:
@@ -39,8 +39,33 @@ def usage_error(msg: str, hint: str | None = None) -> NoReturn:
 
 
 def resolve_list_id(list_id: str | None) -> str | None:
-    """Resolve a list ID, expanding configured aliases."""
-    return Config().resolve_list_id(list_id)
+    """Resolve a list ID, expanding configured aliases.
+
+    For the ``clickup`` provider, non-numeric values that are not configured
+    aliases are rejected early with a helpful usage error (exit 2) instead of
+    being forwarded to the API where they produce an opaque failure.
+
+    Other providers (``json``, ``planka``) use non-numeric list IDs
+    legitimately, so the strictness is skipped for them.  The check is also
+    skipped when the clickup provider has no credentials configured, since
+    the request will fail later at the ``get_client`` stage anyway (and this
+    avoids false positives in test environments where ``get_client`` is mocked).
+    """
+    config = Config()
+    resolved = config.resolve_list_id(list_id)
+    # If the caller passed a value AND it came back unchanged AND it isn't
+    # numeric, that means it didn't match any alias.  For the ClickUp SaaS
+    # provider, numeric IDs are required — surface the mismatch now.
+    # The credentials gate prevents false positives when get_client is mocked.
+    is_clickup = provider_name(config) == "clickup" and config.has_credentials()
+    if list_id is not None and resolved == list_id and not list_id.isdigit() and is_clickup:
+        aliases: dict[str, str] = config.get("default_lists") or {}
+        alias_names = ", ".join(sorted(aliases.keys())) if aliases else "(none)"
+        usage_error(
+            f"Unknown list or alias '{list_id}'. Configured aliases: {alias_names}.",
+            hint="Run 'clickup config get default_lists' to see aliases, or 'clickup setup run' to configure them.",
+        )
+    return resolved
 
 
 def split_csv(value: str | None) -> list[str]:
@@ -71,14 +96,14 @@ def resolve_list_ids(list_id: str | None, *, all_lists: bool = False) -> list[st
 
     raw_values = split_csv(list_id)
     if not raw_values:
-        resolved = config.resolve_list_id(None)
+        resolved = resolve_list_id(None)
         return [resolved] if resolved else []
-    return [resolved for raw in raw_values if (resolved := config.resolve_list_id(raw))]
+    return [resolved for raw in raw_values if (resolved := resolve_list_id(raw))]
 
 
 def require_list_id(list_id: str | None) -> str:
     """Resolve a list ID and exit 2 if none is available."""
-    resolved = Config().resolve_list_id(list_id)
+    resolved = resolve_list_id(list_id)
     if resolved:
         return resolved
     usage_error(
