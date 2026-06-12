@@ -1,0 +1,34 @@
+{
+  "commit": "afe5e5f",
+  "commit_full": "afe5e5f",
+  "timestamp": "2026-06-12T01:55:00-05:00",
+  "suite_version": 2,
+  "summary": {
+    "pass": 18,
+    "partial": 0,
+    "fail": 0,
+    "total_command_count": 60,
+    "total_elapsed_seconds": 1140
+  },
+  "notes": "First 18/18 run (v0.4.3). Task 9 passes via the documented interference clause: its 'setup --auto does not persist' finding was a harness bug — all 18 agents shared ONE config file, so concurrent save_config() writes clobbered each other (agent 12 ran the identical flow successfully). Harness fixed to per-agent config paths for future runs. Recurring CLI friction: misplaced --format hit 7/18 agents (hint recovered every occurrence) — eliminated in v0.4.4 via argv hoisting. Backlog ideas logged: batch create, --sort activity composite, search --count, export filename default, alias display in config show.",
+  "tasks": [
+    {"id": 1, "name": "identity", "verdict": "pass", "self_verdict": "pass", "command_count": 1, "elapsed_seconds": 15, "top_friction": "none"},
+    {"id": 2, "name": "list teams", "verdict": "pass", "self_verdict": "pass", "command_count": 1, "elapsed_seconds": 45, "top_friction": "none"},
+    {"id": 3, "name": "hierarchy", "verdict": "pass", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 60, "top_friction": "--format placement (hint recovered)"},
+    {"id": 4, "name": "my tasks", "verdict": "pass", "self_verdict": "pass", "command_count": 3, "elapsed_seconds": 45, "top_friction": "none"},
+    {"id": 5, "name": "sort", "verdict": "pass", "self_verdict": "pass", "command_count": 3, "elapsed_seconds": 45, "top_friction": "none"},
+    {"id": 6, "name": "create+delete", "verdict": "pass", "self_verdict": "pass", "command_count": 2, "elapsed_seconds": 45, "top_friction": "none; zero failed attempts"},
+    {"id": 7, "name": "update flow", "verdict": "pass", "self_verdict": "pass", "command_count": 5, "elapsed_seconds": 75, "top_friction": "--format placement (hint recovered); priority null-vs-int representation note"},
+    {"id": 8, "name": "search", "verdict": "pass", "self_verdict": "pass", "command_count": 3, "elapsed_seconds": 45, "top_friction": "default search output verbose; --brief solved it"},
+    {"id": 9, "name": "task get+comments", "verdict": "pass", "self_verdict": "pass", "command_count": 7, "elapsed_seconds": 90, "top_friction": "HARNESS: shared config file clobbered by sibling agents made setup --auto look broken; interference clause applied (effective ~4 cmds)"},
+    {"id": 10, "name": "export", "verdict": "pass", "self_verdict": "pass", "command_count": 2, "elapsed_seconds": 45, "top_friction": "default output filename stays tasks.csv with --format json"},
+    {"id": 11, "name": "most-active", "verdict": "pass", "self_verdict": "pass", "command_count": 3, "elapsed_seconds": 90, "top_friction": "no composite activity sort; two list stats calls"},
+    {"id": 12, "name": "no-flag flow", "verdict": "pass", "self_verdict": "pass", "command_count": 2, "elapsed_seconds": 60, "top_friction": "epilog hint said 'clickup setup' not 'setup run --auto' (fixed in 0.4.4)"},
+    {"id": 13, "name": "status workflow", "verdict": "pass", "self_verdict": "pass", "command_count": 5, "elapsed_seconds": 90, "top_friction": "none; --brief used throughout"},
+    {"id": 14, "name": "batch ops", "verdict": "pass", "self_verdict": "pass", "command_count": 6, "elapsed_seconds": 75, "top_friction": "--format placement; no batch create (criteria only requires batched close+delete)"},
+    {"id": 15, "name": "triage filter", "verdict": "pass", "self_verdict": "pass", "command_count": 3, "elapsed_seconds": 90, "top_friction": "--format placement (hint recovered)"},
+    {"id": 16, "name": "comment flow", "verdict": "pass", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 45, "top_friction": "none; zero errors"},
+    {"id": 17, "name": "error probe", "verdict": "pass", "self_verdict": "pass", "command_count": 5, "elapsed_seconds": 90, "top_friction": "ResourceAccessError type debated; message text judged fully actionable"},
+    {"id": 18, "name": "alias flow", "verdict": "pass", "self_verdict": "pass", "command_count": 5, "elapsed_seconds": 60, "top_friction": "alias map not shown in config show"}
+  ]
+}
