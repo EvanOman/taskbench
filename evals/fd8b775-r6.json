@@ -1,0 +1,35 @@
+{
+  "commit": "fd8b775",
+  "commit_full": "fd8b775",
+  "timestamp": "2026-06-12T03:25:00-05:00",
+  "suite_version": 2,
+  "rubric_version": 3,
+  "summary": {
+    "pass": 18,
+    "partial": 0,
+    "fail": 0,
+    "total_command_count": 58,
+    "total_elapsed_seconds": 1085
+  },
+  "notes": "First run under rubric v3 (v0.4.5 binary). Zero CLI-caused failed attempts, workarounds, or misleading errors across all 18 agents. Grading precedent recorded: the delete safety gate refusing without --force (task 16) is the documented contract operating as designed with a self-explanatory message ('the error message made recovery trivial') and does not count as a CLI-caused failure; task 17 probes this same refusal as exemplary behavior. Recurring backlog (non-blocking): batch create (3x across runs), composite list-stats activity sort, zero-result '0 matched (N total)' summary, search --name-only, ResourceAccessError vs NotFoundError type debate, export JSON default.",
+  "tasks": [
+    {"id": 1, "name": "identity", "verdict": "pass", "self_verdict": "pass", "command_count": 1, "elapsed_seconds": 15, "top_friction": "none"},
+    {"id": 2, "name": "list teams", "verdict": "pass", "self_verdict": "pass", "command_count": 1, "elapsed_seconds": 30, "top_friction": "none"},
+    {"id": 3, "name": "hierarchy", "verdict": "pass", "self_verdict": "pass", "command_count": 3, "elapsed_seconds": 45, "top_friction": "none; guessed --format position from help"},
+    {"id": 4, "name": "my tasks", "verdict": "pass", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 45, "top_friction": "zero-result hint idea"},
+    {"id": 5, "name": "sort", "verdict": "pass", "self_verdict": "pass", "command_count": 2, "elapsed_seconds": 45, "top_friction": "none; praised --sort help text"},
+    {"id": 6, "name": "create+delete", "verdict": "pass", "self_verdict": "pass", "command_count": 2, "elapsed_seconds": 45, "top_friction": "verbose create JSON; --brief exists"},
+    {"id": 7, "name": "update flow", "verdict": "pass", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 55, "top_friction": "none; --fields projection idea"},
+    {"id": 8, "name": "search", "verdict": "pass", "self_verdict": "pass", "command_count": 3, "elapsed_seconds": 45, "top_friction": "fuzzy full-text semantics (documented); --name-only idea"},
+    {"id": 9, "name": "task get+comments", "verdict": "pass", "self_verdict": "pass", "command_count": 5, "elapsed_seconds": 90, "top_friction": "none; --include-comments idea"},
+    {"id": 10, "name": "export", "verdict": "pass", "self_verdict": "pass", "command_count": 2, "elapsed_seconds": 60, "top_friction": "CSV default; --format namespace overlap"},
+    {"id": 11, "name": "most-active", "verdict": "pass", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 90, "top_friction": "no composite activity sort"},
+    {"id": 12, "name": "no-flag flow", "verdict": "pass", "self_verdict": "pass", "command_count": 2, "elapsed_seconds": 60, "top_friction": "suggest --brief in quickstart"},
+    {"id": 13, "name": "status workflow", "verdict": "pass", "self_verdict": "pass", "command_count": 5, "elapsed_seconds": 90, "top_friction": "task list verbosity claim (--brief exists, agent missed it)"},
+    {"id": 14, "name": "batch ops", "verdict": "pass", "self_verdict": "pass", "command_count": 5, "elapsed_seconds": 90, "top_friction": "no batch create"},
+    {"id": 15, "name": "triage filter", "verdict": "pass", "self_verdict": "pass", "command_count": 5, "elapsed_seconds": 120, "top_friction": "zero-result ambiguity cost verification commands; '0 matched (N total)' idea"},
+    {"id": 16, "name": "comment flow", "verdict": "pass", "self_verdict": "pass", "command_count": 5, "elapsed_seconds": 60, "top_friction": "delete safety gate refusal (by design; recovery instant)"},
+    {"id": 17, "name": "error probe", "verdict": "pass", "self_verdict": "pass", "command_count": 5, "elapsed_seconds": 90, "top_friction": "ResourceAccessError vs NotFoundError type debate; message judged actionable"},
+    {"id": 18, "name": "alias flow", "verdict": "pass", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 60, "top_friction": "none"}
+  ]
+}

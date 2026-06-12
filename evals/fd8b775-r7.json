@@ -1,0 +1,35 @@
+{
+  "commit": "fd8b775",
+  "commit_full": "fd8b775",
+  "timestamp": "2026-06-12T03:55:00-05:00",
+  "suite_version": 2,
+  "rubric_version": 3,
+  "summary": {
+    "pass": 18,
+    "partial": 0,
+    "fail": 0,
+    "total_command_count": 53,
+    "total_elapsed_seconds": 955
+  },
+  "notes": "Second consecutive 18/18 run on the same v0.4.5 binary under rubric v3 -- goal condition met (consistent passes). Zero CLI-caused failed attempts, workarounds, or misleading errors across all 18 agents; multiple agents explicitly reported 'zero failed attempts'. Notable: task 3 built the full hierarchy in ONE working command. Remaining non-blocking backlog (appended to issue #49): batch task create (variadic names), list stats --sort activity composite, zero-result '0 matched (N total)' hint, search --name-only filter, ResourceAccessError message should lead with the unknown-ID possibility rather than invalid-token, export-tasks JSON default, list stats mention in quickstart.",
+  "tasks": [
+    {"id": 1, "name": "identity", "verdict": "pass", "self_verdict": "pass", "command_count": 1, "elapsed_seconds": 25, "top_friction": "none"},
+    {"id": 2, "name": "list teams", "verdict": "pass", "self_verdict": "pass", "command_count": 1, "elapsed_seconds": 30, "top_friction": "none"},
+    {"id": 3, "name": "hierarchy", "verdict": "pass", "self_verdict": "pass", "command_count": 1, "elapsed_seconds": 45, "top_friction": "none; full tree in one command"},
+    {"id": 4, "name": "my tasks", "verdict": "pass", "self_verdict": "pass", "command_count": 2, "elapsed_seconds": 45, "top_friction": "README/help wording nuance on task mine scope"},
+    {"id": 5, "name": "sort", "verdict": "pass", "self_verdict": "pass", "command_count": 2, "elapsed_seconds": 45, "top_friction": "none"},
+    {"id": 6, "name": "create+delete", "verdict": "pass", "self_verdict": "pass", "command_count": 2, "elapsed_seconds": 45, "top_friction": "verbose create JSON; --brief exists"},
+    {"id": 7, "name": "update flow", "verdict": "pass", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 45, "top_friction": "none; changes-diff idea"},
+    {"id": 8, "name": "search", "verdict": "pass", "self_verdict": "pass", "command_count": 3, "elapsed_seconds": 45, "top_friction": "verbose default; --brief found via help; --name-only idea"},
+    {"id": 9, "name": "task get+comments", "verdict": "pass", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 45, "top_friction": "task list verbosity claim (--brief exists, agent missed it)"},
+    {"id": 10, "name": "export", "verdict": "pass", "self_verdict": "pass", "command_count": 2, "elapsed_seconds": 45, "top_friction": "CSV default export format"},
+    {"id": 11, "name": "most-active", "verdict": "pass", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 60, "top_friction": "list stats not hinted at top-level help"},
+    {"id": 12, "name": "no-flag flow", "verdict": "pass", "self_verdict": "pass", "command_count": 2, "elapsed_seconds": 45, "top_friction": "auto-setup notice visible in merged-stream capture (stderr)"},
+    {"id": 13, "name": "status workflow", "verdict": "pass", "self_verdict": "pass", "command_count": 6, "elapsed_seconds": 90, "top_friction": "task list --brief missed again (discoverability nuance, no failure)"},
+    {"id": 14, "name": "batch ops", "verdict": "pass", "self_verdict": "pass", "command_count": 5, "elapsed_seconds": 60, "top_friction": "no batch create; zero failed attempts"},
+    {"id": 15, "name": "triage filter", "verdict": "pass", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 90, "top_friction": "zero-result hint idea"},
+    {"id": 16, "name": "comment flow", "verdict": "pass", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 65, "top_friction": "none"},
+    {"id": 17, "name": "error probe", "verdict": "pass", "self_verdict": "pass", "command_count": 6, "elapsed_seconds": 90, "top_friction": "ResourceAccessError message should lead with unknown-ID possibility"},
+    {"id": 18, "name": "alias flow", "verdict": "pass", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 45, "top_friction": "none"}
+  ]
+}
