@@ -6,6 +6,7 @@ Covers --ids-only output mode, truncated envelope flag, and help-text assertions
 from __future__ import annotations
 
 import json
+import re
 from unittest.mock import AsyncMock, patch
 
 from typer.testing import CliRunner
@@ -253,68 +254,80 @@ class TestTruncatedFlag:
 # ==========================================================================
 
 
+def _plain_help(result) -> str:
+    """Normalize CLI help output for substring assertions.
+
+    Rich colors flag tokens and wraps panel cells differently per
+    environment (GitHub Actions enables ANSI; local CliRunner does not),
+    so strip escape codes and box-drawing, then collapse whitespace.
+    """
+    text = re.sub(r"\x1b\[[0-9;]*m", "", result.stdout)
+    text = re.sub(r"[\u2502\u256d\u256e\u2570\u256f\u2500]", " ", text)
+    return " ".join(text.split())
+
+
 class TestHelpText:
     def test_list_stats_help_mentions_space_id(self) -> None:
         """Item 3: list stats help mentions --space-id to narrow."""
         result = runner.invoke(app, ["list", "stats", "--help"])
         assert result.exit_code == 0
-        assert "use --space-id to narrow" in result.stdout
+        assert "use --space-id to narrow" in _plain_help(result)
 
     def test_brief_help_is_compact(self) -> None:
         """Item 4: --brief help lists actual fields."""
         result = runner.invoke(app, ["task", "list", "--help"])
         assert result.exit_code == 0
-        assert "Compact projection" in result.stdout
-        assert "date_updated" in result.stdout
+        assert "Compact projection" in _plain_help(result)
+        assert "date_updated" in _plain_help(result)
 
     def test_brief_help_on_get(self) -> None:
         result = runner.invoke(app, ["task", "get", "--help"])
         assert result.exit_code == 0
-        assert "Compact projection" in result.stdout
+        assert "Compact projection" in _plain_help(result)
 
     def test_brief_help_on_mine(self) -> None:
         result = runner.invoke(app, ["task", "mine", "--help"])
         assert result.exit_code == 0
-        assert "Compact projection" in result.stdout
+        assert "Compact projection" in _plain_help(result)
 
     def test_brief_help_on_search(self) -> None:
         result = runner.invoke(app, ["task", "search", "--help"])
         assert result.exit_code == 0
-        assert "Compact projection" in result.stdout
+        assert "Compact projection" in _plain_help(result)
 
     def test_brief_help_on_create(self) -> None:
         result = runner.invoke(app, ["task", "create", "--help"])
         assert result.exit_code == 0
-        assert "Compact projection" in result.stdout
+        assert "Compact projection" in _plain_help(result)
 
     def test_brief_help_on_update(self) -> None:
         result = runner.invoke(app, ["task", "update", "--help"])
         assert result.exit_code == 0
-        assert "Compact projection" in result.stdout
+        assert "Compact projection" in _plain_help(result)
 
     def test_brief_help_on_done(self) -> None:
         result = runner.invoke(app, ["task", "done", "--help"])
         assert result.exit_code == 0
-        assert "Compact projection" in result.stdout
+        assert "Compact projection" in _plain_help(result)
 
     def test_brief_help_on_status(self) -> None:
         result = runner.invoke(app, ["task", "status", "--help"])
         assert result.exit_code == 0
-        assert "Compact projection" in result.stdout
+        assert "Compact projection" in _plain_help(result)
 
     def test_bulk_export_help_mentions_default_list(self) -> None:
         """Item 5: bulk export-tasks help mentions the default-list fallback."""
         result = runner.invoke(app, ["bulk", "export-tasks", "--help"])
         assert result.exit_code == 0
-        assert "Defaults to the configured default list" in result.stdout
+        assert "Defaults to the configured default list" in _plain_help(result)
 
     def test_task_group_help_mentions_comments(self) -> None:
         """Item 7: task group help mentions the comments subgroup."""
         result = runner.invoke(app, ["task", "--help"])
         assert result.exit_code == 0
-        assert "comments" in result.stdout.lower()
+        assert "comments" in _plain_help(result).lower()
         # Verify it specifically mentions the subgroup path
-        assert "clickup task comments" in result.stdout
+        assert "clickup task comments" in _plain_help(result)
 
 
 # ==========================================================================
