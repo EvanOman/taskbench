@@ -3,6 +3,7 @@
 import asyncio
 import json
 import sys
+from typing import Any, cast
 
 import click
 import typer
@@ -21,7 +22,41 @@ app = typer.Typer(
     add_completion=False,
     rich_markup_mode="rich",
     epilog="New here? Run [bold]clickup setup[/bold] to get started.",
+    # Rich tracebacks on stderr drown the structured error envelope agents
+    # parse; main() below renders all expected errors itself.
+    pretty_exceptions_enable=False,
 )
+
+# Newer typer releases vendor click (typer._click) when the installed click is
+# incompatible; exceptions raised during parsing then come from the vendored
+# module and are NOT subclasses of the real click's exception classes. Catch
+# both families so main()'s envelope/exit-code contract holds in every
+# resolution (this bit us via uvx: dev had typer 0.16/real click, fresh
+# installs got typer 0.26/vendored click and raw tracebacks).
+try:
+    from typer import _click as _typer_click
+
+    _USAGE_ERROR_TYPES: tuple[type[BaseException], ...] = (
+        click.exceptions.UsageError,
+        _typer_click.exceptions.UsageError,
+    )
+    _CLICK_EXCEPTION_TYPES: tuple[type[BaseException], ...] = (
+        click.exceptions.ClickException,
+        _typer_click.exceptions.ClickException,
+    )
+    _ABORT_TYPES: tuple[type[BaseException], ...] = (
+        click.exceptions.Abort,
+        _typer_click.exceptions.Abort,
+    )
+    _EXIT_TYPES: tuple[type[BaseException], ...] = (
+        click.exceptions.Exit,
+        _typer_click.exceptions.Exit,
+    )
+except (ImportError, AttributeError):
+    _USAGE_ERROR_TYPES = (click.exceptions.UsageError,)
+    _CLICK_EXCEPTION_TYPES = (click.exceptions.ClickException,)
+    _ABORT_TYPES = (click.exceptions.Abort,)
+    _EXIT_TYPES = (click.exceptions.Exit,)
 
 _FORMAT_OPTION = typer.Option(
     None,
@@ -266,7 +301,7 @@ def _wants_json_mode(argv: list[str]) -> bool:
     return True
 
 
-def _format_hint(exc: click.ClickException) -> str | None:
+def _format_hint(exc: Any) -> str | None:
     """Return a targeted hint when --format is misplaced after a subcommand.
 
     ``--format`` is a global flag on the root Typer callback. When agents
@@ -280,7 +315,7 @@ def _format_hint(exc: click.ClickException) -> str | None:
     return None
 
 
-def _emit_click_error_envelope(exc: click.ClickException) -> None:
+def _emit_click_error_envelope(exc: Any) -> None:
     """Render a click.ClickException as the canonical JSON error envelope.
 
     This closes the last gap from issue #29 P0 #2: Typer/Click usage errors
@@ -313,31 +348,34 @@ def main() -> None:
         result = app(standalone_mode=False)
         if isinstance(result, int) and result != 0:
             sys.exit(result)
-    except click.exceptions.UsageError as e:
+    except _USAGE_ERROR_TYPES as e:
+        usage_exc = cast(Any, e)
         if json_mode:
-            _emit_click_error_envelope(e)
+            _emit_click_error_envelope(usage_exc)
         else:
-            e.show()
-            hint = _format_hint(e)
+            usage_exc.show()
+            hint = _format_hint(usage_exc)
             if hint:
                 typer.echo(f"Hint: {hint}", err=True)
-        sys.exit(e.exit_code or 2)
-    except click.exceptions.ClickException as e:
+        sys.exit(usage_exc.exit_code or 2)
+    except _CLICK_EXCEPTION_TYPES as e:
         # UsageError + its subclasses (NoSuchOption, BadParameter, etc.) are
         # caught above; this clause catches the other ClickException branch,
         # most realistically FileError.
+        click_exc = cast(Any, e)
         if json_mode:
-            _emit_click_error_envelope(e)
+            _emit_click_error_envelope(click_exc)
         else:
-            e.show()
-        sys.exit(e.exit_code or 1)
-    except click.exceptions.Abort:
+            click_exc.show()
+        sys.exit(click_exc.exit_code or 1)
+    except _ABORT_TYPES:
         # Ctrl+C path; mirror Click's default exit code without the noisy
         # Rich traceback typer emits otherwise.
         sys.exit(1)
-    except click.exceptions.Exit as e:
+    except _EXIT_TYPES as e:
         # typer.Exit raises this with an explicit code; honor it.
-        sys.exit(e.exit_code)
+        exit_exc = cast(Any, e)
+        sys.exit(exit_exc.exit_code)
     except KeyboardInterrupt:
         # Match the JSON contract on stderr in JSON mode; Rich prose for humans.
         if json_mode:

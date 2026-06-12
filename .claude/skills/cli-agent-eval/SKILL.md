@@ -27,7 +27,8 @@ When the user asks for an eval / benchmark / agent-usability check, or right aft
    uv cache clean clickup-toolkit
    uvx --python 3.13 --from /home/evan/dev/clickup-tools clickup version
    ```
-   Then verify freshness with a **behavioral sentinel**, not just the version number: pick a command/flag added by the most recent merged PR and confirm plain `uvx --python 3.13 --from /home/evan/dev/clickup-tools clickup ... --help` shows it. If no recent surface change exists, bump the patch version before the eval so the cache key changes. Do not dispatch until the sentinel passes.
+   If `uv cache clean` times out on the cache lock (concurrent uv processes hold it), bump the patch version instead — a new version is a new cache key, which sidesteps the stale archive entirely.
+   Then verify freshness with a **behavioral sentinel**, not just the version number: pick a command/flag added by the most recent merged PR and confirm plain `uvx --python 3.13 --from /home/evan/dev/clickup-tools clickup ... --help` shows it. A good standing sentinel: `clickup task list --list-id 1 --format json` must emit a one-line JSON error envelope with a hint (not a rich traceback). Do not dispatch until the sentinel passes.
 4. Confirm the user's workspace state. Real values for the eval:
    - User: Evan Oman, ID `150240437`, email `evan058@gmail.com`
    - Workspace: `90131945555` ("Evan Oman's Workspace") — singleton
