@@ -12,7 +12,7 @@ from rich.table import Table
 
 from ...core import ClickUpError
 from ..output import _print_json, get_format, render_error, render_kv, render_message
-from ..shared import get_client, require_list_id, resolve_list_ids
+from ..shared import gather_bounded, get_client, require_list_id, resolve_list_ids
 from ..utils import run_async
 
 app = typer.Typer(help="Bulk operations and import/export")
@@ -202,37 +202,38 @@ def import_tasks(
                 created_count = 0
                 failed_count = 0
 
-                # Process in batches
+                def _prepare(td: dict[str, Any]) -> dict[str, Any]:
+                    d: dict[str, Any] = {"name": td.get("name", "Untitled Task")}
+                    if td.get("description"):
+                        d["description"] = td["description"]
+                    if td.get("priority"):
+                        try:
+                            d["priority"] = int(td["priority"])
+                        except (ValueError, TypeError):
+                            pass
+                    if td.get("due_date"):
+                        d["due_date"] = td["due_date"]
+                    return d
+
+                # Process in batches with bounded concurrency
                 for i in range(0, len(tasks_data), batch_size):
                     batch = tasks_data[i : i + batch_size]
-
-                    for task_data in batch:
-                        try:
-                            # Prepare task creation data
-                            create_data: dict[str, Any] = {"name": task_data.get("name", "Untitled Task")}
-
-                            if task_data.get("description"):
-                                create_data["description"] = task_data["description"]
-                            if task_data.get("priority"):
-                                try:
-                                    create_data["priority"] = int(task_data["priority"])
-                                except (ValueError, TypeError):
-                                    pass
-                            if task_data.get("due_date"):
-                                create_data["due_date"] = task_data["due_date"]
-
-                            # Create task
-                            await client.create_task(list_id_to_use, **create_data)
-                            created_count += 1
-
-                        except Exception as e:
+                    coros = [client.create_task(list_id_to_use, **_prepare(td)) for td in batch]
+                    results = await gather_bounded(coros, limit=batch_size)
+                    for td, result in zip(batch, results, strict=False):
+                        if isinstance(result, BaseException):
                             render_message(
-                                f"Failed to create task '{task_data.get('name', 'Unknown')}': {e}",
+                                f"Failed to create task '{td.get('name', 'Unknown')}': {result}",
                                 level="warn",
                             )
                             failed_count += 1
+                        else:
+                            created_count += 1
 
-                render_kv({"created": created_count, "failed": failed_count})
+                summary: dict[str, Any] = {"created": created_count, "failed": failed_count}
+                render_kv(summary)
+                if failed_count:
+                    raise typer.Exit(1)
 
         except ClickUpError as e:
             render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
@@ -297,14 +298,17 @@ def bulk_update(
                 if filter_status:
                     filters["statuses"] = [filter_status]
 
-                # Gather tasks across all lists
+                # Gather tasks across all lists (bounded concurrency)
                 all_tasks: list[tuple[str, Any]] = []  # (list_id, task) pairs
-                for lid in list_ids_to_use:
-                    try:
-                        tasks = await client.get_tasks(lid, **filters)
-                        all_tasks.extend((lid, t) for t in tasks)
-                    except ClickUpError as e:
-                        render_message(f"Failed to fetch tasks from list {lid}: {e}", level="warn")
+                fetch_results = await gather_bounded(
+                    [client.get_tasks(lid, **filters) for lid in list_ids_to_use],
+                    limit=5,
+                )
+                for lid, result in zip(list_ids_to_use, fetch_results, strict=False):
+                    if isinstance(result, BaseException):
+                        render_message(f"Failed to fetch tasks from list {lid}: {result}", level="warn")
+                    else:
+                        all_tasks.extend((lid, t) for t in result)
 
                 if not all_tasks:
                     render_message("No tasks found matching criteria.", level="info")
@@ -370,19 +374,24 @@ def bulk_update(
                     )
                     raise typer.Exit(2)
 
-                # Apply updates — continue through failures (per commit 21a78ca pattern)
+                # Apply updates — bounded concurrency, continue through failures
+                update_results = await gather_bounded(
+                    [client.update_task(task.id, **updates) for _lid, task in all_tasks],
+                    limit=5,
+                )
                 updated_count = 0
                 failed_count = 0
-
-                for _lid, task in all_tasks:
-                    try:
-                        await client.update_task(task.id, **updates)
-                        updated_count += 1
-                    except Exception as e:
-                        render_message(f"Failed to update task '{task.name}': {e}", level="warn")
+                for (_lid, task), result in zip(all_tasks, update_results, strict=False):
+                    if isinstance(result, BaseException):
+                        render_message(f"Failed to update task '{task.name}': {result}", level="warn")
                         failed_count += 1
+                    else:
+                        updated_count += 1
 
-                render_kv({"updated": updated_count, "failed": failed_count})
+                summary: dict[str, Any] = {"updated": updated_count, "failed": failed_count}
+                render_kv(summary)
+                if failed_count:
+                    raise typer.Exit(1)
 
         except ClickUpError as e:
             render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)

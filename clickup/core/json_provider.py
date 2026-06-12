@@ -250,19 +250,25 @@ class JsonProvider:
         data["task_count"] = str(total_tasks)
         return Folder(**data)
 
-    def _resolve_status(self, list_data: dict[str, Any], name: str) -> dict[str, Any]:
+    def _resolve_status(
+        self, list_data: dict[str, Any], name: str, store: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         """Look up a status by name on the given list, falling back to its space.
 
         Returns the full status object (with color/type/orderindex) so updates
         echo the same shape as `task statuses`. Raises ``ValidationError`` if
         the name is unknown — matching what the real ClickUp API does for
         invalid statuses, so the local provider doesn't silently swallow typos.
+
+        When ``store`` is provided, the space-level fallback uses it directly
+        instead of re-reading from disk.
         """
         for status in list_data.get("statuses") or []:
             if status.get("status", "").lower() == name.lower():
                 return deepcopy(status)
         space = list_data.get("space") or {}
-        store = self._load()
+        if store is None:
+            store = self._load()
         space_statuses: list[dict[str, Any]] = []
         for space_data in store.get("spaces", []):
             if space_data.get("id") == space.get("id"):
@@ -450,7 +456,7 @@ class JsonProvider:
             "id": task_id,
             "name": name,
             "description": kwargs.pop("description", None),
-            "status": self._resolve_status(list_data, status) if isinstance(status, str) else status,
+            "status": self._resolve_status(list_data, status, store) if isinstance(status, str) else status,
             "date_created": now,
             "date_updated": now,
             "archived": False,
@@ -471,7 +477,7 @@ class JsonProvider:
         list_data = self._list_data(store, task.get("list", {}).get("id", ""))
         for key, value in updates.items():
             if key == "status" and isinstance(value, str):
-                task[key] = self._resolve_status(list_data, value)
+                task[key] = self._resolve_status(list_data, value, store)
             elif key == "priority" and value is not None:
                 task[key] = {"id": str(value), "priority": str(value)}
             else:

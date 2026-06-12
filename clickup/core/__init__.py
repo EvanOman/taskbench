@@ -12,6 +12,7 @@ from .exceptions import (
     NetworkError,
     NotFoundError,
     RateLimitError,
+    RequestTimeoutError,
     ServerError,
     ValidationError,
 )
@@ -40,6 +41,7 @@ __all__ = [
     "RateLimitError",
     "ServerError",
     "NetworkError",
+    "RequestTimeoutError",
     "ConfigurationError",
     "ValidationError",
 ]

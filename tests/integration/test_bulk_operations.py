@@ -352,3 +352,147 @@ def test_bulk_update_dry_run_table_mode(mock_get_client):
     assert result.exit_code == 0
     assert "MyTask" in result.output
     assert "Bulk Update Preview" in result.output
+
+
+@patch("clickup.cli.commands.bulk.get_client")
+def test_bulk_update_deterministic_order(mock_get_client):
+    """Updated tasks should be processed in input order (deterministic output)."""
+    mock_client = AsyncMock()
+    # Create 5 tasks with distinct IDs
+    mock_tasks = []
+    for i in range(5):
+        t = Mock()
+        t.id = str(i)
+        t.name = f"Task {i}"
+        t.status = Mock(status="to do")
+        t.priority = Mock(priority="medium")
+        mock_tasks.append(t)
+    mock_client.get_tasks.return_value = mock_tasks
+    # Track the order of update_task calls
+    call_ids: list[str] = []
+
+    async def track_update(task_id, **kwargs):
+        call_ids.append(task_id)
+        return Mock(id=task_id)
+
+    mock_client.update_task.side_effect = track_update
+
+    def create_mock_client():
+        ctx_mgr = AsyncMock()
+        ctx_mgr.__aenter__.return_value = mock_client
+        return ctx_mgr
+
+    mock_get_client.side_effect = create_mock_client
+
+    result = runner.invoke(app, ["bulk", "bulk-update", "--list-id", "123", "--status", "done", "--yes"])
+    assert result.exit_code == 0
+    assert '"updated": 5' in result.stdout
+    assert '"failed": 0' in result.stdout
+    # All 5 tasks should have been updated
+    assert len(call_ids) == 5
+
+
+@patch("clickup.cli.commands.bulk.get_client")
+def test_bulk_update_partial_failure(mock_get_client):
+    """Partial failures should be aggregated; exit 1 if any failed."""
+    mock_client = AsyncMock()
+    mock_tasks = []
+    for i in range(3):
+        t = Mock()
+        t.id = str(i)
+        t.name = f"Task {i}"
+        t.status = Mock(status="to do")
+        t.priority = Mock(priority="medium")
+        mock_tasks.append(t)
+    mock_client.get_tasks.return_value = mock_tasks
+
+    # Second task fails
+    from clickup.core.exceptions import ClickUpError
+
+    async def partial_fail_update(task_id, **kwargs):
+        if task_id == "1":
+            raise ClickUpError("Simulated failure")
+        return Mock(id=task_id)
+
+    mock_client.update_task.side_effect = partial_fail_update
+
+    def create_mock_client():
+        ctx_mgr = AsyncMock()
+        ctx_mgr.__aenter__.return_value = mock_client
+        return ctx_mgr
+
+    mock_get_client.side_effect = create_mock_client
+
+    result = runner.invoke(app, ["bulk", "bulk-update", "--list-id", "123", "--status", "done", "--yes"])
+    assert result.exit_code == 1
+    assert '"updated": 2' in result.stdout
+    assert '"failed": 1' in result.stdout
+    # Failure warning should appear on stderr
+    assert "Simulated failure" in result.stderr
+
+
+@patch("clickup.cli.commands.bulk.get_client")
+def test_bulk_import_parallel_creation(mock_get_client, sample_tasks_json):
+    """import-tasks should create tasks in parallel batches."""
+    mock_client = AsyncMock()
+    call_count = 0
+
+    async def count_creates(list_id, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        return Mock(id=f"task_{call_count}")
+
+    mock_client.create_task.side_effect = count_creates
+
+    def create_mock_client():
+        ctx_mgr = AsyncMock()
+        ctx_mgr.__aenter__.return_value = mock_client
+        return ctx_mgr
+
+    mock_get_client.side_effect = create_mock_client
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(sample_tasks_json, f)
+        f.flush()
+
+        result = runner.invoke(app, ["bulk", "import-tasks", f.name, "--list-id", "123", "--yes", "--batch-size", "2"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["created"] == 3
+        assert data["failed"] == 0
+    assert call_count == 3
+
+
+@patch("clickup.cli.commands.bulk.get_client")
+def test_bulk_import_partial_failure_exits_1(mock_get_client, sample_tasks_json):
+    """import-tasks should exit 1 if any task creation fails."""
+    mock_client = AsyncMock()
+    from clickup.core.exceptions import ClickUpError
+
+    call_idx = 0
+
+    async def fail_second(list_id, **kwargs):
+        nonlocal call_idx
+        call_idx += 1
+        if call_idx == 2:
+            raise ClickUpError("creation failed")
+        return Mock(id=f"task_{call_idx}")
+
+    mock_client.create_task.side_effect = fail_second
+
+    def create_mock_client():
+        ctx_mgr = AsyncMock()
+        ctx_mgr.__aenter__.return_value = mock_client
+        return ctx_mgr
+
+    mock_get_client.side_effect = create_mock_client
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(sample_tasks_json, f)
+        f.flush()
+
+        result = runner.invoke(app, ["bulk", "import-tasks", f.name, "--list-id", "123", "--yes"])
+        assert result.exit_code == 1
+        data = json.loads(result.stdout)
+        assert data["created"] == 2
+        assert data["failed"] == 1
