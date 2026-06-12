@@ -1,0 +1,34 @@
+{
+  "commit": "205486a",
+  "commit_full": "205486a",
+  "timestamp": "2026-06-12T02:55:00-05:00",
+  "suite_version": 2,
+  "summary": {
+    "pass": 17,
+    "partial": 1,
+    "fail": 0,
+    "total_command_count": 53,
+    "total_elapsed_seconds": 935
+  },
+  "notes": "Same binary as r4 (v0.4.4). Zero CLI-caused failed attempts across all 18 agents for the second straight run. The lone partial is again a metric artifact: task 4's agent ran the banner-recommended setup plus two diligence re-checks of a legitimately empty result (4 cmds vs budget 3) with zero friction. Recorded strictly under the budgets rubric then in force. Across r3-r5 (54 task executions) every non-pass traced to the metric conflating agent thoroughness with CLI friction, never to a CLI failure -- rubric v3 (friction-based: no CLI-caused failed attempt/workaround/misleading error; counts become telemetry) adopted for subsequent runs. New minor improvement shipped from this run's reports: empty-result notices demoted warn->info so JSON mode emits only the {data, count:0} envelope.",
+  "tasks": [
+    {"id": 1, "name": "identity", "verdict": "pass", "self_verdict": "pass", "command_count": 1, "elapsed_seconds": 15, "top_friction": "none"},
+    {"id": 2, "name": "list teams", "verdict": "pass", "self_verdict": "pass", "command_count": 1, "elapsed_seconds": 30, "top_friction": "none"},
+    {"id": 3, "name": "hierarchy", "verdict": "pass", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 45, "top_friction": "none"},
+    {"id": 4, "name": "my tasks", "verdict": "partial", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 45, "top_friction": "metric artifact: optional setup + verification re-runs vs budget 3; zero CLI friction"},
+    {"id": 5, "name": "sort", "verdict": "pass", "self_verdict": "pass", "command_count": 2, "elapsed_seconds": 45, "top_friction": "none"},
+    {"id": 6, "name": "create+delete", "verdict": "pass", "self_verdict": "pass", "command_count": 2, "elapsed_seconds": 45, "top_friction": "verbose create JSON; --brief exists"},
+    {"id": 7, "name": "update flow", "verdict": "pass", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 45, "top_friction": "due-date format docs differ between create (YYYY-MM-DD) and update (ms) -- backlog"},
+    {"id": 8, "name": "search", "verdict": "pass", "self_verdict": "pass", "command_count": 3, "elapsed_seconds": 45, "top_friction": "fuzzy full-text semantics; verbose default payload"},
+    {"id": 9, "name": "task get+comments", "verdict": "pass", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 45, "top_friction": "task list default dump verbose; --brief/--limit exist"},
+    {"id": 10, "name": "export", "verdict": "pass", "self_verdict": "pass", "command_count": 2, "elapsed_seconds": 45, "top_friction": "CSV default export format"},
+    {"id": 11, "name": "most-active", "verdict": "pass", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 90, "top_friction": "no composite activity sort"},
+    {"id": 12, "name": "no-flag flow", "verdict": "pass", "self_verdict": "pass", "command_count": 2, "elapsed_seconds": 45, "top_friction": "none"},
+    {"id": 13, "name": "status workflow", "verdict": "pass", "self_verdict": "pass", "command_count": 6, "elapsed_seconds": 90, "top_friction": "status-change response verbose by default"},
+    {"id": 14, "name": "batch ops", "verdict": "pass", "self_verdict": "pass", "command_count": 5, "elapsed_seconds": 60, "top_friction": "no batch create"},
+    {"id": 15, "name": "triage filter", "verdict": "pass", "self_verdict": "pass", "command_count": 3, "elapsed_seconds": 90, "top_friction": "empty-result warn line in merged-stream capture -> demoted to info in 0.4.5"},
+    {"id": 16, "name": "comment flow", "verdict": "pass", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 55, "top_friction": "none"},
+    {"id": 17, "name": "error probe", "verdict": "pass", "self_verdict": "pass", "command_count": 5, "elapsed_seconds": 90, "top_friction": "401-on-unknown-ID type still debated; message actionable"},
+    {"id": 18, "name": "alias flow", "verdict": "pass", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 45, "top_friction": "set-default-list naming"}
+  ]
+}

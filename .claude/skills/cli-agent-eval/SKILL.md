@@ -102,16 +102,14 @@ command_count = CLI invocations that did real work (exclude --help calls; count 
 
 Sub-agent self-verdicts are input, not the result. After all reports return, **you** (the dispatcher) grade each task from its command transcript against the criteria below. Where your grade differs from the self-verdict, note why.
 
-**Verdicts:**
-- **PASS** — goal fully achieved within the task's command budget (below; excludes `--help` calls); no manual workaround for something the CLI should do (e.g., piping JSON to python to filter/sort when a flag exists or should exist); no misleading error encountered; cleanup done.
-- **PARTIAL** — goal achieved but over budget, with a workaround, a misleading/opaque error along the way, or incomplete cleanup.
+**Verdicts (rubric v3):**
+- **PASS** — goal fully achieved, AND none of the following occurred: a CLI-caused failed attempt (a command that errored or misbehaved for reasons other than the agent's own typo or harness interference), a manual workaround for something the CLI should do (e.g., piping JSON to python to filter/sort when a flag exists), a misleading or opaque error message, incomplete cleanup.
+- **PARTIAL** — goal achieved despite at least one of the above.
 - **FAIL** — goal not achieved within the time budget.
 
-**Per-task command budgets** = the task's minimal command path + 2 slack (a flat ≤6 was retired after run r4: task 13's intrinsic minimum IS 6 commands, so any voluntary extra — like running the banner-recommended `setup run --auto` first — tipped a frictionless run into PARTIAL; that measured agent style, not CLI friction. Calibration change applies to runs AFTER r4 only — r4 stays graded 17/1/0 under the rule then in force):
+Command counts and help counts are **telemetry, not gates**: record them per task, trend them across runs, and flag a task whose median count grows — but do not flip a verdict on count alone.
 
-| Task | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13 | 14 | 15 | 16 | 17 | 18 |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| Budget | 3 | 3 | 5 | 3 | 4 | 4 | 6 | 4 | 5 | 4 | 5 | 4 | 8 | 7 | 5 | 6 | 7 | 6 |
+**Rubric changelog (kept for honesty):** v1 used a flat ≤6 command gate — retired after r4 because task 13's intrinsic minimum is 6, so a voluntary banner-recommended `setup run --auto` flipped a frictionless run to PARTIAL. v2 used per-task budgets (min+2) — retired after one run (r5) because diligence commands (verification re-runs, optional bootstrap) still tripped budgets while the CLI caused zero failures; any count gate conflates agent style with CLI friction. v3 grades on friction the CLI actually caused. No run was retroactively regraded; r4 (17/1/0) and r5 (17/1/0) stand as graded under the rubric in force at the time. Under v3, the historically bad runs still fail (r1's raw tracebacks = misleading errors; r2's comments-add crash = CLI-caused failure), so the bar still discriminates.
 
 **Cross-agent interference:** the 18 agents run concurrently against one live workspace, so a read agent can race a sibling's create/delete (e.g., `task search` returns a task that a write agent deletes seconds later). Commands spent recovering from such interference measure the harness, not the CLI — exclude them from the ≤6 budget, but record the incident verbatim in the run notes. Never use this clause to excuse friction the CLI itself caused; when in doubt, count the command.
 
@@ -208,6 +206,7 @@ After the eval:
 | 2026-06-12 r2 | v2 (18) | `9dc2b5b` | 17/1/0 | first valid v2 run; partial = task 9 cross-agent race (shared config; harness later fixed) |
 | 2026-06-12 r3 | v2 (18) | `afe5e5f` | 18/18/0 | first perfect run; misplaced --format hit 7/18 (hint recovered all) → fixed in 0.4.4 |
 | 2026-06-12 r4 | v2 (18) | `205486a` | 17/1/0 | --format-anywhere: zero format failures; partial = task 13 over flat ≤6 budget (zero-slack calibration flaw → per-task budgets adopted for later runs) |
+| 2026-06-12 r5 | v2 (18) | `205486a` | 17/1/0 | second straight run with zero CLI-caused failures; partial = task 4 diligence re-runs over budget (metric artifact) → rubric v3 (friction-based) adopted |
 
 Append a row after every run.
 

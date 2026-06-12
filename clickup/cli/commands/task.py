@@ -155,7 +155,7 @@ def list_tasks(
                 tasks = tasks[:limit]
                 render_tasks(tasks, brief=brief)
                 if not tasks:
-                    render_message("No tasks found.", "warn")
+                    render_message("No tasks found.", "info")
 
     run_async(_list_tasks())
 
@@ -256,7 +256,7 @@ def my_tasks(
                 tasks = tasks[:limit]
                 render_tasks(tasks, brief=brief)
                 if not tasks:
-                    render_message("No tasks assigned to you.", "warn")
+                    render_message("No tasks assigned to you.", "info")
                 else:
                     render_message(f"Showing {len(tasks)} task(s) assigned to {user.username}.", "info")
 
@@ -707,9 +707,9 @@ def search_tasks(
                 render_tasks(tasks, brief=brief)
                 if not tasks:
                     if query:
-                        render_message(f"No tasks found matching '{query}'", "warn")
+                        render_message(f"No tasks found matching '{query}'", "info")
                     else:
-                        render_message("No tasks found.", "warn")
+                        render_message("No tasks found.", "info")
                 else:
                     render_message(f"Found {len(tasks)} task(s)", "info")
 
@@ -801,7 +801,7 @@ def list_comments(
                 comments = await client.get_task_comments(task_id)
                 render_comments(comments)
                 if not comments:
-                    render_message(f"No comments on task {task_id}.", "warn")
+                    render_message(f"No comments on task {task_id}.", "info")
                 else:
                     render_message(f"{len(comments)} comment(s)", "info")
 

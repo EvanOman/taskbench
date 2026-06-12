@@ -786,11 +786,12 @@ def test_task_list_empty(mock_get_client):
     result = runner.invoke(app, ["task", "list", "--list-id", "empty_list"])
 
     assert result.exit_code == 0
-    # New behavior: always emit an empty data envelope to stdout in JSON mode.
-    # The "No tasks found" warn message goes to stderr.
+    # Empty results emit only the data envelope in JSON mode; the
+    # "No tasks found" notice is info-level and suppressed (the count
+    # already carries the signal).
     data = json.loads(result.stdout)
     assert data == {"data": [], "count": 0}
-    assert "No tasks found" in result.output
+    assert "No tasks found" not in result.stdout
 
 
 @patch("clickup.cli.commands.task.get_client")
@@ -1346,7 +1347,7 @@ def test_task_search_empty(mock_get_client):
 
     result = runner.invoke(app, ["task", "search", "--query", "foo", "--workspace-id", "W1"])
     assert result.exit_code == 0
-    assert "No tasks found" in result.stderr
+    assert "No tasks found" not in result.stdout  # info-level notice suppressed in JSON mode
 
 
 @patch("clickup.cli.commands.task.get_client")
@@ -1457,7 +1458,7 @@ def test_task_mine_auto_detects_single_workspace(mock_get_client):
 
     result = runner.invoke(app, ["task", "mine"])
     assert result.exit_code == 0
-    assert "No tasks assigned" in result.stderr
+    assert "No tasks assigned" not in result.stdout  # info-level notice suppressed in JSON mode
 
 
 @patch("clickup.cli.commands.task.get_client")
@@ -1515,7 +1516,7 @@ def test_task_comments_list_empty(mock_get_client):
 
     result = runner.invoke(app, ["task", "comments", "list", "t1"])
     assert result.exit_code == 0
-    assert "No comments" in result.stderr
+    assert "No comments" not in result.stdout  # info-level notice suppressed in JSON mode
 
 
 @patch("clickup.cli.commands.task.get_client")
