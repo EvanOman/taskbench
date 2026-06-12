@@ -207,6 +207,8 @@ After the eval:
 | 2026-06-12 r3 | v2 (18) | `afe5e5f` | 18/18/0 | first perfect run; misplaced --format hit 7/18 (hint recovered all) → fixed in 0.4.4 |
 | 2026-06-12 r4 | v2 (18) | `205486a` | 17/1/0 | --format-anywhere: zero format failures; partial = task 13 over flat ≤6 budget (zero-slack calibration flaw → per-task budgets adopted for later runs) |
 | 2026-06-12 r5 | v2 (18) | `205486a` | 17/1/0 | second straight run with zero CLI-caused failures; partial = task 4 diligence re-runs over budget (metric artifact) → rubric v3 (friction-based) adopted |
+| 2026-06-12 r6 | v2 (18), rubric v3 | `fd8b775` | **18/18/0** | zero CLI-caused failures; precedent: delete safety-gate refusal is the documented contract, not a failure |
+| 2026-06-12 r7 | v2 (18), rubric v3 | `fd8b775` | **18/18/0** | second consecutive clean run on the same binary — consistency goal met; remaining ideas appended to issue #49 |
 
 Append a row after every run.
 
