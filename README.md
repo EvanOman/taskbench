@@ -98,9 +98,9 @@ Agents shouldn't have to run discovery commands every time they create a task. M
 clickup setup run --auto     # one-shot non-interactive: auto-picks workspace/space/list
 clickup setup run            # same, but interactive prompts (for humans)
 # or set the alias map by hand:
-clickup config set-default-list omegapoint <list-id>
-clickup config set-default-list overhead <list-id>
-clickup config set-default-list personal <list-id>
+clickup config alias omegapoint <list-id>
+clickup config alias overhead <list-id>
+clickup config alias personal <list-id>
 clickup config set default_status on-deck   # tasks land in your "ready" column by default
 ```
 

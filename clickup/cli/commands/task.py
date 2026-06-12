@@ -801,7 +801,7 @@ def search_tasks(
 @app.command("export")
 def export_tasks(
     list_id: str | None = typer.Option(None, "--list-id", "-l", help="List ID to export tasks from"),
-    output_file: str = typer.Option("tasks.json", "--output", "-o", help="Output file path"),
+    output_file: str | None = typer.Option(None, "--output", "-o", help="Output file path (default: tasks.<format>)"),
     output_format: str = typer.Option("json", "--output-format", help="Output format (json, csv)"),
     include_completed: bool = typer.Option(True, "--include-completed", help="Include completed tasks"),
 ) -> None:
@@ -809,6 +809,8 @@ def export_tasks(
 
     async def _export_tasks() -> None:
         list_id_to_use = require_list_id(list_id)
+        nonlocal output_file
+        output_file = output_file or f"tasks.{output_format.lower()}"
 
         with handle_clickup_errors():
             async with await get_client() as client:

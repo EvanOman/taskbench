@@ -163,7 +163,7 @@ class TestListStatsJson:
         assert payload["data"][1]["id"] == "L1"
 
     def test_sort_by_updated(self):
-        """--sort updated (default) orders by most recently updated first."""
+        """--sort updated orders by most recently updated first."""
         client = _build_client(
             folderless_lists=[
                 _list(id="L1", name="Old"),
@@ -177,7 +177,9 @@ class TestListStatsJson:
         from unittest.mock import patch
 
         with patch("clickup.cli.commands.list.get_client", return_value=make_mock_ctx(client)):
-            result = runner.invoke(app, ["--format", "json", "list", "stats", "--workspace-id", "T1"])
+            result = runner.invoke(
+                app, ["--format", "json", "list", "stats", "--workspace-id", "T1", "--sort", "updated"]
+            )
 
         assert result.exit_code == 0, result.output
         payload = json.loads(result.stdout)

@@ -171,7 +171,12 @@ def list_stats(
     ),
     space_id: str | None = typer.Option(None, "--space-id", "-s", help="Limit to a single space."),
     sort: str = typer.Option(
-        "updated", "--sort", help="Sort order: 'tasks' (highest count first) or 'updated' (most recent first)."
+        "activity",
+        "--sort",
+        help=(
+            "Sort order: 'activity' (most recently updated first; larger lists break ties), "
+            "'tasks' (highest count first), or 'updated' (most recent first)."
+        ),
     ),
 ) -> None:
     """Show per-list statistics: task count, open count, and last updated.
@@ -274,6 +279,17 @@ def list_stats(
                 # Sort
                 if sort == "tasks":
                     rows.sort(key=lambda r: r["task_count"], reverse=True)
+                elif sort == "activity":
+                    # Composite: most recently updated first; larger lists break ties.
+                    # Lists with no last_updated always sort last.
+                    rows.sort(
+                        key=lambda r: (
+                            0 if r["last_updated"] is None else 1,
+                            r["last_updated"] or "",
+                            r["task_count"],
+                        ),
+                        reverse=True,
+                    )
                 else:
                     # updated: most recent first; None sorts last
                     rows.sort(
