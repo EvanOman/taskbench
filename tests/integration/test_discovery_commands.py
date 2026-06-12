@@ -1,5 +1,6 @@
 """Tests for discovery commands."""
 
+import json as _json
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -127,9 +128,14 @@ def test_discover_path_to_list(mock_get_client, sample_hierarchy):
     result = runner.invoke(app, ["discover", "path", "list123"])
 
     assert result.exit_code == 0
-    assert "Test Team" in result.stdout
-    assert "Test Space" in result.stdout
-    assert "Test List" in result.stdout
+    import json as _json
+
+    data = _json.loads(result.stdout)
+    assert data["found"] is True
+    path_names = [n["name"] for n in data["path"]]
+    assert "Test Team" in path_names
+    assert "Test Space" in path_names
+    assert "Test List" in path_names
 
 
 @patch("clickup.cli.commands.discover.get_client")
@@ -204,4 +210,112 @@ def test_discover_hierarchy_with_depth_limit(mock_get_client, sample_hierarchy):
     assert result.exit_code == 0
     assert "Test Team" in result.stdout
     assert "Test Space" in result.stdout
-    # Should not go deeper than spaces level
+
+
+@patch("clickup.cli.commands.discover.get_client")
+def test_discover_ids_json_folder(mock_get_client, sample_hierarchy):
+    """discover ids --folder-id emits JSON collection via render_lists."""
+    mock_client = AsyncMock()
+    from clickup.core.models import List as ClickUpList
+
+    mock_client.get_lists.return_value = [ClickUpList(id="L1", name="Sprint", task_count=5)]
+
+    def create_mock_client():
+        ctx = AsyncMock()
+        ctx.__aenter__.return_value = mock_client
+        return ctx
+
+    mock_get_client.side_effect = create_mock_client
+
+    result = runner.invoke(app, ["discover", "ids", "--folder-id", "F1"])
+    assert result.exit_code == 0
+    data = _json.loads(result.stdout)
+    assert data["count"] == 1
+    assert data["data"][0]["id"] == "L1"
+
+
+@patch("clickup.cli.commands.discover.get_client")
+def test_discover_ids_json_space(mock_get_client):
+    """discover ids --space-id emits render_id_rows JSON."""
+    mock_client = AsyncMock()
+    mock_client.get_folders.return_value = [_named_mock(id="F1", name="Backend", task_count=10)]
+    mock_client.get_folderless_lists.return_value = [_named_mock(id="L1", name="Loose", task_count=2)]
+
+    def create_mock_client():
+        ctx = AsyncMock()
+        ctx.__aenter__.return_value = mock_client
+        return ctx
+
+    mock_get_client.side_effect = create_mock_client
+
+    result = runner.invoke(app, ["discover", "ids", "--space-id", "S1"])
+    assert result.exit_code == 0
+    data = _json.loads(result.stdout)
+    assert data["count"] == 2
+    assert data["data"][0]["type"] == "folder"
+    assert data["data"][1]["type"] == "list"
+
+
+@patch("clickup.cli.commands.discover.get_client")
+def test_discover_path_json_not_found(mock_get_client):
+    """discover path emits {found: false} when not found."""
+    mock_client = AsyncMock()
+    mock_client.get_list.return_value = _named_mock(id="L99", name="Gone")
+    mock_client.get_teams.return_value = []
+
+    def create_mock_client():
+        ctx = AsyncMock()
+        ctx.__aenter__.return_value = mock_client
+        return ctx
+
+    mock_get_client.side_effect = create_mock_client
+
+    result = runner.invoke(app, ["discover", "path", "L99"])
+    assert result.exit_code == 0
+    data = _json.loads(result.stdout)
+    assert data["found"] is False
+    assert data["path"] == []
+
+
+@patch("clickup.cli.commands.discover.get_client")
+def test_discover_ids_table_mode(mock_get_client, sample_hierarchy):
+    """discover ids --format table keeps human output."""
+    mock_client = AsyncMock()
+    from clickup.core.models import List as ClickUpList
+
+    mock_client.get_lists.return_value = [ClickUpList(id="L1", name="Sprint", task_count=5)]
+
+    def create_mock_client():
+        ctx = AsyncMock()
+        ctx.__aenter__.return_value = mock_client
+        return ctx
+
+    mock_get_client.side_effect = create_mock_client
+
+    result = runner.invoke(app, ["--format", "table", "discover", "ids", "--folder-id", "F1"])
+    assert result.exit_code == 0
+    assert "Sprint" in result.output
+
+
+@patch("clickup.cli.commands.discover.get_client")
+def test_discover_path_table_mode(mock_get_client, sample_hierarchy):
+    """discover path --format table shows the emoji tree."""
+    mock_client = AsyncMock()
+    target = _named_mock(id="list123", name="Test List")
+    mock_client.get_list.return_value = target
+    mock_client.get_teams.return_value = [sample_hierarchy["team"]]
+    mock_client.get_spaces.return_value = sample_hierarchy["spaces"]
+    mock_client.get_folderless_lists.return_value = [target]
+    mock_client.get_folders.return_value = []
+
+    def create_mock_client():
+        ctx = AsyncMock()
+        ctx.__aenter__.return_value = mock_client
+        return ctx
+
+    mock_get_client.side_effect = create_mock_client
+
+    result = runner.invoke(app, ["--format", "table", "discover", "path", "list123"])
+    assert result.exit_code == 0
+    assert "Test List" in result.output
+    assert "Path to List" in result.output

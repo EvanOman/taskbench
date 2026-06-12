@@ -208,7 +208,7 @@ def test_bulk_update_no_matches_warns(mock_get_client):
 
     result = runner.invoke(app, ["bulk", "bulk-update", "--list-id", "L1", "--status", "done", "--yes"])
     assert result.exit_code == 0
-    assert "No tasks found" in result.output
+    assert result.stdout.strip() == ""
 
 
 # ---------- setup error paths ------------------------------------------------

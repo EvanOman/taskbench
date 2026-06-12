@@ -1,17 +1,23 @@
 """Discovery commands for navigating ClickUp hierarchy."""
 
 import typer
-from rich.console import Console
 from rich.markup import escape
-from rich.table import Table
 
 from ...core import ClickUpError
-from ..output import get_format, render_hierarchy, render_message
+from ..output import (
+    get_format,
+    render_hierarchy,
+    render_id_rows,
+    render_lists,
+    render_message,
+    render_path,
+    render_spaces,
+    render_teams,
+)
 from ..shared import get_client, handle_clickup_errors
 from ..utils import run_async
 
 app = typer.Typer(help="Discover and navigate ClickUp hierarchy")
-console = Console()
 
 
 @app.command("hierarchy")
@@ -114,89 +120,61 @@ def show_ids(
         with handle_clickup_errors():
             async with await get_client() as client:
                 if folder_id:
-                    # Show lists in folder
                     lists = await client.get_lists(folder_id)
                     if lists:
-                        table = Table(title=f"Lists in Folder {folder_id}")
-                        table.add_column("Name", style="green")
-                        table.add_column("ID", style="cyan")
-                        table.add_column("Tasks", style="yellow")
-
-                        for lst in lists:
-                            table.add_row(escape(lst.name), lst.id, str(lst.task_count))
-                        console.print(table)
+                        render_lists(lists)
                     else:
-                        console.print("[yellow]No lists found in this folder.[/yellow]")
+                        render_message("No lists found in this folder.", level="info")
 
                 elif space_id:
-                    # Show folders and folderless lists in space
-                    table = Table(title=f"Folders and Lists in Space {space_id}")
-                    table.add_column("Type", style="blue")
-                    table.add_column("Name", style="green")
-                    table.add_column("ID", style="cyan")
-                    table.add_column("Info", style="yellow")
-
+                    rows: list[dict[str, str]] = []
                     try:
                         folders = await client.get_folders(space_id)
                         for folder in folders:
-                            table.add_row("📂 Folder", escape(folder.name), folder.id, f"{folder.task_count} tasks")
+                            rows.append(
+                                {
+                                    "type": "folder",
+                                    "name": folder.name,
+                                    "id": folder.id,
+                                    "info": f"{folder.task_count} tasks",
+                                }
+                            )
                     except ClickUpError:
                         pass
 
                     try:
                         lists = await client.get_folderless_lists(space_id)
                         for lst in lists:
-                            table.add_row("📋 List", escape(lst.name), lst.id, f"{lst.task_count} tasks")
+                            rows.append(
+                                {
+                                    "type": "list",
+                                    "name": lst.name,
+                                    "id": lst.id,
+                                    "info": f"{lst.task_count} tasks",
+                                }
+                            )
                     except ClickUpError:
                         pass
 
-                    console.print(table)
+                    render_id_rows(rows, title=f"Folders and Lists in Space {escape(space_id)}")
 
                 elif workspace_id or team_id:
-                    # Show spaces in workspace
                     id_to_use = workspace_id or team_id
-                    assert id_to_use is not None  # guaranteed by elif condition
+                    assert id_to_use is not None
                     spaces = await client.get_spaces(id_to_use)
                     if spaces:
-                        table = Table(title=f"Spaces in Workspace {id_to_use}")
-                        table.add_column("Name", style="blue")
-                        table.add_column("ID", style="cyan")
-                        table.add_column("Private", style="yellow")
-                        table.add_column("Statuses", style="green")
-
-                        for space in spaces:
-                            table.add_row(
-                                escape(space.name),
-                                space.id,
-                                "Yes" if space.private else "No",
-                                str(len(space.statuses)),
-                            )
-                        console.print(table)
+                        render_spaces(spaces)
                     else:
-                        console.print("[yellow]No spaces found in this workspace.[/yellow]")
+                        render_message("No spaces found in this workspace.", level="info")
 
                 else:
-                    # Show workspaces
                     workspaces = await client.get_teams()
                     if workspaces:
-                        table = Table(title="Workspaces")
-                        table.add_column("Name", style="cyan")
-                        table.add_column("ID", style="blue")
-                        table.add_column("Color", style="green")
-                        table.add_column("Members", style="yellow")
-
-                        for workspace in workspaces:
-                            table.add_row(
-                                escape(workspace.name),
-                                workspace.id,
-                                workspace.color or "N/A",
-                                str(len(workspace.members)),
-                            )
-                        console.print(table)
-
-                        console.print(
-                            "\n💡 [dim]Use --workspace-id to see spaces, --space-id to see folders/lists, "
-                            "--folder-id to see lists[/dim]"
+                        render_teams(workspaces)
+                        render_message(
+                            "Use --workspace-id to see spaces, --space-id to see folders/lists, "
+                            "--folder-id to see lists",
+                            level="info",
                         )
 
     run_async(_show_ids())
@@ -209,60 +187,46 @@ def find_path(list_id: str = typer.Argument(..., help="List ID to find path for"
     async def _find_path() -> None:
         with handle_clickup_errors():
             async with await get_client() as client:
-                # Get list details
                 lst = await client.get_list(list_id)
+                lst_dict = {"id": lst.id, "name": lst.name}
 
-                # Build path by working backwards
-                path_parts = []
-                path_parts.append(f"📋 [green]{escape(lst.name)}[/green] ([dim]{lst.id}[/dim])")
-
-                # Find which folder/space contains this list
                 workspaces = await client.get_teams()
-                found_path = False
+                found = False
+                path: list[dict[str, str]] = []
 
                 for workspace in workspaces:
-                    if found_path:
+                    if found:
                         break
-
                     try:
                         spaces = await client.get_spaces(workspace.id)
                         for space in spaces:
-                            if found_path:
+                            if found:
                                 break
-
-                            # Check folderless lists first
                             try:
                                 folderless_lists = await client.get_folderless_lists(space.id)
-                                if any(lst.id == list_id for lst in folderless_lists):
-                                    path_parts.insert(
-                                        0, f"📁 [blue]{escape(space.name)}[/blue] ([dim]{space.id}[/dim])"
-                                    )
-                                    path_parts.insert(
-                                        0, f"🏢 [cyan]{escape(workspace.name)}[/cyan] ([dim]{workspace.id}[/dim])"
-                                    )
-                                    found_path = True
+                                if any(fl.id == list_id for fl in folderless_lists):
+                                    path = [
+                                        {"type": "workspace", "id": workspace.id, "name": workspace.name},
+                                        {"type": "space", "id": space.id, "name": space.name},
+                                        {"type": "list", "id": lst.id, "name": lst.name},
+                                    ]
+                                    found = True
                                     break
                             except ClickUpError:
                                 pass
-
-                            # Check folders
                             try:
                                 folders = await client.get_folders(space.id)
                                 for folder in folders:
                                     try:
                                         lists = await client.get_lists(folder.id)
-                                        if any(lst.id == list_id for lst in lists):
-                                            path_parts.insert(
-                                                0, f"📂 [yellow]{escape(folder.name)}[/yellow] ([dim]{folder.id}[/dim])"
-                                            )
-                                            path_parts.insert(
-                                                0, f"📁 [blue]{escape(space.name)}[/blue] ([dim]{space.id}[/dim])"
-                                            )
-                                            path_parts.insert(
-                                                0,
-                                                f"🏢 [cyan]{escape(workspace.name)}[/cyan] ([dim]{workspace.id}[/dim])",
-                                            )
-                                            found_path = True
+                                        if any(fl.id == list_id for fl in lists):
+                                            path = [
+                                                {"type": "workspace", "id": workspace.id, "name": workspace.name},
+                                                {"type": "space", "id": space.id, "name": space.name},
+                                                {"type": "folder", "id": folder.id, "name": folder.name},
+                                                {"type": "list", "id": lst.id, "name": lst.name},
+                                            ]
+                                            found = True
                                             break
                                     except ClickUpError:
                                         pass
@@ -271,12 +235,6 @@ def find_path(list_id: str = typer.Argument(..., help="List ID to find path for"
                     except ClickUpError:
                         pass
 
-                if found_path:
-                    console.print("\n📍 [bold]Path to List:[/bold]")
-                    for i, part in enumerate(path_parts):
-                        indent = "  " * i
-                        console.print(f"{indent}{part}")
-                else:
-                    console.print(f"[yellow]Could not find path for list {list_id}[/yellow]")
+                render_path(lst_dict, path, found)
 
     run_async(_find_path())

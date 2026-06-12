@@ -35,7 +35,9 @@ def _ctx(client):
 def test_version():
     result = runner.invoke(app, ["version"])
     assert result.exit_code == 0
-    assert "v" in result.output.lower()
+    data = json.loads(result.stdout)
+    assert "version" in data
+    assert data["name"] == "ClickUp Toolkit CLI"
 
 
 def test_status_no_token():
@@ -158,5 +160,31 @@ def test_status_partial_defaults(mock_client_cls):
 def test_help_shows_groups():
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    # Help groups defined in main.py
     assert "Get started" in result.output or "Task workflow" in result.output or "Workspace" in result.output
+
+
+def test_version_json_shape():
+    """version emits {"name": ..., "version": ...} in JSON mode."""
+    result = runner.invoke(app, ["version"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["name"] == "ClickUp Toolkit CLI"
+    assert isinstance(data["version"], str)
+
+
+def test_version_table_mode():
+    """version --format table still emits human-readable text."""
+    result = runner.invoke(app, ["--format", "table", "version"])
+    assert result.exit_code == 0
+    assert "ClickUp Toolkit CLI" in result.output
+
+
+def test_status_json_no_rich_highlighting():
+    """status JSON mode should not contain Rich markup/highlighting."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
+            result = runner.invoke(app, ["--format", "json", "status"])
+            assert result.exit_code == 0
+            data = json.loads(result.stdout)
+            assert "provider" in data
+            assert "auth_valid" in data

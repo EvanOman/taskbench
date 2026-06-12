@@ -45,17 +45,20 @@ def _named(**kw):
 
 
 def test_templates_list_builtin():
-    """Built-in templates render in table mode."""
+    """Built-in templates render in JSON mode (default)."""
     result = runner.invoke(app, ["template", "list"])
     assert result.exit_code == 0
-    assert "bug_report" in result.output
-    assert "feature_request" in result.output
+    data = json.loads(result.stdout)
+    names = [r["name"] for r in data["data"]]
+    assert "bug_report" in names
+    assert "feature_request" in names
 
 
 def test_templates_show_builtin():
     result = runner.invoke(app, ["template", "show", "bug_report"])
     assert result.exit_code == 0
-    assert "Bug Description" in result.output
+    data = json.loads(result.stdout)
+    assert "Bug Description" in data["description"]
 
 
 def test_templates_show_missing():
@@ -102,7 +105,8 @@ def test_templates_create_with_variables_file(mock_get_client):
             ],
         )
     assert result.exit_code == 0, result.output
-    assert "Created task" in result.output
+    data = json.loads(result.stdout)
+    assert data["id"] == "t1"
 
 
 @patch("clickup.cli.commands.templates.get_client")
@@ -154,7 +158,8 @@ def test_templates_save_with_pattern_flags(mock_get_client):
                 ],
             )
             assert result.exit_code == 0
-            assert "Saved template" in result.output
+            data = json.loads(result.stdout)
+            assert data["name"] == "test-template"
 
 
 def test_templates_create_no_list_errors():
@@ -175,12 +180,14 @@ def test_templates_create_no_template_errors():
 @patch("clickup.cli.commands.discover.get_client")
 def test_discover_ids_lists_in_folder(mock_get_client):
     mock_client = AsyncMock()
-    mock_client.get_lists.return_value = [_named(id="L1", name="Sprint", task_count=5)]
+    lst = ClickUpList(id="L1", name="Sprint", task_count=5)
+    mock_client.get_lists.return_value = [lst]
     mock_get_client.return_value = _ctx(mock_client)
 
     result = runner.invoke(app, ["discover", "ids", "--folder-id", "F1"])
     assert result.exit_code == 0
-    assert "Sprint" in result.output
+    data = json.loads(result.stdout)
+    assert data["data"][0]["name"] == "Sprint"
 
 
 @patch("clickup.cli.commands.discover.get_client")
@@ -192,30 +199,40 @@ def test_discover_ids_in_space(mock_get_client):
 
     result = runner.invoke(app, ["discover", "ids", "--space-id", "S1"])
     assert result.exit_code == 0
-    assert "Backend" in result.output
-    assert "Loose" in result.output
+    data = json.loads(result.stdout)
+    names = [r["name"] for r in data["data"]]
+    assert "Backend" in names
+    assert "Loose" in names
 
 
 @patch("clickup.cli.commands.discover.get_client")
 def test_discover_ids_in_workspace(mock_get_client):
     mock_client = AsyncMock()
-    mock_client.get_spaces.return_value = [_named(id="S1", name="Eng", private=False, statuses=[])]
+    from clickup.core.models import Space
+
+    mock_client.get_spaces.return_value = [
+        Space(id="S1", name="Eng", private=False, statuses=[], multiple_assignees=True)
+    ]
     mock_get_client.return_value = _ctx(mock_client)
 
     result = runner.invoke(app, ["discover", "ids", "--workspace-id", "W1"])
     assert result.exit_code == 0
-    assert "Eng" in result.output
+    data = json.loads(result.stdout)
+    assert data["data"][0]["name"] == "Eng"
 
 
 @patch("clickup.cli.commands.discover.get_client")
 def test_discover_ids_no_args_lists_workspaces(mock_get_client):
     mock_client = AsyncMock()
-    mock_client.get_teams.return_value = [_named(id="T1", name="Acme", color="#fff", members=[])]
+    from clickup.core.models import Team
+
+    mock_client.get_teams.return_value = [Team(id="T1", name="Acme", color="#fff", members=[])]
     mock_get_client.return_value = _ctx(mock_client)
 
     result = runner.invoke(app, ["discover", "ids"])
     assert result.exit_code == 0
-    assert "Acme" in result.output
+    data = json.loads(result.stdout)
+    assert data["data"][0]["name"] == "Acme"
 
 
 @patch("clickup.cli.commands.discover.get_client")
@@ -233,7 +250,9 @@ def test_discover_path_finds_list(mock_get_client):
 
     result = runner.invoke(app, ["discover", "path", "L1"])
     assert result.exit_code == 0
-    assert "Sprint" in result.output
+    data = json.loads(result.stdout)
+    assert data["found"] is True
+    assert data["list"]["name"] == "Sprint"
 
 
 # =============================================================================
@@ -246,7 +265,8 @@ def test_config_set_client_id():
         with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
             result = runner.invoke(app, ["config", "set-client-id", "client_123"])
             assert result.exit_code == 0
-            assert "Client ID configured" in result.output
+            data = json.loads(result.stdout)
+            assert data["key"] == "client_id"
 
 
 def test_config_set_client_secret():
@@ -257,10 +277,11 @@ def test_config_set_client_secret():
 
 
 def test_config_get_unset():
-    """`config get` on missing key prints not-set message."""
+    """`config get` on missing key emits null value."""
     result = runner.invoke(app, ["config", "get", "nonexistent_key_xyz"])
     assert result.exit_code == 0
-    assert "not set" in result.output
+    data = json.loads(result.stdout)
+    assert data["value"] is None
 
 
 def test_config_show():
@@ -272,7 +293,8 @@ def test_config_clean_no_unknowns():
     """Clean is a no-op when there are no unknown keys."""
     result = runner.invoke(app, ["config", "clean"])
     assert result.exit_code == 0
-    assert "clean" in result.output.lower()
+    data = json.loads(result.stdout)
+    assert data["unknown_keys"] == 0
 
 
 def test_config_clean_dry_run():
@@ -286,7 +308,9 @@ def test_config_clean_dry_run():
 
     result = runner.invoke(app, ["config", "clean", "--dry-run"])
     assert result.exit_code == 0
-    assert "Dry run" in result.output
+    data = json.loads(result.stdout)
+    assert data["dry_run"] is True
+    assert data["would_remove"] == 1
 
 
 def test_config_clean_with_force_removes():
@@ -299,20 +323,23 @@ def test_config_clean_with_force_removes():
 
     result = runner.invoke(app, ["config", "clean", "--force"])
     assert result.exit_code == 0
-    assert "Removed" in result.output
+    data = json.loads(result.stdout)
+    assert data["removed"] == 1
 
 
 def test_config_set_default_list():
     result = runner.invoke(app, ["config", "set-default-list", "myalias", "12345"])
     assert result.exit_code == 0
-    assert "myalias" in result.output
+    data = json.loads(result.stdout)
+    assert data["alias"] == "myalias"
 
 
 def test_config_set_default_list_remove():
     runner.invoke(app, ["config", "set-default-list", "myalias", "12345"])
     result = runner.invoke(app, ["config", "set-default-list", "--remove", "myalias"])
     assert result.exit_code == 0
-    assert "Removed" in result.output
+    data = json.loads(result.stdout)
+    assert data["action"] == "removed"
 
 
 def test_config_set_default_list_remove_missing_errors():

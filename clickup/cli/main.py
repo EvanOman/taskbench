@@ -13,7 +13,7 @@ from ..core import Config, get_provider, provider_name, provider_requires_creden
 from .commands import api, bulk, config, discover, folder, mock, task, templates, workspace
 from .commands import list as list_cmd
 from .commands import setup as setup_cmd
-from .output import FormatChoice, error_payload, get_format, set_format
+from .output import FormatChoice, _print_json, error_payload, get_format, render_kv, render_message, set_format
 
 app = typer.Typer(
     name="clickup",
@@ -170,7 +170,7 @@ def status() -> None:
         status_data["defaults_configured"] = not missing_defaults
 
         if get_format() == "json":
-            console.print_json(json.dumps(status_data, default=str))
+            _print_json(status_data)
             return
 
         # ── Table output ──────────────────────────────────────────────
@@ -219,18 +219,19 @@ def status() -> None:
 
         console.print(table)
 
-        # Hints
         if not has_token:
-            console.print(
-                "\n[yellow]No API token configured. Set CLICKUP_API_KEY environment variable "
-                "or use 'clickup config set-token <token>'.[/yellow]"
+            render_message(
+                "No API token configured. Set CLICKUP_API_KEY environment variable "
+                "or use 'clickup config set-token <token>'.",
+                level="warn",
             )
         elif missing_defaults:
-            console.print(
-                "\n[yellow]Some defaults are not configured. Run `clickup setup run` to set them up.[/yellow]"
+            render_message(
+                "Some defaults are not configured. Run `clickup setup run` to set them up.",
+                level="warn",
             )
         else:
-            console.print("\nAll defaults configured. Use 'clickup task list' to see your tasks!")
+            render_message("All defaults configured. Use 'clickup task list' to see your tasks!", level="success")
 
     asyncio.run(_status())
 
@@ -240,7 +241,7 @@ def version() -> None:
     """Show version information."""
     from . import __version__
 
-    console.print(f"ClickUp Toolkit CLI v{__version__}")
+    render_kv({"name": "ClickUp Toolkit CLI", "version": __version__})
 
 
 async def async_main() -> None:

@@ -128,8 +128,10 @@ def test_bulk_import_csv_dry_run(mock_get_client, sample_tasks_csv):
         result = runner.invoke(app, ["bulk", "import-tasks", f.name, "--list-id", "123", "--dry-run"])
 
         assert result.exit_code == 0
-        assert "dry run" in result.stdout.lower()
-        assert "3 tasks" in result.stdout
+        data = json.loads(result.stdout)
+        assert data["dry_run"] is True
+        assert data["would_create"] == 3
+        assert len(data["tasks"]) == 3
 
 
 @patch("clickup.cli.commands.bulk.get_client")
@@ -279,3 +281,74 @@ def test_bulk_import_invalid_format():
 
         result = runner.invoke(app, ["bulk", "import-tasks", "--list-id", "123", "--file", f.name])
         assert result.exit_code != 0
+
+
+@patch("clickup.cli.commands.bulk.get_client")
+def test_bulk_import_dry_run_json_shape(mock_get_client, sample_tasks_json):
+    """import-tasks --dry-run JSON shape: {dry_run, would_create, tasks}."""
+    mock_client = AsyncMock()
+    mock_get_client.return_value.__aenter__.return_value = mock_client
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
+        json.dump(sample_tasks_json, f)
+        f.flush()
+
+        result = runner.invoke(app, ["bulk", "import-tasks", f.name, "--list-id", "123", "--dry-run"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["dry_run"] is True
+        assert data["would_create"] == 3
+        assert isinstance(data["tasks"], list)
+
+
+@patch("clickup.cli.commands.bulk.get_client")
+def test_bulk_update_dry_run_json_shape(mock_get_client):
+    """bulk-update --dry-run JSON shape: {dry_run, would_update, updates, tasks}."""
+    mock_client = AsyncMock()
+    task_mock = Mock()
+    task_mock.id = "1"
+    task_mock.name = "T"
+    task_mock.status = Mock(status="to do")
+    task_mock.priority = Mock(priority="medium")
+    mock_client.get_tasks.return_value = [task_mock]
+
+    def create_mock_client():
+        ctx_mgr = AsyncMock()
+        ctx_mgr.__aenter__.return_value = mock_client
+        return ctx_mgr
+
+    mock_get_client.side_effect = create_mock_client
+
+    result = runner.invoke(app, ["bulk", "bulk-update", "--list-id", "123", "--status", "done", "--dry-run"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["dry_run"] is True
+    assert data["would_update"] == 1
+    assert data["updates"]["status"] == "done"
+    assert data["tasks"][0]["id"] == "1"
+
+
+@patch("clickup.cli.commands.bulk.get_client")
+def test_bulk_update_dry_run_table_mode(mock_get_client):
+    """bulk-update --dry-run --format table shows the preview table."""
+    mock_client = AsyncMock()
+    task_mock = Mock()
+    task_mock.id = "1"
+    task_mock.name = "MyTask"
+    task_mock.status = Mock(status="to do")
+    task_mock.priority = Mock(priority="medium")
+    mock_client.get_tasks.return_value = [task_mock]
+
+    def create_mock_client():
+        ctx_mgr = AsyncMock()
+        ctx_mgr.__aenter__.return_value = mock_client
+        return ctx_mgr
+
+    mock_get_client.side_effect = create_mock_client
+
+    result = runner.invoke(
+        app, ["--format", "table", "bulk", "bulk-update", "--list-id", "123", "--status", "done", "--dry-run"]
+    )
+    assert result.exit_code == 0
+    assert "MyTask" in result.output
+    assert "Bulk Update Preview" in result.output
