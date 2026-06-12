@@ -610,7 +610,7 @@ def test_task_statuses_json(mock_get_client):
 
 def test_task_statuses_missing_list_errors():
     result = runner.invoke(app, ["task", "statuses"])
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert "No list ID" in result.stderr
 
 

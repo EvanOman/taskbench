@@ -124,5 +124,5 @@ def test_api_request_without_credentials_errors(monkeypatch):
             m.setenv("CLICKUP_CONFIG_PATH", f"{tmpdir}/config.json")
             result = runner.invoke(app, ["api", "GET", "/task/task123"])
 
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert "No ClickUp API token configured" in result.stderr

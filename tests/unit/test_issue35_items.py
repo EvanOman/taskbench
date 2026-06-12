@@ -283,7 +283,7 @@ class TestBulkUpdateAllLists:
 
         with (
             patch("clickup.cli.commands.bulk.get_client", return_value=client),
-            patch("clickup.cli.commands.bulk.Config", return_value=_mock_config_with_lists(self._TWO_LISTS)),
+            patch("clickup.cli.shared.Config", return_value=_mock_config_with_lists(self._TWO_LISTS)),
         ):
             bulk_update(
                 list_id=None,
@@ -309,7 +309,7 @@ class TestBulkUpdateAllLists:
 
         with (
             patch("clickup.cli.commands.bulk.get_client", return_value=client),
-            patch("clickup.cli.commands.bulk.Config", return_value=_mock_config_with_lists(self._TWO_LISTS)),
+            patch("clickup.cli.shared.Config", return_value=_mock_config_with_lists(self._TWO_LISTS)),
         ):
             bulk_update(
                 list_id=None,
@@ -335,7 +335,7 @@ class TestBulkUpdateAllLists:
 
         with (
             patch("clickup.cli.commands.bulk.get_client", return_value=client),
-            patch("clickup.cli.commands.bulk.Config", return_value=_mock_config_with_lists({"inbox": "list_a"})),
+            patch("clickup.cli.shared.Config", return_value=_mock_config_with_lists({"inbox": "list_a"})),
             pytest.raises(_typer.Exit) as exc_info,
         ):
             bulk_update(
@@ -358,7 +358,7 @@ class TestBulkUpdateAllLists:
         from clickup.cli.commands.bulk import bulk_update
 
         with (
-            patch("clickup.cli.commands.bulk.Config", return_value=_mock_config_with_lists(None)),
+            patch("clickup.cli.shared.Config", return_value=_mock_config_with_lists(None)),
             pytest.raises(_typer.Exit) as exc_info,
         ):
             bulk_update(
@@ -397,7 +397,7 @@ class TestBulkUpdateAllLists:
 
         with (
             patch("clickup.cli.commands.bulk.get_client", return_value=client),
-            patch("clickup.cli.commands.bulk.Config", return_value=_mock_config_with_lists(self._TWO_LISTS)),
+            patch("clickup.cli.shared.Config", return_value=_mock_config_with_lists(self._TWO_LISTS)),
         ):
             bulk_update(
                 list_id=None,

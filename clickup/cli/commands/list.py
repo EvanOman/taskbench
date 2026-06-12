@@ -3,31 +3,12 @@
 from typing import Any
 
 import typer
-from rich.console import Console
 
-from ...core import ClickUpError, Config, TaskProvider, get_provider, provider_requires_credentials
 from ..output import render_error, render_list, render_lists, render_message
+from ..shared import get_client, handle_clickup_errors, require_list_id
 from ..utils import run_async
 
 app = typer.Typer(help="List management")
-console = Console()
-
-
-async def get_client() -> TaskProvider:
-    """Get configured task provider."""
-    config = Config()
-    if provider_requires_credentials(config) and not config.has_credentials():
-        render_error(
-            "No ClickUp API token configured.",
-            hint="Set CLICKUP_API_KEY in your environment (or .env), or run 'clickup config set-token <token>'.",
-        )
-        raise typer.Exit(1)
-    return get_provider(config, console)
-
-
-def _resolve_list_id(list_id: str | None) -> str | None:
-    """Resolve a list ID, expanding configured aliases (mirrors task.py)."""
-    return Config().resolve_list_id(list_id)
 
 
 @app.command("show")
@@ -54,7 +35,7 @@ def list_lists(
             )
             raise typer.Exit(1)
 
-        try:
+        with handle_clickup_errors():
             async with await get_client() as client:
                 if folder_id:
                     lists = await client.get_lists(folder_id)
@@ -68,10 +49,6 @@ def list_lists(
                         level="info",
                     )
                 render_lists(lists)
-
-        except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
-            raise typer.Exit(1) from e
 
     run_async(_list_lists())
 
@@ -132,23 +109,12 @@ def get_list(
         raise typer.Exit(2)
 
     async def _get_list() -> None:
-        list_id_to_use = _resolve_list_id(list_id_arg or list_id)
+        list_id_to_use = require_list_id(list_id_arg or list_id)
 
-        if not list_id_to_use:
-            render_error(
-                "Error: No list ID provided and no default list configured.",
-                hint="Use --list-id or set a default with 'clickup config set default_list_id <id>'",
-            )
-            raise typer.Exit(1)
-
-        try:
+        with handle_clickup_errors():
             async with await get_client() as client:
                 list_item = await client.get_list(list_id_to_use)
                 render_list(list_item, brief=brief)
-
-        except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
-            raise typer.Exit(1) from e
 
     run_async(_get_list())
 
@@ -173,7 +139,7 @@ def create_list(
             )
             raise typer.Exit(1)
 
-        try:
+        with handle_clickup_errors():
             list_data: dict[str, Any] = {"name": name}
 
             if content is not None:
@@ -193,9 +159,5 @@ def create_list(
                     assert space_id is not None
                     list_item = await client.create_folderless_list(space_id, **list_data)
                 render_list(list_item)
-
-        except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
-            raise typer.Exit(1) from e
 
     run_async(_create_list())

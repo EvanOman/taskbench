@@ -2,12 +2,11 @@
 
 import re
 from datetime import UTC, datetime, timedelta
-from typing import Any, NoReturn
+from typing import Any
 
 import typer
-from rich.console import Console
 
-from ...core import ClickUpError, Config, TaskProvider, get_provider, provider_requires_credentials
+from ...core import ClickUpError, Config
 from ..output import (
     get_format,
     render_comment,
@@ -19,64 +18,22 @@ from ..output import (
     render_task,
     render_tasks,
 )
+from ..shared import (
+    get_client,
+    handle_clickup_errors,
+    require_list_id,
+    resolve_list_ids,
+    resolve_workspace_id,
+    split_csv,
+    usage_error,
+)
 from ..utils import run_async
 
 app = typer.Typer(help="Task management")
-console = Console()
 
 # Subgroup for comments
 comments_app = typer.Typer(help="Task comment operations")
 app.add_typer(comments_app, name="comments")
-
-
-async def get_client() -> TaskProvider:
-    """Get configured task provider."""
-    config = Config()
-    if provider_requires_credentials(config) and not config.has_credentials():
-        render_error(
-            "No ClickUp API token configured.",
-            hint="Set CLICKUP_API_KEY in your environment (or .env), or run 'clickup config set-token <token>'.",
-        )
-        raise typer.Exit(1)
-    return get_provider(config, console)
-
-
-def _resolve_list_id(list_id: str | None) -> str | None:
-    """Resolve a list ID, expanding configured aliases."""
-    return Config().resolve_list_id(list_id)
-
-
-def _split_csv(value: str | None) -> list[str]:
-    """Split a comma-separated CLI value, trimming whitespace and rejecting empties."""
-    if value is None:
-        return []
-    parts = [part.strip() for part in value.split(",")]
-    if not parts or any(not part for part in parts):
-        _usage_error(f"Error: empty value in comma-separated argument '{value}'.")
-    return parts
-
-
-def _resolve_list_ids(list_id: str | None, *, all_lists: bool = False) -> list[str]:
-    """Resolve one or more list IDs/aliases from CLI input."""
-    config = Config()
-    if all_lists:
-        aliases: dict[str, str] = config.get("default_lists") or {}
-        if not aliases:
-            _usage_error(
-                "Error: --all-lists queries the configured default_lists aliases, and none are configured.",
-                hint=(
-                    "Configure aliases with 'clickup config set default_lists "
-                    '\'{"inbox": "<list-id>", ...}\'\' — or use task search / task mine for a '
-                    "workspace-wide query."
-                ),
-            )
-        return list(aliases.values())
-
-    raw_values = _split_csv(list_id)
-    if not raw_values:
-        resolved = config.resolve_list_id(None)
-        return [resolved] if resolved else []
-    return [resolved for raw in raw_values if (resolved := config.resolve_list_id(raw))]
 
 
 _RELATIVE_TIME_RE = re.compile(r"^(?P<count>\d+)(?P<unit>[dhw])$")
@@ -86,7 +43,7 @@ def _epoch_ms(value: str) -> int:
     """Parse an epoch-ms, ISO date/datetime, or relative duration into epoch milliseconds."""
     trimmed = value.strip()
     if not trimmed:
-        _usage_error("Error: date filter value is empty.")
+        usage_error("Error: date filter value is empty.")
     if trimmed.isdigit():
         return int(trimmed)
 
@@ -112,7 +69,7 @@ def _epoch_ms(value: str) -> int:
                 dt = dt.astimezone(UTC)
     except ValueError as exc:
         _ = exc
-        _usage_error(
+        usage_error(
             "Error: date filters accept epoch milliseconds, YYYY-MM-DD, ISO datetime, or relative values like 7d."
         )
     return int(dt.timestamp() * 1000)
@@ -123,7 +80,7 @@ def _set_exclusive_date_filter(filters: dict[str, Any], key: str, values: list[t
     provided = [(name, value) for name, value in values if value is not None]
     if len(provided) > 1:
         names = ", ".join(name for name, _value in provided)
-        _usage_error(f"Error: conflicting date filters for {key}: {names}.")
+        usage_error(f"Error: conflicting date filters for {key}: {names}.")
     if provided:
         filters[key] = _epoch_ms(provided[0][1])
 
@@ -135,25 +92,6 @@ def _annotate_source_list(task: Any, list_id: str) -> Any:
     except (AttributeError, TypeError):
         pass
     return task
-
-
-async def _resolve_workspace_id(client: TaskProvider, workspace_id: str | None) -> str:
-    """Resolve workspace ID from arg, config, or single-workspace auto-detect."""
-    if workspace_id:
-        return workspace_id
-    config = Config()
-    default = config.get("default_team_id")
-    if default:
-        return default
-    # Auto-detect: if the user belongs to exactly one workspace, use it
-    teams = await client.get_teams()
-    if len(teams) == 1:
-        return teams[0].id
-    if not teams:
-        render_error("Error: No workspaces found for this account.")
-        raise typer.Exit(1)
-    render_error("Error: Multiple workspaces found. Please specify --workspace-id.")
-    raise typer.Exit(1)
 
 
 def _parse_sort(sort: str | None, reverse_flag: bool) -> tuple[str | None, bool]:
@@ -178,7 +116,7 @@ def _parse_sort(sort: str | None, reverse_flag: bool) -> tuple[str | None, bool]
 
     sort = sort.strip()
     if not sort:
-        _usage_error("Error: --sort value is empty.")
+        usage_error("Error: --sort value is empty.")
 
     field: str
     explicit_desc: bool | None = None
@@ -196,7 +134,7 @@ def _parse_sort(sort: str | None, reverse_flag: bool) -> tuple[str | None, bool]
         elif direction == "asc":
             explicit_desc = False
         else:
-            _usage_error(f"Error: invalid sort direction '{direction}'. Use 'asc' or 'desc'.")
+            usage_error(f"Error: invalid sort direction '{direction}'. Use 'asc' or 'desc'.")
     else:
         field = sort
 
@@ -204,9 +142,9 @@ def _parse_sort(sort: str | None, reverse_flag: bool) -> tuple[str | None, bool]
         return field, reverse_flag
 
     if not field:
-        _usage_error("Error: --sort field name is empty.")
+        usage_error("Error: --sort field name is empty.")
     if reverse_flag:
-        _usage_error("Error: --reverse can't be combined with an explicit direction in --sort.")
+        usage_error("Error: --reverse can't be combined with an explicit direction in --sort.")
 
     return field, explicit_desc
 
@@ -221,7 +159,7 @@ def _validate_priority(priority: int | None) -> None:
     if priority is None:
         return
     if priority not in _VALID_PRIORITIES:
-        _usage_error(f"Error: --priority must be 1 (urgent), 2 (high), 3 (normal), or 4 (low). Got {priority}.")
+        usage_error(f"Error: --priority must be 1 (urgent), 2 (high), 3 (normal), or 4 (low). Got {priority}.")
 
 
 def _validate_task_name(name: str | None, *, field: str = "task name") -> None:
@@ -229,7 +167,7 @@ def _validate_task_name(name: str | None, *, field: str = "task name") -> None:
     if name is None:
         return
     if not name.strip():
-        _usage_error(f"Error: {field} cannot be empty or whitespace-only.")
+        usage_error(f"Error: {field} cannot be empty or whitespace-only.")
 
 
 # Fields we can sort tasks by client-side. Server-side sort isn't reliable
@@ -283,7 +221,7 @@ def _sort_tasks_locally(tasks: list[Any], field: str | None, descending: bool) -
     if not field:
         return tasks
     if field not in _SORTABLE_FIELDS:
-        _usage_error(f"Error: invalid --sort field '{field}'. Use one of: {', '.join(sorted(_SORTABLE_FIELDS))}.")
+        usage_error(f"Error: invalid --sort field '{field}'. Use one of: {', '.join(sorted(_SORTABLE_FIELDS))}.")
     present = [t for t in tasks if _task_sort_value(t, field) is not None]
     missing = [t for t in tasks if _task_sort_value(t, field) is None]
     present.sort(key=lambda t: _task_sort_value(t, field), reverse=descending)
@@ -376,20 +314,19 @@ def list_tasks(
     order_by, descending = _parse_sort(sort, reverse)
 
     async def _list_tasks() -> None:
-        list_ids_to_use = _resolve_list_ids(list_id, all_lists=all_lists)
+        list_ids_to_use = resolve_list_ids(list_id, all_lists=all_lists)
 
         if not list_ids_to_use:
-            render_error(
+            usage_error(
                 "Error: No list ID provided and no default list configured.",
                 hint="Use --list-id or set a default with 'clickup config set default_list_id <id>'",
             )
-            raise typer.Exit(1)
 
-        try:
+        with handle_clickup_errors():
             async with await get_client() as client:
                 filters: dict[str, Any] = {}
                 if status:
-                    filters["statuses"] = _split_csv(status)
+                    filters["statuses"] = split_csv(status)
                 if assignee:
                     filters["assignees"] = [assignee]
                 # Sort is applied client-side after the merge so multi-list
@@ -427,10 +364,6 @@ def list_tasks(
                 if not tasks:
                     render_message("No tasks found.", "warn")
 
-        except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
-            raise typer.Exit(1) from e
-
     run_async(_list_tasks())
 
 
@@ -454,14 +387,10 @@ def get_task(
     """
 
     async def _get_task() -> None:
-        try:
+        with handle_clickup_errors():
             async with await get_client() as client:
                 task = await client.get_task(task_id)
                 render_task(task, brief=brief)
-
-        except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
-            raise typer.Exit(1) from e
 
     run_async(_get_task())
 
@@ -504,15 +433,15 @@ def my_tasks(
     as ``task list`` and ``task search``.
     """
     order_by, descending = _parse_sort(sort, reverse)
-    status_filter = {s.lower() for s in _split_csv(status)} if status else None
+    status_filter = {s.lower() for s in split_csv(status)} if status else None
     updated_since_ms = _epoch_ms(updated_since) if updated_since else None
 
     async def _my_tasks() -> None:
-        try:
+        with handle_clickup_errors():
             async with await get_client() as client:
                 # Get the authenticated user's ID
                 user = await client.get_user()
-                ws_id = await _resolve_workspace_id(client, workspace_id)
+                ws_id = await resolve_workspace_id(client, workspace_id)
 
                 # Search for tasks assigned to this user across the workspace
                 # ClickUp API expects assignees[] as repeated query params
@@ -537,10 +466,6 @@ def my_tasks(
                     render_message("No tasks assigned to you.", "warn")
                 else:
                     render_message(f"Showing {len(tasks)} task(s) assigned to {user.username}.", "info")
-
-        except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
-            raise typer.Exit(1) from e
 
     run_async(_my_tasks())
 
@@ -570,19 +495,12 @@ def create_task(
     _validate_priority(priority)
 
     async def _create_task() -> None:
-        list_id_to_use = _resolve_list_id(list_id)
-
-        if not list_id_to_use:
-            render_error(
-                "Error: No list ID provided and no default list configured.",
-                hint="Use --list-id or set a default with 'clickup config set default_list_id <id>'",
-            )
-            raise typer.Exit(1)
+        list_id_to_use = require_list_id(list_id)
 
         config = Config()
         status_to_use = status or config.get("default_status")
 
-        try:
+        with handle_clickup_errors():
             task_data: dict[str, Any] = {"name": name}
 
             if description is not None:
@@ -604,10 +522,6 @@ def create_task(
                 render_message(f"Created task: {task.name} (ID: {task.id})", "success")
                 if task.url:
                     render_message(f"URL: {task.url}", "info")
-
-        except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
-            raise typer.Exit(1) from e
 
     run_async(_create_task())
 
@@ -641,14 +555,14 @@ def update_task(
     if name is not None:
         _validate_task_name(name)
     if description is not None and description_append is not None:
-        _usage_error("Error: --description and --description-append are mutually exclusive.")
+        usage_error("Error: --description and --description-append are mutually exclusive.")
 
     async def _update_task() -> None:
         if task_id is not None and task_ids is not None:
-            _usage_error("Error: pass TASK_ID either as a positional argument OR via --task-ids, not both.")
-        target_ids = [task_id] if task_id is not None else _split_csv(task_ids)
+            usage_error("Error: pass TASK_ID either as a positional argument OR via --task-ids, not both.")
+        target_ids = [task_id] if task_id is not None else split_csv(task_ids)
         if not target_ids:
-            _usage_error("Error: Task ID or --task-ids is required.")
+            usage_error("Error: Task ID or --task-ids is required.")
 
         updates: dict[str, Any] = {}
         # `is not None` so callers can pass '' to clear text fields.
@@ -669,7 +583,7 @@ def update_task(
             render_message("No updates specified.", "warn")
             return
 
-        try:
+        with handle_clickup_errors():
             async with await get_client() as client:
                 # --description-append needs a per-task read-modify-write, so
                 # we resolve each target's new description inline before update.
@@ -691,10 +605,6 @@ def update_task(
                     render_message(f"Updated task: {tasks[0].name} (ID: {tasks[0].id})", "success")
                 else:
                     render_message(f"Updated {len(tasks)} tasks.", "success")
-
-        except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
-            raise typer.Exit(1) from e
 
     run_async(_update_task())
 
@@ -734,15 +644,6 @@ async def _do_status_change_many(task_ids: list[str], status: str) -> None:
         raise typer.Exit(1)
 
 
-def _usage_error(msg: str, hint: str | None = None) -> NoReturn:
-    """Emit a usage error per AGENT.md §4a (render_error → stderr, exit 2).
-
-    Declared ``NoReturn`` so the type checker treats call sites as terminating.
-    """
-    render_error(msg, hint=hint, error_type="UsageError")
-    raise typer.Exit(2)
-
-
 def _normalise_status(status: Any) -> dict[str, Any]:
     """Convert ClickUp status shapes into a stable JSON/table dict."""
     if isinstance(status, dict):
@@ -778,23 +679,13 @@ def list_task_statuses(
     """Show statuses available for a ClickUp list."""
 
     async def _list_task_statuses() -> None:
-        list_id_to_use = _resolve_list_id(list_id)
-        if not list_id_to_use:
-            render_error(
-                "Error: No list ID provided and no default list configured.",
-                hint="Use --list-id or set a default with 'clickup config set default_list_id <id>'",
-            )
-            raise typer.Exit(1)
+        list_id_to_use = require_list_id(list_id)
 
-        try:
+        with handle_clickup_errors():
             async with await get_client() as client:
                 list_obj = await client.get_list(list_id_to_use)
                 statuses = _statuses_from_list(list_obj)
                 render_statuses(statuses, list_id=list_obj.id, list_name=list_obj.name)
-
-        except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
-            raise typer.Exit(1) from e
 
     run_async(_list_task_statuses())
 
@@ -828,20 +719,20 @@ def change_status(
     agents don't silently get one value when they thought they passed two.
     """
     if task_id_arg is not None and task_id_flag is not None:
-        _usage_error("Error: pass TASK_ID either as a positional argument OR via --task-id, not both.")
+        usage_error("Error: pass TASK_ID either as a positional argument OR via --task-id, not both.")
     if task_ids_flag is not None and (task_id_arg is not None or task_id_flag is not None):
-        _usage_error("Error: pass TASK_ID either as a single task ID OR via --task-ids, not both.")
+        usage_error("Error: pass TASK_ID either as a single task ID OR via --task-ids, not both.")
     if status_arg is not None and status_flag is not None:
-        _usage_error("Error: pass STATUS either as a positional argument OR via --status, not both.")
+        usage_error("Error: pass STATUS either as a positional argument OR via --status, not both.")
 
     task_id = task_id_arg or task_id_flag
-    task_ids = _split_csv(task_ids_flag) if task_ids_flag is not None else ([task_id] if task_id else [])
+    task_ids = split_csv(task_ids_flag) if task_ids_flag is not None else ([task_id] if task_id else [])
     status = status_arg or status_flag
 
     if not task_ids:
-        _usage_error("Error: Task ID is required, or pass --task-ids. Usage: clickup task status TASK_ID STATUS")
+        usage_error("Error: Task ID is required, or pass --task-ids. Usage: clickup task status TASK_ID STATUS")
     if not status:
-        _usage_error("Error: Status is required. Usage: clickup task status TASK_ID STATUS")
+        usage_error("Error: Status is required. Usage: clickup task status TASK_ID STATUS")
 
     # Type-narrow for the type checker; the _usage_error calls above raise on None.
     assert status is not None
@@ -905,17 +796,13 @@ def delete_task(
             render_error("Refusing to delete without --force/--yes (this CLI never prompts).", error_type="UsageError")
             raise typer.Exit(2)
 
-        try:
+        with handle_clickup_errors():
             async with await get_client() as client:
                 await client.delete_task(task_id)
                 if get_format() == "json":
                     render_kv({"id": task_id, "deleted": True})
                     return
                 render_message(f"Deleted task {task_id}", "success")
-
-        except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
-            raise typer.Exit(1) from e
 
     run_async(_delete_task())
 
@@ -962,24 +849,13 @@ def search_tasks(
     as ``task list`` and ``task mine``.
     """
     order_by, descending = _parse_sort(sort, reverse)
-    status_filter = {s.lower() for s in _split_csv(status)} if status else None
+    status_filter = {s.lower() for s in split_csv(status)} if status else None
     updated_since_ms = _epoch_ms(updated_since) if updated_since else None
 
     async def _search_tasks() -> None:
-        # Use either workspace_id or team_id (they're the same thing)
-        id_to_use = workspace_id or team_id
-        if not id_to_use:
-            config = Config()
-            id_to_use = config.get("default_team_id")
-        if not id_to_use:
-            render_error(
-                "Error: Workspace ID is required for search.",
-                hint="Use --workspace-id or --team-id, or set default_team_id in config",
-            )
-            raise typer.Exit(1)
-
-        try:
+        with handle_clickup_errors():
             async with await get_client() as client:
+                id_to_use = await resolve_workspace_id(client, workspace_id or team_id)
                 tasks = await client.search_tasks(id_to_use, query or "")
                 # Client-side filter + sort via shared pipeline.
                 tasks = _apply_task_filters(
@@ -1000,10 +876,6 @@ def search_tasks(
                 else:
                     render_message(f"Found {len(tasks)} task(s)", "info")
 
-        except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
-            raise typer.Exit(1) from e
-
     run_async(_search_tasks())
 
 
@@ -1017,16 +889,9 @@ def export_tasks(
     """Export tasks from a list to a file."""
 
     async def _export_tasks() -> None:
-        list_id_to_use = _resolve_list_id(list_id)
+        list_id_to_use = require_list_id(list_id)
 
-        if not list_id_to_use:
-            render_error(
-                "Error: No list ID provided and no default list configured.",
-                hint="Use --list-id or set a default with 'clickup config set default_list_id <id>'",
-            )
-            raise typer.Exit(1)
-
-        try:
+        with handle_clickup_errors():
             async with await get_client() as client:
                 filters: dict[str, Any] = {}
                 if not include_completed:
@@ -1081,10 +946,6 @@ def export_tasks(
 
                 render_kv({"exported": len(tasks), "output_file": output_file, "format": format.lower()})
 
-        except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
-            raise typer.Exit(1) from e
-
     run_async(_export_tasks())
 
 
@@ -1098,7 +959,7 @@ def list_comments(
     """List all comments on a task."""
 
     async def _list_comments() -> None:
-        try:
+        with handle_clickup_errors():
             async with await get_client() as client:
                 comments = await client.get_task_comments(task_id)
                 render_comments(comments)
@@ -1106,10 +967,6 @@ def list_comments(
                     render_message(f"No comments on task {task_id}.", "warn")
                 else:
                     render_message(f"{len(comments)} comment(s)", "info")
-
-        except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
-            raise typer.Exit(1) from e
 
     run_async(_list_comments())
 
@@ -1122,16 +979,12 @@ def add_comment(
     """Add a comment to a task."""
 
     async def _add_comment() -> None:
-        try:
+        with handle_clickup_errors():
             async with await get_client() as client:
                 comment = await client.create_comment(task_id, text)
                 if get_format() == "json":
                     render_comment(comment)
                     return
                 render_message(f"Comment added (ID: {comment.id})", "success")
-
-        except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
-            raise typer.Exit(1) from e
 
     run_async(_add_comment())

@@ -12,10 +12,9 @@ from clickup.cli.commands.task import (
     _annotate_source_list,
     _epoch_ms,
     _parse_sort,
-    _resolve_list_ids,
     _set_exclusive_date_filter,
-    _split_csv,
 )
+from clickup.cli.shared import resolve_list_ids, split_csv
 from clickup.core import Config
 
 
@@ -102,12 +101,12 @@ class TestParseSortUsageErrors:
 
 class TestAgentListHelpers:
     def test_split_csv_trims_values(self):
-        assert _split_csv(" a, b ,c ") == ["a", "b", "c"]
-        assert _split_csv(None) == []
+        assert split_csv(" a, b ,c ") == ["a", "b", "c"]
+        assert split_csv(None) == []
 
     def test_split_csv_rejects_empty_parts(self):
         with pytest.raises(typer.Exit) as exc:
-            _split_csv("a,,b")
+            split_csv("a,,b")
         assert exc.value.exit_code == 2
 
     def test_resolve_list_ids_uses_default_and_aliases(self, monkeypatch, tmp_path):
@@ -116,14 +115,14 @@ class TestAgentListHelpers:
         config.set("default_list_id", "default-list")
         config.set("default_lists", {"work": "listA", "home": "listB"})
 
-        assert _resolve_list_ids(None) == ["default-list"]
-        assert _resolve_list_ids("work,home") == ["listA", "listB"]
-        assert _resolve_list_ids(None, all_lists=True) == ["listA", "listB"]
+        assert resolve_list_ids(None) == ["default-list"]
+        assert resolve_list_ids("work,home") == ["listA", "listB"]
+        assert resolve_list_ids(None, all_lists=True) == ["listA", "listB"]
 
     def test_resolve_list_ids_all_lists_requires_aliases(self, monkeypatch, tmp_path):
         monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
         with pytest.raises(typer.Exit) as exc:
-            _resolve_list_ids(None, all_lists=True)
+            resolve_list_ids(None, all_lists=True)
         assert exc.value.exit_code == 2
 
     def test_epoch_ms_accepts_supported_date_forms(self):
