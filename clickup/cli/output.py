@@ -548,7 +548,7 @@ def render_comments(comments: list[Comment]) -> None:
     for comment in comments:
         table.add_row(
             comment.id,
-            escape(comment.user.username),
+            escape(comment.user.username if comment.user else "(unknown)"),
             format_timestamp(comment.date),
             escape(comment.comment_text),
             "Yes" if comment.resolved else "No",
@@ -567,7 +567,7 @@ def render_comment(comment: Comment) -> None:
     table.add_column("Field", style="cyan", width=15)
     table.add_column("Value")
     table.add_row("ID", comment.id)
-    table.add_row("Author", escape(comment.user.username))
+    table.add_row("Author", escape(comment.user.username if comment.user else "(unknown)"))
     table.add_row("Date", format_timestamp(comment.date))
     table.add_row("Comment", escape(comment.comment_text))
     table.add_row("Resolved", "Yes" if comment.resolved else "No")

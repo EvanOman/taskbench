@@ -56,7 +56,18 @@ class ClickUpClient:
                 # No Content (e.g., successful DELETE) — return empty dict
                 return {}
             elif response.status_code == 401:
-                raise AuthenticationError("Invalid API token", response.status_code)
+                try:
+                    error_data = response.json() if response.content else {}
+                except (json.JSONDecodeError, ValueError):
+                    error_data = {}
+                detail = error_data.get("err", "") if isinstance(error_data, dict) else ""
+                raise AuthenticationError(
+                    f"ClickUp rejected the request (401{': ' + detail if detail else ''}). "
+                    "This usually means an invalid API token, but ClickUp also returns 401 "
+                    "for resource IDs that don't exist or aren't accessible to this token. "
+                    "If other commands work, double-check the ID.",
+                    response.status_code,
+                )
             elif response.status_code == 403:
                 raise AuthorizationError("Insufficient permissions", response.status_code)
             elif response.status_code == 404:
@@ -254,10 +265,19 @@ class ClickUpClient:
         return [Comment(**comment) for comment in data.get("comments", [])]
 
     async def create_comment(self, task_id: str, comment_text: str, **kwargs: Any) -> Comment:
-        """Create a comment on a task."""
+        """Create a comment on a task.
+
+        ClickUp's create endpoint returns only ``{id, hist_id, date}``; the
+        rest of the Comment is synthesized from the request payload.
+        """
         payload = {"comment_text": comment_text, **kwargs}
         data = await self._request("POST", f"/task/{task_id}/comment", json=payload)
-        return Comment(**data)
+        return Comment(
+            id=str(data.get("id", "")),
+            comment=[{"text": comment_text}],
+            comment_text=comment_text,
+            date=str(data.get("date", "")),
+        )
 
     # Search
     async def search_tasks(self, team_id: str, query: str, **filters: Any) -> list[Task]:

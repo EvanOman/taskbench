@@ -1,0 +1,41 @@
+{
+  "commit": "68ad0b2",
+  "commit_full": "68ad0b2",
+  "timestamp": "2026-06-12T00:35:00-05:00",
+  "suite_version": 2,
+  "invalid": true,
+  "invalid_reason": "Stale uvx wheel cache: agents evaluated a pre-#50 binary (no --format hint, no alias fail-fast, no list stats, no setup --auto) while pyproject version 0.4.0 matched. uvx --refresh-package only refreshed the pre-warm invocation, not the archive plain uvx resolves. Fixed by 'uv cache clean clickup-toolkit' + behavioral sentinel in the skill setup; versions now bump with each change batch.",
+  "summary": {
+    "pass": 13,
+    "partial": 5,
+    "fail": 0,
+    "total_command_count": 66,
+    "total_elapsed_seconds": 1310
+  },
+  "valid_findings": [
+    "task comments add: ClickUpClient.create_comment validated ClickUp's minimal create response {id:int, hist_id, date} against the full Comment model -> pydantic ValidationError; comment created server-side while CLI reported failure (silent mutation + duplicate risk). Bug exists in current code; fixed in follow-up PR.",
+    "401 on unknown task IDs rendered as 'Invalid API token' (AuthenticationError) -- misleading when auth is valid. Message reworded to mention unknown/inaccessible resource IDs; fixed in follow-up PR.",
+    "task create lacks batch mode; done (variadic) vs delete (--task-ids) batch syntax inconsistent -- backlog.",
+    "Zero-result filtered queries give no 'N of M matched' disambiguation -- backlog."
+  ],
+  "tasks": [
+    {"id": 1, "name": "identity", "verdict": "pass", "self_verdict": "pass", "command_count": 1, "elapsed_seconds": 15, "top_friction": "none"},
+    {"id": 2, "name": "list teams", "verdict": "pass", "self_verdict": "pass", "command_count": 1, "elapsed_seconds": 30, "top_friction": "none"},
+    {"id": 3, "name": "hierarchy", "verdict": "pass", "self_verdict": "pass", "command_count": 3, "elapsed_seconds": 60, "top_friction": "workspace spaces requires -w while discover hierarchy auto-detects"},
+    {"id": 4, "name": "my tasks", "verdict": "pass", "self_verdict": "pass", "command_count": 2, "elapsed_seconds": 45, "top_friction": "warn message claim was merged-stream confusion (warn goes to stderr)"},
+    {"id": 5, "name": "sort", "verdict": "pass", "self_verdict": "pass", "command_count": 2, "elapsed_seconds": 45, "top_friction": "none"},
+    {"id": 6, "name": "create+delete", "verdict": "pass", "self_verdict": "pass", "command_count": 2, "elapsed_seconds": 45, "top_friction": "large JSON blob, no one-line summary"},
+    {"id": 7, "name": "update flow", "verdict": "partial", "self_verdict": "pass", "command_count": 5, "elapsed_seconds": 90, "top_friction": "stale binary: misplaced --format gave traceback (fixed in #50, not in evaluated wheel)"},
+    {"id": 8, "name": "search", "verdict": "partial", "self_verdict": "pass", "command_count": 2, "elapsed_seconds": 55, "top_friction": "stale binary: --format traceback; count field present but missed"},
+    {"id": 9, "name": "task get+comments", "verdict": "pass", "self_verdict": "pass", "command_count": 3, "elapsed_seconds": 60, "top_friction": "task list unconfigured error could suggest task search"},
+    {"id": 10, "name": "export", "verdict": "pass", "self_verdict": "pass", "command_count": 2, "elapsed_seconds": 45, "top_friction": "none"},
+    {"id": 11, "name": "most-active", "verdict": "partial", "self_verdict": "pass", "command_count": 6, "elapsed_seconds": 120, "top_friction": "stale binary: list stats absent from wheel though README mentions it; manual N+1 triangulation"},
+    {"id": 12, "name": "no-flag flow", "verdict": "pass", "self_verdict": "pass", "command_count": 5, "elapsed_seconds": 90, "top_friction": "stale binary: setup --auto absent; used --non-interactive with discovered IDs"},
+    {"id": 13, "name": "status workflow", "verdict": "pass", "self_verdict": "pass", "command_count": 6, "elapsed_seconds": 90, "top_friction": "task status help could cross-reference task statuses"},
+    {"id": 14, "name": "batch ops", "verdict": "pass", "self_verdict": "pass", "command_count": 5, "elapsed_seconds": 55, "top_friction": "create lacks batch; done/delete batch syntax inconsistent"},
+    {"id": 15, "name": "triage filter", "verdict": "pass", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 120, "top_friction": "stale binary --format traceback; zero-result ambiguity"},
+    {"id": 16, "name": "comment flow", "verdict": "partial", "self_verdict": "partial", "command_count": 6, "elapsed_seconds": 120, "top_friction": "REAL BUG: comments add ValidationError, comment created server-side; api escape hatch needed"},
+    {"id": 17, "name": "error probe", "verdict": "partial", "self_verdict": "pass", "command_count": 7, "elapsed_seconds": 180, "top_friction": "REAL BUG: 401 on unknown task ID reported as Invalid API token"},
+    {"id": 18, "name": "alias flow", "verdict": "pass", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 45, "top_friction": "none"}
+  ]
+}
