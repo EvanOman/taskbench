@@ -22,14 +22,16 @@ console = Console()
 @app.command("export-tasks")
 def export_tasks(
     list_id: str | None = typer.Option(None, "--list-id", help="List ID to export tasks from"),
-    output_file: str = typer.Option("tasks.csv", "--output", "-o", help="Output file path"),
-    output_format: str = typer.Option("csv", "--output-format", "--format", "-f", help="Output format (csv, json)"),
+    output_file: str | None = typer.Option(None, "--output", "-o", help="Output file path (default: tasks.<format>)"),
+    output_format: str = typer.Option("json", "--output-format", "--format", "-f", help="Output format (json, csv)"),
     include_completed: bool = typer.Option(True, "--include-completed", help="Include completed tasks"),
 ) -> None:
-    """Export tasks to CSV or JSON file."""
+    """Export tasks to JSON or CSV file."""
 
     async def _export_tasks() -> None:
         list_id_to_use = require_list_id(list_id)
+        nonlocal output_file
+        output_file = output_file or f"tasks.{output_format.lower()}"
 
         try:
             async with await get_client() as client:

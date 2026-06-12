@@ -142,24 +142,36 @@ def show_config(
         render_message(f"{len(unknown)} unknown key(s) hidden. Use --all to show them.", level="info")
 
 
-@app.command("set-default-list")
-def set_default_list(
-    name: str = typer.Argument(..., help="Alias name for the list (e.g. 'omegapoint')"),
-    list_id: str | None = typer.Argument(None, help="Numeric ClickUp list ID to map to"),
-    remove: bool = typer.Option(False, "--remove", "-r", help="Remove the alias instead of adding"),
+def _alias_impl(
+    name: str | None = None,
+    list_id: str | None = None,
+    remove: bool = False,
 ) -> None:
-    """Add or remove a named alias for a ClickUp list ID.
-
-    Examples:
-
-        clickup config set-default-list omegapoint 901315992466
-
-        clickup config set-default-list --remove omegapoint
-
-    Tip: set `default_list_id` to skip --list-id on every task command.
-    """
+    """Shared implementation for config alias / set-default-list."""
     config = Config()
     aliases: dict[str, str] = config.get("default_lists") or {}
+
+    # No arguments at all → list the current alias map.
+    if name is None and not remove:
+        rows = [{"alias": k, "list_id": v} for k, v in sorted(aliases.items())]
+        if get_format() == "json":
+            _print_json({"data": rows, "count": len(rows)})
+        else:
+            if not rows:
+                render_message("No aliases configured.", level="info")
+                return
+            table = Table(title="List Aliases", show_header=True)
+            table.add_column("Alias", style="cyan")
+            table.add_column("List ID", style="green")
+            for row in rows:
+                table.add_row(escape(row["alias"]), escape(row["list_id"]))
+            console.print(table)
+        return
+
+    # name is required for add/remove from here on.
+    if name is None:
+        render_error("Error: alias name is required when using --remove.")
+        raise typer.Exit(2)
 
     if remove:
         if name not in aliases:
@@ -179,6 +191,38 @@ def set_default_list(
     config.set("default_lists", aliases)
     render_kv({"action": "added", "alias": name, "list_id": list_id})
     render_message(f"Alias '{name}' -> {list_id}", level="success")
+
+
+@app.command("alias")
+def config_alias(
+    name: str | None = typer.Argument(None, help="Alias name for the list (e.g. 'omegapoint')"),
+    list_id: str | None = typer.Argument(None, help="Numeric ClickUp list ID to map to"),
+    remove: bool = typer.Option(False, "--remove", "-r", help="Remove the alias instead of adding"),
+) -> None:
+    """Add, remove, or list named aliases for ClickUp list IDs.
+
+    With no arguments, lists all configured aliases. Pass NAME LIST_ID to add
+    an alias, or NAME --remove to delete one.
+
+    Examples:
+
+        clickup config alias                              # list all
+        clickup config alias omegapoint 901315992466      # add
+        clickup config alias --remove omegapoint          # remove
+
+    Tip: set `default_list_id` to skip --list-id on every task command.
+    """
+    _alias_impl(name=name, list_id=list_id, remove=remove)
+
+
+@app.command("set-default-list", hidden=True)
+def set_default_list(
+    name: str = typer.Argument(..., help="Alias name for the list (e.g. 'omegapoint')"),
+    list_id: str | None = typer.Argument(None, help="Numeric ClickUp list ID to map to"),
+    remove: bool = typer.Option(False, "--remove", "-r", help="Remove the alias instead of adding"),
+) -> None:
+    """Add or remove a named alias for a ClickUp list ID (back-compat; prefer 'config alias')."""
+    _alias_impl(name=name, list_id=list_id, remove=remove)
 
 
 @app.command("clean")
