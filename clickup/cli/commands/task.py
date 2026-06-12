@@ -146,6 +146,20 @@ def list_tasks(
                     tasks.extend(list_tasks_result)
                 # Client-side filter + sort pipeline. open_only and sort are
                 # applied here (status/date filters already went to the API).
+                pre_filter_count = len(tasks)
+                has_filters = any(
+                    [
+                        status,
+                        assignee,
+                        open_only,
+                        created_since,
+                        created_after,
+                        created_before,
+                        updated_since,
+                        updated_after,
+                        updated_before,
+                    ]
+                )
                 tasks = apply_task_filters(
                     tasks,
                     open_only=open_only,
@@ -155,7 +169,13 @@ def list_tasks(
                 tasks = tasks[:limit]
                 render_tasks(tasks, brief=brief)
                 if not tasks:
-                    render_message("No tasks found.", "info")
+                    if has_filters:
+                        render_message(
+                            f"0 tasks matched the active filters (list has {pre_filter_count} tasks total).",
+                            "info",
+                        )
+                    else:
+                        render_message("No tasks found.", "info")
 
     run_async(_list_tasks())
 
@@ -245,6 +265,8 @@ def my_tasks(
                 )
 
                 # Client-side filter + sort via shared pipeline.
+                pre_filter_count = len(tasks)
+                has_filters = any([status_filter, updated_since_ms, open_only])
                 tasks = apply_task_filters(
                     tasks,
                     statuses=status_filter,
@@ -256,7 +278,13 @@ def my_tasks(
                 tasks = tasks[:limit]
                 render_tasks(tasks, brief=brief)
                 if not tasks:
-                    render_message("No tasks assigned to you.", "info")
+                    if has_filters:
+                        render_message(
+                            f"0 tasks matched the active filters ({pre_filter_count} tasks total).",
+                            "info",
+                        )
+                    else:
+                        render_message("No tasks assigned to you.", "info")
                 else:
                     render_message(f"Showing {len(tasks)} task(s) assigned to {user.username}.", "info")
 
@@ -265,7 +293,7 @@ def my_tasks(
 
 @app.command("create")
 def create_task(
-    name: str = typer.Argument(..., help="Task name"),
+    names: list[str] = typer.Argument(..., metavar="NAME...", help="One or more task names"),
     list_id: str | None = typer.Option(None, "--list-id", "-l", help="List ID or alias to create task in"),
     description: str | None = typer.Option(None, "--description", "-d", help="Task description"),
     priority: int | None = typer.Option(
@@ -275,7 +303,9 @@ def create_task(
         help="Priority (1=urgent, 2=high, 3=normal, 4=low).",
     ),
     assignee: str | None = typer.Option(None, "--assignee", "-a", help="Assignee user ID"),
-    due_date: str | None = typer.Option(None, "--due-date", help="Due date (YYYY-MM-DD)"),
+    due_date: str | None = typer.Option(
+        None, "--due-date", help="Due date (YYYY-MM-DD, ISO datetime, epoch ms, or relative like 7d)"
+    ),
     status: str | None = typer.Option(
         None,
         "--status",
@@ -284,8 +314,14 @@ def create_task(
     ),
     brief: bool = typer.Option(False, "--brief", help="Return a stripped projection (see `task get --brief`)."),
 ) -> None:
-    """Create a new task."""
-    validate_task_name(name)
+    """Create one or more tasks.
+
+    Pass multiple names to create several tasks at once — all flags
+    (--description, --priority, --status, etc.) apply to every task.
+    Single-name invocations are byte-identical to the old behavior.
+    """
+    for task_name in names:
+        validate_task_name(task_name)
     validate_priority(priority)
 
     async def _create_task() -> None:
@@ -295,7 +331,7 @@ def create_task(
         status_to_use = status or config.get("default_status")
 
         with handle_clickup_errors():
-            task_data: dict[str, Any] = {"name": name}
+            task_data: dict[str, Any] = {}
 
             if description is not None:
                 task_data["description"] = description
@@ -304,18 +340,44 @@ def create_task(
             if assignee is not None:
                 task_data["assignees"] = [assignee]
             if due_date is not None:
-                task_data["due_date"] = due_date
+                task_data["due_date"] = str(epoch_ms(due_date))
             if status_to_use:
                 task_data["status"] = status_to_use
 
             async with await get_client() as client:
-                task = await client.create_task(list_id_to_use, **task_data)
-                if get_format() == "json":
-                    render_task(task, brief=brief)
+                if len(names) == 1:
+                    # Single task — byte-identical to old behavior.
+                    task = await client.create_task(list_id_to_use, name=names[0], **task_data)
+                    if get_format() == "json":
+                        render_task(task, brief=brief)
+                        return
+                    render_message(f"Created task: {task.name} (ID: {task.id})", "success")
+                    if task.url:
+                        render_message(f"URL: {task.url}", "info")
                     return
-                render_message(f"Created task: {task.name} (ID: {task.id})", "success")
-                if task.url:
-                    render_message(f"URL: {task.url}", "info")
+
+                # Batch create — concurrent with partial-failure semantics.
+                results = await gather_bounded(
+                    [client.create_task(list_id_to_use, name=n, **task_data) for n in names],
+                    limit=5,
+                )
+                succeeded: list[Any] = []
+                failures: list[tuple[str, BaseException]] = []
+                for task_name, result in zip(names, results, strict=False):
+                    if isinstance(result, BaseException):
+                        failures.append((task_name, result))
+                    else:
+                        succeeded.append(result)
+
+                # Render successes preserving input order.
+                ordered = [r for r in results if not isinstance(r, BaseException)]
+                render_tasks(ordered, brief=brief)
+
+                for task_name, exc in failures:
+                    render_error(f"Failed to create task '{task_name}': {exc}", error_type=type(exc).__name__)
+
+                if failures:
+                    raise typer.Exit(1)
 
     run_async(_create_task())
 
@@ -341,7 +403,9 @@ def update_task(
         "-p",
         help="New priority (1=urgent, 2=high, 3=normal, 4=low).",
     ),
-    due_date: str | None = typer.Option(None, "--due-date", help="New due date (ms timestamp)"),
+    due_date: str | None = typer.Option(
+        None, "--due-date", help="New due date (YYYY-MM-DD, ISO datetime, epoch ms, or relative like 7d)"
+    ),
     archived: bool | None = typer.Option(None, "--archived/--unarchived", help="Archive state"),
     brief: bool = typer.Option(False, "--brief", help="Return a stripped projection (see `task get --brief`)."),
 ) -> None:
@@ -370,7 +434,7 @@ def update_task(
         if priority is not None:
             updates["priority"] = priority
         if due_date is not None:
-            updates["due_date"] = due_date
+            updates["due_date"] = str(epoch_ms(due_date))
         if archived is not None:
             updates["archived"] = archived
 
@@ -673,6 +737,14 @@ def search_tasks(
         help="Hide tasks whose status type is 'closed'.",
     ),
     limit: int = typer.Option(50, "--limit", help="Maximum number of tasks to show"),
+    name_only: bool = typer.Option(
+        False,
+        "--name-only",
+        help=(
+            "Keep only tasks whose NAME contains the query "
+            "(ClickUp's search is full-text across descriptions/comments)."
+        ),
+    ),
     brief: bool = typer.Option(False, "--brief", help="Return a stripped projection (see `task list --brief`)."),
 ) -> None:
     """Search for tasks across the workspace.
@@ -694,6 +766,8 @@ def search_tasks(
             async with await get_client() as client:
                 id_to_use = await resolve_workspace_id(client, workspace_id or team_id)
                 tasks = await client.search_tasks(id_to_use, query or "")
+                pre_filter_count = len(tasks)
+                has_filters = any([status_filter, updated_since_ms, open_only, query, name_only])
                 # Client-side filter + sort via shared pipeline.
                 tasks = apply_task_filters(
                     tasks,
@@ -703,10 +777,18 @@ def search_tasks(
                     sort_field=order_by,
                     sort_descending=descending,
                 )
+                if name_only and query:
+                    query_lower = query.lower()
+                    tasks = [t for t in tasks if query_lower in t.name.lower()]
                 tasks = tasks[:limit]
                 render_tasks(tasks, brief=brief)
                 if not tasks:
-                    if query:
+                    if has_filters:
+                        render_message(
+                            f"0 tasks matched the active filters ({pre_filter_count} tasks total).",
+                            "info",
+                        )
+                    elif query:
                         render_message(f"No tasks found matching '{query}'", "info")
                     else:
                         render_message("No tasks found.", "info")

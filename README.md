@@ -27,8 +27,11 @@ uvx --from git+https://github.com/EvanOman/clickup-tools.git clickup status
 # 3. Discover list IDs in your workspace
 uvx --from git+https://github.com/EvanOman/clickup-tools.git clickup discover hierarchy
 
-# 4. List tasks in your default list
-uvx --from git+https://github.com/EvanOman/clickup-tools.git clickup task list
+# 4. Orient: per-list task counts and last-updated times
+uvx --from git+https://github.com/EvanOman/clickup-tools.git clickup list stats
+
+# 5. List tasks in your default list (--brief = compact projection, recommended for agents)
+uvx --from git+https://github.com/EvanOman/clickup-tools.git clickup task list --brief
 ```
 
 For repeat use, install once and then call `clickup` directly:

@@ -73,14 +73,20 @@ class ClickUpClient:
                 except (json.JSONDecodeError, ValueError):
                     error_data = {}
                 detail = error_data.get("err", "") if isinstance(error_data, dict) else ""
+                if self._RESOURCE_ENDPOINT_RE.search(endpoint):
+                    message = (
+                        f"ClickUp returned 401 for {endpoint}"
+                        f"{': ' + detail if detail else ''}. "
+                        "For resource endpoints this usually means the ID does not exist "
+                        "or is not accessible to this token; it can also mean the token "
+                        "itself is invalid — if other commands work, double-check the ID."
+                    )
+                    raise ResourceAccessError(message, response.status_code)
                 message = (
                     f"ClickUp rejected the request (401{': ' + detail if detail else ''}). "
-                    "This usually means an invalid API token, but ClickUp also returns 401 "
-                    "for resource IDs that don't exist or aren't accessible to this token. "
+                    "This usually means an invalid API token. "
                     "If other commands work, double-check the ID."
                 )
-                if self._RESOURCE_ENDPOINT_RE.search(endpoint):
-                    raise ResourceAccessError(message, response.status_code)
                 raise AuthenticationError(message, response.status_code)
             elif response.status_code == 403:
                 raise AuthorizationError(
