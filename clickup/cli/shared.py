@@ -109,8 +109,9 @@ def require_list_id(list_id: str | None) -> str:
     usage_error(
         "Error: No list ID provided and no default list configured.",
         hint=(
-            "Use --list-id or set a default with 'clickup config set default_list_id <id>', "
-            "or find IDs with 'clickup discover hierarchy'"
+            "Use --list-id or set a default with 'clickup config set default_list_id <id>' "
+            "(or 'clickup setup run --auto'). Find IDs with 'clickup discover hierarchy', "
+            "or query across lists with 'clickup task search' / 'clickup task mine'."
         ),
     )
 

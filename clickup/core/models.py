@@ -307,9 +307,10 @@ class Comment(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     id: str
-    comment: list[dict[str, Any]]
+    comment: list[dict[str, Any]] = Field(default_factory=list)
     comment_text: str
-    user: User
+    # ClickUp's create-comment response omits the author; only reads include it.
+    user: User | None = None
     date: str
     resolved: bool = False
 

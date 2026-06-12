@@ -22,9 +22,12 @@ When the user asks for an eval / benchmark / agent-usability check, or right aft
    mkdir -p "$(dirname "$CLICKUP_CONFIG_PATH")"
    ```
    This uses the `CLICKUP_CONFIG_PATH` env var (honoured by `Config()`) so the eval's setup wizard, `config set-token`, and any other config writes go to a disposable path instead of `~/.config/clickup-toolkit/config.json`. **Pass this env var to every sub-agent prompt** (see base prompt template below).
-3. **Pre-warm the uvx wheel cache** so 18 parallel agents don't race the build, and so a stale cached wheel can't shadow current source (uvx caches by name+version — see AGENT.md "Local dev caveat"):
-   `uvx --python 3.13 --refresh-package clickup-toolkit --from /home/evan/dev/clickup-tools clickup version`
-   Confirm the reported version matches `pyproject.toml`. If it doesn't, the cache is stale — investigate before dispatching.
+3. **Purge and re-warm the uvx wheel cache.** uvx caches wheels by name+version, and `--refresh-package` only fixes the *refreshing* invocation — the sub-agents' plain `uvx` calls can still resolve the stale archive (this silently invalidated the 2026-06-12 run: agents evaluated a wheel several PRs old while the version number matched). The only reliable sequence is:
+   ```bash
+   uv cache clean clickup-toolkit
+   uvx --python 3.13 --from /home/evan/dev/clickup-tools clickup version
+   ```
+   Then verify freshness with a **behavioral sentinel**, not just the version number: pick a command/flag added by the most recent merged PR and confirm plain `uvx --python 3.13 --from /home/evan/dev/clickup-tools clickup ... --help` shows it. If no recent surface change exists, bump the patch version before the eval so the cache key changes. Do not dispatch until the sentinel passes.
 4. Confirm the user's workspace state. Real values for the eval:
    - User: Evan Oman, ID `150240437`, email `evan058@gmail.com`
    - Workspace: `90131945555` ("Evan Oman's Workspace") — singleton
@@ -191,6 +194,7 @@ After the eval:
 |---|---|---|---|---|
 | 2026-05 (baseline) | v1 (12) | `b8bb6b8` | 10/2/0 | pre-refactor friction batch |
 | 2026-06-11 | v1 (12) | `a22824e` | 11/1/0 | post batches A–G; cmds 84→41 |
+| 2026-06-12 | v2 (18) | `68ad0b2` | **INVALID** | stale uvx wheel (pre-#50 binary); surfaced 2 real bugs anyway: `task comments add` ValidationError, 401-as-"invalid token" on unknown IDs |
 
 Append a row after every run.
 

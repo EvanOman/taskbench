@@ -499,6 +499,8 @@ def change_status(
     Positional form: clickup task status TASK_ID STATUS
     Flag form (back-compat): clickup task status --task-id TASK_ID --status STATUS
 
+    See valid status values for a list with: clickup task statuses --list-id <id>
+
     Mixing positional + flag for the same parameter is rejected (exit 2) so
     agents don't silently get one value when they thought they passed two.
     """

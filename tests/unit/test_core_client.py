@@ -328,3 +328,37 @@ async def test_timeout_retries_then_raises(mock_sleep, mock_clickup_client):
     # 1 initial + 3 retries = 4 attempts
     assert mock_clickup_client.client.request.call_count == 4
     assert mock_sleep.call_count == 3
+
+
+@pytest.mark.asyncio
+async def test_401_message_mentions_resource_ambiguity(mock_clickup_client):
+    """ClickUp returns 401 for unknown resource IDs; the message must say so."""
+    mock_response = Mock()
+    mock_response.status_code = 401
+    mock_response.content = b'{"err": "Team not authorized"}'
+    mock_response.json.return_value = {"err": "Team not authorized"}
+
+    mock_clickup_client.client.request.return_value = mock_response
+
+    with pytest.raises(AuthenticationError) as exc:
+        await mock_clickup_client._request("GET", "/task/doesnotexist123")
+    msg = str(exc.value)
+    assert "Team not authorized" in msg
+    assert "resource IDs" in msg
+
+
+@pytest.mark.asyncio
+async def test_create_comment_handles_minimal_response(mock_clickup_client):
+    """ClickUp's create-comment endpoint returns only {id, hist_id, date}."""
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.content = b"{}"
+    mock_response.json.return_value = {"id": 458, "hist_id": "abc123", "date": 1568036964079}
+
+    mock_clickup_client.client.request.return_value = mock_response
+
+    comment = await mock_clickup_client.create_comment("task123", "status: looking into it")
+    assert comment.id == "458"
+    assert comment.comment_text == "status: looking into it"
+    assert comment.user is None
+    assert comment.date == "1568036964079"
