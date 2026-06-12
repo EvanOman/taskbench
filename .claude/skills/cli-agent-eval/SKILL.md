@@ -209,6 +209,7 @@ After the eval:
 | 2026-06-12 r5 | v2 (18) | `205486a` | 17/1/0 | second straight run with zero CLI-caused failures; partial = task 4 diligence re-runs over budget (metric artifact) → rubric v3 (friction-based) adopted |
 | 2026-06-12 r6 | v2 (18), rubric v3 | `fd8b775` | **18/18/0** | zero CLI-caused failures; precedent: delete safety-gate refusal is the documented contract, not a failure |
 | 2026-06-12 r7 | v2 (18), rubric v3 | `fd8b775` | **18/18/0** | second consecutive clean run on the same binary — consistency goal met; remaining ideas appended to issue #49 |
+| 2026-06-12 r8 | v2 (18), rubric v3 | `35a48b9` | **18/18/0** | third consecutive clean run; validated v0.5.x features in the wild (variadic create → 3-command batch flow, --name-only, activity sort, config alias, JSON exports) |
 
 Append a row after every run.
 
