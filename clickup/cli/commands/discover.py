@@ -5,24 +5,13 @@ from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
-from ...core import ClickUpError, Config, TaskProvider, get_provider, provider_requires_credentials
-from ..output import get_format, render_error, render_hierarchy, render_message
+from ...core import ClickUpError
+from ..output import get_format, render_hierarchy, render_message
+from ..shared import get_client, handle_clickup_errors
 from ..utils import run_async
 
 app = typer.Typer(help="Discover and navigate ClickUp hierarchy")
 console = Console()
-
-
-async def get_client() -> TaskProvider:
-    """Get configured task provider."""
-    config = Config()
-    if provider_requires_credentials(config) and not config.has_credentials():
-        render_error(
-            "No ClickUp API token configured. "
-            "Set CLICKUP_API_KEY in your environment (or .env), or run 'clickup config set-token <token>'."
-        )
-        raise typer.Exit(2)
-    return get_provider(config, console)
 
 
 @app.command("hierarchy")
@@ -44,7 +33,7 @@ def show_hierarchy(
     """Show the complete ClickUp hierarchy tree."""
 
     async def _show_hierarchy() -> None:
-        try:
+        with handle_clickup_errors():
             async with await get_client() as client:
                 id_to_use = workspace_id or team_id
                 workspaces = [await client.get_team(id_to_use)] if id_to_use else await client.get_teams()
@@ -108,9 +97,6 @@ def show_hierarchy(
                         f"Output truncated at --depth {max_depth}. Increase --depth to see deeper levels.",
                         level="warn",
                     )
-        except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
-            raise typer.Exit(1) from e
 
     run_async(_show_hierarchy())
 
@@ -125,7 +111,7 @@ def show_ids(
     """Show IDs for easy copy-paste. Use --folder-id to get list IDs."""
 
     async def _show_ids() -> None:
-        try:
+        with handle_clickup_errors():
             async with await get_client() as client:
                 if folder_id:
                     # Show lists in folder
@@ -213,10 +199,6 @@ def show_ids(
                             "--folder-id to see lists[/dim]"
                         )
 
-        except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
-            raise typer.Exit(1) from e
-
     run_async(_show_ids())
 
 
@@ -225,7 +207,7 @@ def find_path(list_id: str = typer.Argument(..., help="List ID to find path for"
     """Show the full path to a list (Workspace > Space > Folder > List)."""
 
     async def _find_path() -> None:
-        try:
+        with handle_clickup_errors():
             async with await get_client() as client:
                 # Get list details
                 lst = await client.get_list(list_id)
@@ -296,8 +278,5 @@ def find_path(list_id: str = typer.Argument(..., help="List ID to find path for"
                         console.print(f"{indent}{part}")
                 else:
                     console.print(f"[yellow]Could not find path for list {list_id}[/yellow]")
-        except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
-            raise typer.Exit(1) from e
 
     run_async(_find_path())

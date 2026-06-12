@@ -10,24 +10,13 @@ from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
-from ...core import ClickUpError, Config, TaskProvider, get_provider, provider_requires_credentials
+from ...core import ClickUpError
 from ..output import render_error, render_kv, render_message
+from ..shared import get_client, require_list_id, resolve_list_ids
 from ..utils import run_async
 
 app = typer.Typer(help="Bulk operations and import/export")
 console = Console()
-
-
-async def get_client() -> TaskProvider:
-    """Get configured task provider."""
-    config = Config()
-    if provider_requires_credentials(config) and not config.has_credentials():
-        render_error(
-            "No ClickUp API token configured.",
-            hint="Set CLICKUP_API_KEY in your environment (or .env), or run 'clickup config set-token <token>'.",
-        )
-        raise typer.Exit(1)
-    return get_provider(config, console)
 
 
 @app.command("export-tasks")
@@ -40,15 +29,7 @@ def export_tasks(
     """Export tasks to CSV or JSON file."""
 
     async def _export_tasks() -> None:
-        config = Config()
-        list_id_to_use = list_id or config.get("default_list_id")
-
-        if not list_id_to_use:
-            render_error(
-                "Error: No list ID provided and no default list configured.",
-                hint="Use --list-id or set a default with 'clickup config set default_list_id <id>'",
-            )
-            raise typer.Exit(1)
+        list_id_to_use = require_list_id(list_id)
 
         try:
             async with await get_client() as client:
@@ -148,15 +129,7 @@ def import_tasks(
     """Import tasks from CSV or JSON file."""
 
     async def _import_tasks() -> None:
-        config = Config()
-        list_id_to_use = list_id or config.get("default_list_id")
-
-        if not list_id_to_use:
-            render_error(
-                "Error: No list ID provided and no default list configured.",
-                hint="Use --list-id or set a default with 'clickup config set default_list_id <id>'",
-            )
-            raise typer.Exit(1)
+        list_id_to_use = require_list_id(list_id)
 
         try:
             file_path = Path(input_file)
@@ -261,27 +234,6 @@ def import_tasks(
     run_async(_import_tasks())
 
 
-def _resolve_bulk_list_ids(list_id: str | None, *, all_lists: bool = False) -> list[str]:
-    """Resolve list IDs for bulk operations, mirroring task.py's _resolve_list_ids."""
-    config = Config()
-    if all_lists:
-        aliases: dict[str, str] = config.get("default_lists") or {}
-        if not aliases:
-            render_error(
-                "Error: --all-lists queries the configured default_lists aliases, and none are configured.",
-                hint=(
-                    "Configure aliases with 'clickup config set default_lists "
-                    '\'{"inbox": "<list-id>", ...}\'\'. '
-                    "See configured aliases with 'clickup config get default_lists'."
-                ),
-                error_type="UsageError",
-            )
-            raise typer.Exit(2)
-        return list(aliases.values())
-    resolved = config.resolve_list_id(list_id)
-    return [resolved] if resolved else []
-
-
 @app.command("bulk-update")
 def bulk_update(
     list_id: str | None = typer.Option(None, "--list-id", help="List ID to update tasks in"),
@@ -314,14 +266,14 @@ def bulk_update(
     """Bulk update tasks matching criteria."""
 
     async def _bulk_update() -> None:
-        list_ids_to_use = _resolve_bulk_list_ids(list_id, all_lists=all_lists)
+        list_ids_to_use = resolve_list_ids(list_id, all_lists=all_lists)
 
         if not list_ids_to_use:
             render_error(
                 "Error: No list ID provided and no default list configured.",
                 hint="Use --list-id or set a default with 'clickup config set default_list_id <id>'",
             )
-            raise typer.Exit(1)
+            raise typer.Exit(2)
 
         if new_status is None and new_priority is None and new_assignee is None:
             render_error("Error: Must specify at least one update (--status, --priority, or --assignee)")

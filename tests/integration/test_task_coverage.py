@@ -211,7 +211,11 @@ def test_task_search_bare_enumerates_all(mock_get_client):
     mock_client.search_tasks.assert_awaited_once_with("W1", "")
 
 
-def test_task_search_no_workspace_errors():
+@patch("clickup.cli.commands.task.get_client")
+def test_task_search_no_workspace_errors(mock_get_client):
+    mock_client = AsyncMock()
+    mock_client.get_teams.return_value = []
+    mock_get_client.return_value = _ctx(mock_client)
     result = runner.invoke(app, ["task", "search", "--query", "foo"])
     assert result.exit_code != 0
     assert "workspace" in result.stderr.lower()

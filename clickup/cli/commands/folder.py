@@ -1,26 +1,13 @@
 """Folder management commands."""
 
 import typer
-from rich.console import Console
 
-from ...core import ClickUpError, Config, TaskProvider, get_provider, provider_requires_credentials
+from ...core import Config
 from ..output import render_error, render_folder, render_folders
+from ..shared import get_client, handle_clickup_errors
 from ..utils import run_async
 
 app = typer.Typer(help="Folder management")
-console = Console()
-
-
-async def get_client() -> TaskProvider:
-    """Get configured task provider."""
-    config = Config()
-    if provider_requires_credentials(config) and not config.has_credentials():
-        render_error(
-            "No ClickUp API token configured.",
-            hint="Set CLICKUP_API_KEY in your environment (or .env), or run 'clickup config set-token <token>'.",
-        )
-        raise typer.Exit(1)
-    return get_provider(config, console)
 
 
 def _resolve_space_id(space_id: str | None) -> str | None:
@@ -42,13 +29,10 @@ def list_folders(
                 hint="Use --space-id or set a default with 'clickup config set default_space_id <id>'",
             )
             raise typer.Exit(2)
-        try:
+        with handle_clickup_errors():
             async with await get_client() as client:
                 folders = await client.get_folders(space_id_to_use)
                 render_folders(folders)
-        except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
-            raise typer.Exit(1) from e
 
     run_async(_list_folders())
 
@@ -65,13 +49,10 @@ def get_folder(
     """Get detailed information about a specific folder."""
 
     async def _get_folder() -> None:
-        try:
+        with handle_clickup_errors():
             async with await get_client() as client:
                 folder = await client.get_folder(folder_id)
                 render_folder(folder, brief=brief)
-        except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
-            raise typer.Exit(1) from e
 
     run_async(_get_folder())
 
@@ -91,12 +72,9 @@ def create_folder(
                 hint="Use --space-id or set a default with 'clickup config set default_space_id <id>'",
             )
             raise typer.Exit(2)
-        try:
+        with handle_clickup_errors():
             async with await get_client() as client:
                 folder = await client.create_folder(space_id_to_use, name)
                 render_folder(folder)
-        except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
-            raise typer.Exit(1) from e
 
     run_async(_create_folder())

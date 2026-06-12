@@ -350,7 +350,11 @@ class TestSearchLimit:
 
 
 class TestSearchNoWorkspaceErrors:
-    def test_no_workspace_errors(self):
+    @patch("clickup.cli.commands.task.get_client")
+    def test_no_workspace_errors(self, mock_get_client):
+        mock_client = AsyncMock()
+        mock_client.get_teams.return_value = []
+        mock_get_client.return_value = _ctx(mock_client)
         result = runner.invoke(app, ["task", "search", "--query", "foo"])
         assert result.exit_code != 0
         assert "workspace" in result.stderr.lower()

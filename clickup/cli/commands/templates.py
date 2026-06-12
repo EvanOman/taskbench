@@ -9,24 +9,13 @@ from rich.console import Console
 from rich.prompt import Prompt
 from rich.table import Table
 
-from ...core import ClickUpError, Config, TaskProvider, get_provider, provider_requires_credentials
+from ...core import ClickUpError
 from ..output import render_error
+from ..shared import get_client, require_list_id
 from ..utils import run_async
 
 app = typer.Typer(help="Template management")
 console = Console()
-
-
-async def get_client() -> TaskProvider:
-    """Get configured task provider."""
-    config = Config()
-    if provider_requires_credentials(config) and not config.has_credentials():
-        render_error(
-            "No ClickUp API token configured.",
-            hint="Set CLICKUP_API_KEY in your environment (or .env), or run 'clickup config set-token <token>'.",
-        )
-        raise typer.Exit(1)
-    return get_provider(config, console)
 
 
 def get_templates_dir() -> Path:
@@ -300,15 +289,7 @@ def create_from_template(
         nonlocal var
         if var is None:
             var = []
-        config = Config()
-        list_id_to_use = list_id or config.get("default_list_id")
-
-        if not list_id_to_use:
-            render_error(
-                "Error: No list ID provided and no default list configured.",
-                hint="Use --list-id or set a default with 'clickup config set default_list_id <id>'",
-            )
-            raise typer.Exit(1)
+        list_id_to_use = require_list_id(list_id)
 
         if not template_name and not template_file:
             render_error(
