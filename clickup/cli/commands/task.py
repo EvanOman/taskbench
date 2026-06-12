@@ -20,6 +20,7 @@ from ..output import (
     render_tasks,
 )
 from ..shared import (
+    gather_bounded,
     get_client,
     handle_clickup_errors,
     require_list_id,
@@ -586,16 +587,29 @@ def update_task(
 
         with handle_clickup_errors():
             async with await get_client() as client:
-                # --description-append needs a per-task read-modify-write, so
-                # we resolve each target's new description inline before update.
                 tasks = []
-                for target_id in target_ids:
-                    per_task_updates = dict(updates)
-                    if description_append is not None:
+                if description_append is not None:
+                    # --description-append needs a per-task read-modify-write,
+                    # so we resolve each target's new description inline before
+                    # update. Sequential because each read depends on current state.
+                    for target_id in target_ids:
+                        per_task_updates = dict(updates)
                         current = await client.get_task(target_id)
                         existing = current.description or ""
                         per_task_updates["description"] = existing + description_append
-                    tasks.append(await client.update_task(target_id, **per_task_updates))
+                        tasks.append(await client.update_task(target_id, **per_task_updates))
+                elif len(target_ids) == 1:
+                    tasks.append(await client.update_task(target_ids[0], **updates))
+                else:
+                    # Multiple IDs without description-append — bounded concurrency
+                    results = await gather_bounded(
+                        [client.update_task(tid, **updates) for tid in target_ids],
+                        limit=5,
+                    )
+                    for result in results:
+                        if isinstance(result, BaseException):
+                            raise result
+                        tasks.append(result)
                 if get_format() == "json":
                     if len(tasks) == 1:
                         render_task(tasks[0])
@@ -622,11 +636,17 @@ async def _do_status_change_many(task_ids: list[str], status: str) -> None:
     succeeded: list[Any] = []
     failures: list[tuple[str, ClickUpError]] = []
     async with await get_client() as client:
-        for task_id in task_ids:
-            try:
-                succeeded.append(await client.update_task(task_id, status=status))
-            except ClickUpError as e:
-                failures.append((task_id, e))
+        results = await gather_bounded(
+            [client.update_task(task_id, status=status) for task_id in task_ids],
+            limit=5,
+        )
+        for task_id, result in zip(task_ids, results, strict=False):
+            if isinstance(result, ClickUpError):
+                failures.append((task_id, result))
+            elif isinstance(result, BaseException):
+                failures.append((task_id, ClickUpError(str(result))))
+            else:
+                succeeded.append(result)
 
     if succeeded:
         if get_format() == "json":
@@ -811,13 +831,17 @@ def delete_task(
         succeeded: list[dict[str, object]] = []
         failures: list[tuple[str, Exception]] = []
         async with await get_client() as client:
-            for tid in target_ids:
-                try:
-                    await client.delete_task(tid)
+            results = await gather_bounded(
+                [client.delete_task(tid) for tid in target_ids],
+                limit=5,
+            )
+            for tid, result in zip(target_ids, results, strict=False):
+                if isinstance(result, BaseException):
+                    exc = result if isinstance(result, ClickUpError) else ClickUpError(str(result))
+                    failures.append((tid, exc))
+                    render_message(f"Failed to delete task {tid}: {result}", "warn")
+                else:
                     succeeded.append({"id": tid, "deleted": True})
-                except ClickUpError as e:
-                    failures.append((tid, e))
-                    render_message(f"Failed to delete task {tid}: {e}", "warn")
 
         if get_format() == "json":
             if len(target_ids) == 1 and not failures:

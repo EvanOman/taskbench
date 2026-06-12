@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
-from typing import TYPE_CHECKING, NoReturn
+from typing import TYPE_CHECKING, Any, NoReturn
 
 import typer
 from rich.console import Console
@@ -12,7 +13,7 @@ from ..core import ClickUpError, Config, get_provider, provider_requires_credent
 from .output import render_error
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Coroutine, Iterator
 
     from ..core import TaskProvider
 
@@ -112,3 +113,23 @@ def handle_clickup_errors() -> Iterator[None]:
     except ClickUpError as e:
         render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
         raise typer.Exit(1) from e
+
+
+async def gather_bounded(
+    coros: list[Coroutine[Any, Any, Any]],
+    limit: int = 5,
+) -> list[Any]:
+    """Run coroutines concurrently with bounded parallelism, preserving input order.
+
+    Each coroutine is wrapped so that at most ``limit`` run at the same time.
+    Results are returned in the same order as the input list, regardless of
+    completion order. Exceptions are NOT raised — they are returned in the
+    result list so callers can inspect per-item success/failure.
+    """
+    semaphore = asyncio.Semaphore(limit)
+
+    async def _wrap(coro: Coroutine[Any, Any, Any]) -> Any:
+        async with semaphore:
+            return await coro
+
+    return list(await asyncio.gather(*(_wrap(c) for c in coros), return_exceptions=True))

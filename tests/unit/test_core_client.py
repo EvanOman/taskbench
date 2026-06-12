@@ -9,8 +9,10 @@ from clickup.core import (
     AuthenticationError,
     ClickUpClient,
     ClickUpError,
+    NetworkError,
     NotFoundError,
     RateLimitError,
+    RequestTimeoutError,
     ValidationError,
 )
 
@@ -287,3 +289,42 @@ async def test_validate_auth_network_error(mock_sleep, mock_clickup_client):
     assert is_valid is False
     assert "Network error" in message
     assert user is None
+
+
+@pytest.mark.asyncio
+@patch("asyncio.sleep", new_callable=AsyncMock)
+async def test_timeout_raises_request_timeout_error(mock_sleep, mock_clickup_client):
+    """httpx.TimeoutException should raise RequestTimeoutError, not NetworkError."""
+    mock_clickup_client.client.request.side_effect = httpx.ReadTimeout("read timed out")
+
+    with pytest.raises(RequestTimeoutError) as exc_info:
+        await mock_clickup_client._request("GET", "/test")
+
+    assert "timed out" in str(exc_info.value).lower()
+    assert "timeout" in str(exc_info.value).lower()
+    # Verify the class name is usable for CLI error rendering (type(e).__name__)
+    assert type(exc_info.value).__name__ == "RequestTimeoutError"
+
+
+@pytest.mark.asyncio
+@patch("asyncio.sleep", new_callable=AsyncMock)
+async def test_connect_error_still_raises_network_error(mock_sleep, mock_clickup_client):
+    """httpx.ConnectError should still raise NetworkError (not RequestTimeoutError)."""
+    mock_clickup_client.client.request.side_effect = httpx.ConnectError("refused")
+
+    with pytest.raises(NetworkError):
+        await mock_clickup_client._request("GET", "/test")
+
+
+@pytest.mark.asyncio
+@patch("asyncio.sleep", new_callable=AsyncMock)
+async def test_timeout_retries_then_raises(mock_sleep, mock_clickup_client):
+    """TimeoutException should be retried before raising RequestTimeoutError."""
+    mock_clickup_client.client.request.side_effect = httpx.ReadTimeout("timeout")
+
+    with pytest.raises(RequestTimeoutError):
+        await mock_clickup_client._request("GET", "/test")
+
+    # 1 initial + 3 retries = 4 attempts
+    assert mock_clickup_client.client.request.call_count == 4
+    assert mock_sleep.call_count == 3

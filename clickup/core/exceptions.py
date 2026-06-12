@@ -58,6 +58,16 @@ class NetworkError(ClickUpError):
     pass
 
 
+class RequestTimeoutError(ClickUpError):
+    """Request timed out.
+
+    Named ``RequestTimeoutError`` (not ``TimeoutError``) to avoid shadowing
+    the builtin ``TimeoutError``.
+    """
+
+    pass
+
+
 class ConfigurationError(ClickUpError):
     """Configuration error."""
 

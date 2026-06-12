@@ -16,6 +16,7 @@ from .exceptions import (
     NetworkError,
     NotFoundError,
     RateLimitError,
+    RequestTimeoutError,
     ServerError,
     ValidationError,
 )
@@ -93,7 +94,15 @@ class ClickUpClient:
                     await asyncio.sleep(e.retry_after or 60)
                     continue
                 raise
-            except (httpx.ConnectError, httpx.TimeoutException) as e:
+            except httpx.TimeoutException as e:
+                if attempt < max_retries:
+                    await asyncio.sleep(2**attempt)  # Exponential backoff
+                    continue
+                raise RequestTimeoutError(
+                    f"Request timed out: {e}. "
+                    "Consider retrying or increasing the timeout with 'clickup config set timeout <seconds>'."
+                ) from e
+            except httpx.ConnectError as e:
                 if attempt < max_retries:
                     await asyncio.sleep(2**attempt)  # Exponential backoff
                     continue

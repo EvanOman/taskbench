@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Protocol, Self
+from typing import Any, Protocol, Self, Unpack
 
 from rich.console import Console
 
@@ -12,10 +12,22 @@ from .config import Config
 from .json_provider import JsonProvider
 from .models import Comment, Folder, Space, Task, Team, User
 from .models import List as ClickUpList
+from .params import TaskCreateParams, TaskFilterParams, TaskUpdateParams
 
 
 class TaskProvider(Protocol):
-    """Port consumed by the CLI; adapters implement this interface."""
+    """Port consumed by the CLI; adapters implement this interface.
+
+    Task write/query methods use typed ``**kwargs`` via ``Unpack`` and
+    the ``TypedDict`` shapes defined in ``clickup.core.params``:
+
+    - ``create_task`` — ``TaskCreateParams``
+    - ``update_task`` — ``TaskUpdateParams``
+    - ``get_tasks`` / ``search_tasks`` — ``TaskFilterParams``
+
+    Adapters may continue to declare ``**kwargs: Any`` in their own
+    signatures; ``ty`` structurally matches them against the protocol.
+    """
 
     async def __aenter__(self) -> Self: ...
 
@@ -53,13 +65,13 @@ class TaskProvider(Protocol):
 
     async def create_folderless_list(self, space_id: str, name: str, **kwargs: Any) -> ClickUpList: ...
 
-    async def get_tasks(self, list_id: str, **filters: Any) -> list[Task]: ...
+    async def get_tasks(self, list_id: str, **filters: Unpack[TaskFilterParams]) -> list[Task]: ...
 
     async def get_task(self, task_id: str) -> Task: ...
 
-    async def create_task(self, list_id: str, name: str, **kwargs: Any) -> Task: ...
+    async def create_task(self, list_id: str, name: str, **kwargs: Unpack[TaskCreateParams]) -> Task: ...
 
-    async def update_task(self, task_id: str, **updates: Any) -> Task: ...
+    async def update_task(self, task_id: str, **updates: Unpack[TaskUpdateParams]) -> Task: ...
 
     async def delete_task(self, task_id: str) -> bool: ...
 
@@ -67,7 +79,7 @@ class TaskProvider(Protocol):
 
     async def create_comment(self, task_id: str, comment_text: str, **kwargs: Any) -> Comment: ...
 
-    async def search_tasks(self, team_id: str, query: str, **filters: Any) -> list[Task]: ...
+    async def search_tasks(self, team_id: str, query: str, **filters: Unpack[TaskFilterParams]) -> list[Task]: ...
 
 
 def provider_name(config: Config) -> str:

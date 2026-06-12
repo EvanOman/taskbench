@@ -90,6 +90,14 @@ present in the body, and an explicit `""` clears a field. This mirrors the
 CLI's update semantics (AGENT.md, architecture decision 3) — a server that
 treats absent and empty as the same will corrupt agent workflows.
 
+**PUT vs PATCH for task updates.** The spec prescribes `PATCH /tasks/{id}` for
+standard-backend implementers because partial-update semantics are the correct
+abstraction for modify-if-passed. However, the ClickUp SaaS adapter
+(`client.py`) uses `PUT /task/{task_id}` because that is ClickUp's own v2 API
+endpoint for task updates — it happens to accept partial bodies despite the PUT
+verb. Standard-backend authors should implement PATCH; the ClickUp adapter's
+use of PUT is an API-specific detail, not a pattern to follow.
+
 **All schemas are open.** Servers may add fields; clients must ignore unknown
 fields (models use `extra="allow"`). `comment_count` on tasks and `statuses`
 on lists are RECOMMENDED extras the CLI already understands.
