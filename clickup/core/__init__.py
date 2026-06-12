@@ -13,6 +13,7 @@ from .exceptions import (
     NotFoundError,
     RateLimitError,
     RequestTimeoutError,
+    ResourceAccessError,
     ServerError,
     ValidationError,
 )
@@ -37,6 +38,7 @@ __all__ = [
     "ClickUpError",
     "AuthenticationError",
     "AuthorizationError",
+    "ResourceAccessError",
     "NotFoundError",
     "RateLimitError",
     "ServerError",

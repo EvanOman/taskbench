@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import re
 from typing import Any
 from urllib.parse import urljoin
 
@@ -17,6 +18,7 @@ from .exceptions import (
     NotFoundError,
     RateLimitError,
     RequestTimeoutError,
+    ResourceAccessError,
     ServerError,
     ValidationError,
 )
@@ -46,7 +48,17 @@ class ClickUpClient:
         """Async context manager exit."""
         await self.client.aclose()
 
-    def _handle_response(self, response: httpx.Response) -> dict[str, Any]:
+    # Endpoints that target a specific resource (as opposed to auth-only
+    # endpoints like /user or the bare /team root).  When ClickUp returns
+    # 401 on one of these, the most likely cause is a bad resource ID, not
+    # a bad token — so we raise ResourceAccessError instead of
+    # AuthenticationError.
+    _RESOURCE_ENDPOINT_RE = re.compile(
+        r"^/(?:task|list|folder|space|view)/[^/]"  # /task/<id>, /list/<id>/task, etc.
+        r"|^/team/\d+/.+"  # /team/123/space, /team/123/task, …
+    )
+
+    def _handle_response(self, response: httpx.Response, *, endpoint: str = "") -> dict[str, Any]:
         """Handle HTTP response and raise appropriate exceptions."""
         try:
             if response.status_code in (200, 201):
@@ -61,17 +73,25 @@ class ClickUpClient:
                 except (json.JSONDecodeError, ValueError):
                     error_data = {}
                 detail = error_data.get("err", "") if isinstance(error_data, dict) else ""
-                raise AuthenticationError(
+                message = (
                     f"ClickUp rejected the request (401{': ' + detail if detail else ''}). "
                     "This usually means an invalid API token, but ClickUp also returns 401 "
                     "for resource IDs that don't exist or aren't accessible to this token. "
-                    "If other commands work, double-check the ID.",
+                    "If other commands work, double-check the ID."
+                )
+                if self._RESOURCE_ENDPOINT_RE.search(endpoint):
+                    raise ResourceAccessError(message, response.status_code)
+                raise AuthenticationError(message, response.status_code)
+            elif response.status_code == 403:
+                raise AuthorizationError(
+                    f"Insufficient permissions: {endpoint}" if endpoint else "Insufficient permissions",
                     response.status_code,
                 )
-            elif response.status_code == 403:
-                raise AuthorizationError("Insufficient permissions", response.status_code)
             elif response.status_code == 404:
-                raise NotFoundError("Resource not found", response.status_code)
+                raise NotFoundError(
+                    f"Resource not found: {endpoint}" if endpoint else "Resource not found",
+                    response.status_code,
+                )
             elif response.status_code == 400:
                 error_data = response.json() if response.content else {}
                 raise ValidationError(error_data.get("err", "Bad request"), response.status_code, error_data)
@@ -87,6 +107,9 @@ class ClickUpClient:
 
     async def _request(self, method: str, endpoint: str, **kwargs: Any) -> dict[str, Any]:
         """Make HTTP request with retry logic."""
+        # Preserve the original endpoint (with leading /) for error messages
+        # before normalising it for URL construction.
+        raw_endpoint = endpoint if endpoint.startswith("/") else f"/{endpoint}"
         base_url = self.config.get("base_url")
         # Ensure base_url ends with / and endpoint starts without /
         if not base_url.endswith("/"):
@@ -99,7 +122,7 @@ class ClickUpClient:
         for attempt in range(max_retries + 1):
             try:
                 response = await self.client.request(method, url, **kwargs)
-                return self._handle_response(response)
+                return self._handle_response(response, endpoint=raw_endpoint)
             except RateLimitError as e:
                 if attempt < max_retries:
                     await asyncio.sleep(e.retry_after or 60)

@@ -1028,7 +1028,7 @@ def test_task_delete_both_positional_and_task_ids_exits_2():
     """Passing both positional TASK_ID and --task-ids is a usage error."""
     result = runner.invoke(app, ["task", "delete", "task1", "--task-ids", "task2", "--force"])
     assert result.exit_code == 2
-    assert "either as a positional argument OR via --task-ids" in result.stderr
+    assert "either as positional arguments OR via --task-ids" in result.stderr
 
 
 def test_task_delete_neither_positional_nor_task_ids_exits_2():
@@ -1036,6 +1036,29 @@ def test_task_delete_neither_positional_nor_task_ids_exits_2():
     result = runner.invoke(app, ["task", "delete", "--force"])
     assert result.exit_code == 2
     assert "Task ID or --task-ids is required" in result.stderr
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_delete_variadic_positional(mock_get_client):
+    """Multiple positional IDs produce a collection envelope."""
+    mock_client = AsyncMock()
+    mock_client.delete_task.return_value = True
+
+    def create_mock_client():
+        ctx_mgr = AsyncMock()
+        ctx_mgr.__aenter__.return_value = mock_client
+        return ctx_mgr
+
+    mock_get_client.side_effect = create_mock_client
+
+    result = runner.invoke(app, ["task", "delete", "task1", "task2", "--force"])
+
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["count"] == 2
+    assert all(item["deleted"] is True for item in data["data"])
+    assert [item["id"] for item in data["data"]] == ["task1", "task2"]
+    assert mock_client.delete_task.await_count == 2
 
 
 def test_task_delete_batch_without_force_exits_2():
@@ -1555,3 +1578,54 @@ def test_task_list_with_filters_cov(mock_get_client):
     )
     assert result.exit_code == 0
     assert "X" in result.output
+
+
+# =============================================================================
+# --brief on mutation responses (item 4)
+# =============================================================================
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_create_brief_omits_description(mock_get_client):
+    """--brief on create returns the stripped projection (no description)."""
+    mock_client = AsyncMock()
+    mock_client.create_task.return_value = Task(
+        id="t1", name="Brief", description="long detailed text", url="https://x"
+    )
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["task", "create", "Brief", "--list-id", "L1", "--brief"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["id"] == "t1"
+    assert data["name"] == "Brief"
+    assert "description" not in data
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_update_brief_omits_description(mock_get_client):
+    """--brief on update returns the stripped projection (no description)."""
+    mock_client = AsyncMock()
+    mock_client.update_task.return_value = Task(id="t1", name="Updated", description="some desc", url="https://x")
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["task", "update", "t1", "--name", "Updated", "--brief"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["id"] == "t1"
+    assert data["name"] == "Updated"
+    assert "description" not in data
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_status_brief_omits_description(mock_get_client):
+    """--brief on status returns the stripped projection (no description)."""
+    mock_client = AsyncMock()
+    mock_client.update_task.return_value = Task(id="t1", name="X", description="verbose desc", url="https://x")
+    mock_get_client.return_value = make_mock_ctx(mock_client)
+
+    result = runner.invoke(app, ["task", "status", "t1", "complete", "--brief"])
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    assert data["id"] == "t1"
+    assert "description" not in data

@@ -86,7 +86,7 @@ command_count = CLI invocations that did real work (exclude --help calls; count 
 | 6 | "Create a new task titled `agent-test-eval-6 hello world` in the list with ID 901316076590. Report the task ID and URL. Then DELETE it." | create + delete |
 | 7 | "Create a task named `agent-test-eval-7 update-flow` with description `original` in list 901316076590. Update ONLY its priority to 2. Re-fetch and verify name and description are unchanged. Then delete the task." | modify-if-passed |
 | 8 | "Search the workspace for tasks containing the word 'test'. Report the match count and three example titles." | search |
-| 9 | "Pick any existing task. Get its full details and list its comments. Report which fields came back." | task get expansion, comments read |
+| 9 | "Pick any existing task EXCEPT ones named `agent-test-eval-*` (those are ephemeral artifacts of sibling evals and may vanish mid-run). Get its full details and list its comments. Report which fields came back." | task get expansion, comments read |
 | 10 | "Export tasks from any non-empty list to JSON at /tmp/clickup-export-eval-10.json. Then `head -c 500` the file to confirm." | export |
 | 11 | "Find which list is the user's most active (most tasks and most recent activity). Explain how you decided." | list-level stats |
 | 12 | "Starting from zero configuration, end with `clickup task list` working without any flags. If a default isn't set, set one using only non-interactive commands." | onboarding, default resolution |
@@ -105,6 +105,8 @@ Sub-agent self-verdicts are input, not the result. After all reports return, **y
 - **PASS** — goal fully achieved; ≤6 working CLI invocations (excluding `--help`); no manual workaround for something the CLI should do (e.g., piping JSON to python to filter/sort when a flag exists or should exist); no misleading error encountered; cleanup done.
 - **PARTIAL** — goal achieved but with a workaround, >6 working invocations, a misleading/opaque error along the way, or incomplete cleanup.
 - **FAIL** — goal not achieved within budget.
+
+**Cross-agent interference:** the 18 agents run concurrently against one live workspace, so a read agent can race a sibling's create/delete (e.g., `task search` returns a task that a write agent deletes seconds later). Commands spent recovering from such interference measure the harness, not the CLI — exclude them from the ≤6 budget, but record the incident verbatim in the run notes. Never use this clause to excuse friction the CLI itself caused; when in doubt, count the command.
 
 **Per-task success criteria:**
 
