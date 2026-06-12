@@ -334,3 +334,95 @@ class TestListStatsHelp:
         result = runner.invoke(app, ["list", "--help"])
         assert result.exit_code == 0
         assert "stats" in result.stdout
+
+
+# =============================================================================
+# Activity sort (from backlog-49 batch 2 item 1)
+# =============================================================================
+
+
+class TestListStatsActivitySort:
+    def test_activity_is_default_sort(self):
+        """The default --sort is 'activity' (no explicit --sort needed)."""
+        client = _build_client(
+            folderless_lists=[
+                _list(id="L1", name="Old"),
+                _list(id="L2", name="New"),
+            ],
+            tasks_by_list={
+                "L1": [_task(id="t1", name="A", date_updated="1600000000000")],
+                "L2": [_task(id="t2", name="B", date_updated="1700000000000")],
+            },
+        )
+        from unittest.mock import patch
+
+        with patch("clickup.cli.commands.list.get_client", return_value=make_mock_ctx(client)):
+            result = runner.invoke(app, ["--format", "json", "list", "stats", "--workspace-id", "T1"])
+
+        assert result.exit_code == 0
+        payload = json.loads(result.stdout)
+        assert payload["data"][0]["id"] == "L2"
+        assert payload["data"][1]["id"] == "L1"
+
+    def test_activity_sort_tiebreaker_by_task_count(self):
+        """When last_updated ties, larger list wins."""
+        client = _build_client(
+            folderless_lists=[
+                _list(id="L1", name="Small"),
+                _list(id="L2", name="Big"),
+            ],
+            tasks_by_list={
+                "L1": [
+                    _task(id="t1", name="A", date_updated="1700000000000"),
+                ],
+                "L2": [
+                    _task(id="t2", name="B", date_updated="1700000000000"),
+                    _task(id="t3", name="C", date_updated="1700000000000"),
+                    _task(id="t4", name="D", date_updated="1699900000000"),
+                ],
+            },
+        )
+        from unittest.mock import patch
+
+        with patch("clickup.cli.commands.list.get_client", return_value=make_mock_ctx(client)):
+            result = runner.invoke(
+                app, ["--format", "json", "list", "stats", "--workspace-id", "T1", "--sort", "activity"]
+            )
+
+        assert result.exit_code == 0
+        payload = json.loads(result.stdout)
+        assert payload["data"][0]["id"] == "L2"
+        assert payload["data"][1]["id"] == "L1"
+
+    def test_activity_sort_null_last_updated_always_last(self):
+        """Lists with null last_updated sort after all dated lists."""
+        client = _build_client(
+            folderless_lists=[
+                _list(id="L1", name="Empty"),
+                _list(id="L2", name="Active"),
+                _list(id="L3", name="AlsoEmpty"),
+            ],
+            tasks_by_list={
+                "L1": [],
+                "L2": [_task(id="t1", name="A", date_updated="1700000000000")],
+                "L3": [],
+            },
+        )
+        from unittest.mock import patch
+
+        with patch("clickup.cli.commands.list.get_client", return_value=make_mock_ctx(client)):
+            result = runner.invoke(
+                app, ["--format", "json", "list", "stats", "--workspace-id", "T1", "--sort", "activity"]
+            )
+
+        assert result.exit_code == 0
+        payload = json.loads(result.stdout)
+        assert payload["data"][0]["id"] == "L2"
+        null_ids = {row["id"] for row in payload["data"][1:]}
+        assert null_ids == {"L1", "L3"}
+
+    def test_activity_sort_help_text(self):
+        """--help for stats includes 'activity' in --sort description."""
+        result = runner.invoke(app, ["list", "stats", "--help"])
+        assert result.exit_code == 0
+        assert "activity" in result.stdout

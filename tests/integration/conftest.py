@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -47,3 +48,20 @@ def make_mock_client() -> AsyncMock:
     context-manager is needed.
     """
     return AsyncMock()
+
+
+def _strip_ansi(text: str) -> str:
+    """Remove ANSI escape sequences from *text*."""
+    return re.sub(r"\x1b\[[0-9;]*m", "", text)
+
+
+def _plain_help(result) -> str:
+    """Normalize CLI help output for substring assertions.
+
+    Rich colors flag tokens and wraps panel cells differently per
+    environment (GitHub Actions enables ANSI; local CliRunner does not),
+    so strip escape codes and box-drawing, then collapse whitespace.
+    """
+    text = _strip_ansi(result.stdout)
+    text = re.sub(r"[│╭╮╰╯─]", " ", text)
+    return " ".join(text.split())

@@ -19,6 +19,48 @@ if TYPE_CHECKING:
 
 console = Console()
 
+# ── Shared constants ──────────────────────────────────────────────────────
+
+BRIEF_HELP = "Compact projection: id, name, status, priority, assignees, due_date, date_updated, url, list."
+
+
+# ── Output-flag helpers ───────────────────────────────────────────────────
+
+
+def validate_output_flags(ids_only: bool, brief: bool) -> None:
+    """Raise a usage error if ``--ids-only`` and ``--brief`` are both set."""
+    if ids_only and brief:
+        usage_error("Error: --ids-only and --brief are mutually exclusive.")
+
+
+# ── Batch-result helpers ──────────────────────────────────────────────────
+
+
+def partition_batch_results(
+    ids_or_labels: list[str],
+    results: list[Any],
+) -> tuple[list[Any], list[tuple[str, BaseException]]]:
+    """Split *results* from ``gather_bounded`` into (succeeded, failures).
+
+    Each element in *results* is paired with its label from *ids_or_labels*.
+    Non-exception results go into the succeeded list; exceptions go into
+    failures as ``(label, exception)`` tuples.
+    """
+    succeeded: list[Any] = []
+    failures: list[tuple[str, BaseException]] = []
+    for label, result in zip(ids_or_labels, results, strict=False):
+        if isinstance(result, BaseException):
+            failures.append((label, result))
+        else:
+            succeeded.append(result)
+    return succeeded, failures
+
+
+def report_batch_failures(failures: list[tuple[str, BaseException]]) -> None:
+    """Emit a canonical error envelope on stderr for each failure."""
+    for label, exc in failures:
+        render_error(f"ClickUp API Error ({label}): {exc}", error_type=type(exc).__name__)
+
 
 async def get_client() -> TaskProvider:
     """Get configured task provider."""

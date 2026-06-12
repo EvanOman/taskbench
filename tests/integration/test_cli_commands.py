@@ -11,6 +11,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import AsyncMock, Mock, patch
 
+import pytest
 from typer.testing import CliRunner
 
 from clickup.cli.main import app
@@ -426,3 +427,145 @@ def test_task_list_no_credentials():
                 environ.pop(k, None)
             result = runner.invoke(app, ["task", "list", "--list-id", "L1"])
             assert result.exit_code != 0
+
+
+# =============================================================================
+# 401 message wording (from backlog-49 item 2)
+# =============================================================================
+
+
+@pytest.mark.asyncio
+async def test_401_resource_endpoint_leads_with_id_interpretation(mock_clickup_client):
+    """Resource endpoint 401 now leads with 'the ID does not exist'."""
+    from clickup.core.exceptions import ResourceAccessError
+
+    mock_response = Mock()
+    mock_response.status_code = 401
+    mock_response.content = b'{"err": "Team not authorized"}'
+    mock_response.json.return_value = {"err": "Team not authorized"}
+
+    mock_clickup_client.client.request.return_value = mock_response
+
+    with pytest.raises(ResourceAccessError) as exc:
+        await mock_clickup_client._request("GET", "/task/doesnotexist123")
+    msg = str(exc.value)
+    assert msg.startswith("ClickUp returned 401 for /task/doesnotexist123")
+    assert "the ID does not exist" in msg
+    assert "token itself is invalid" in msg
+
+
+@pytest.mark.asyncio
+async def test_401_auth_endpoint_leads_with_invalid_token(mock_clickup_client):
+    """Auth endpoint (/user) 401 still leads with invalid token."""
+    from clickup.core.exceptions import AuthenticationError
+
+    mock_response = Mock()
+    mock_response.status_code = 401
+    mock_response.content = b'{"err": "Unauthorized"}'
+    mock_response.json.return_value = {"err": "Unauthorized"}
+
+    mock_clickup_client.client.request.return_value = mock_response
+
+    with pytest.raises(AuthenticationError) as exc:
+        await mock_clickup_client._request("GET", "/user")
+    msg = str(exc.value)
+    assert "invalid API token" in msg
+
+
+# =============================================================================
+# Config alias as primary command name (from backlog-49 batch 2 item 3)
+# =============================================================================
+
+
+class TestConfigAlias:
+    def test_alias_add(self):
+        """config alias NAME LIST_ID adds an alias."""
+        result = runner.invoke(app, ["config", "alias", "myalias", "12345"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["action"] == "added"
+        assert data["alias"] == "myalias"
+        assert data["list_id"] == "12345"
+
+    def test_alias_remove(self):
+        """config alias --remove NAME removes an alias."""
+        runner.invoke(app, ["config", "alias", "myalias", "12345"])
+        result = runner.invoke(app, ["config", "alias", "--remove", "myalias"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["action"] == "removed"
+        assert data["alias"] == "myalias"
+
+    def test_alias_remove_missing_errors(self):
+        """Removing a non-existent alias exits 1."""
+        result = runner.invoke(app, ["config", "alias", "--remove", "nonexistent"])
+        assert result.exit_code == 1
+
+    def test_alias_no_id_errors(self):
+        """Adding an alias without a list_id exits 1."""
+        result = runner.invoke(app, ["config", "alias", "myalias"])
+        assert result.exit_code == 1
+        assert "list_id" in result.output.lower()
+
+    def test_alias_list_empty(self):
+        """config alias with no args and no aliases returns empty envelope."""
+        result = runner.invoke(app, ["config", "alias"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data == {"data": [], "count": 0}
+
+    def test_alias_list_populated(self):
+        """config alias with no args lists all configured aliases."""
+        runner.invoke(app, ["config", "alias", "alpha", "111"])
+        runner.invoke(app, ["config", "alias", "beta", "222"])
+        result = runner.invoke(app, ["config", "alias"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["count"] == 2
+        aliases = {row["alias"] for row in data["data"]}
+        assert aliases == {"alpha", "beta"}
+        list_ids = {row["list_id"] for row in data["data"]}
+        assert list_ids == {"111", "222"}
+
+    def test_alias_list_table_mode(self):
+        """config alias in table mode renders a table."""
+        runner.invoke(app, ["config", "alias", "myalias", "12345"])
+        result = runner.invoke(app, ["--format", "table", "config", "alias"])
+        assert result.exit_code == 0
+        assert "myalias" in result.stdout
+        assert "12345" in result.stdout
+
+    def test_alias_list_table_empty(self):
+        """config alias in table mode with no aliases shows info message."""
+        result = runner.invoke(app, ["--format", "table", "config", "alias"])
+        assert result.exit_code == 0
+        assert "No aliases" in result.stdout or result.stdout.strip() == ""
+
+
+class TestSetDefaultListBackCompat:
+    """set-default-list still works as a hidden back-compat alias."""
+
+    def test_set_default_list_still_works(self):
+        """set-default-list add/remove still works."""
+        result = runner.invoke(app, ["config", "set-default-list", "myalias", "12345"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["alias"] == "myalias"
+
+        result = runner.invoke(app, ["config", "set-default-list", "--remove", "myalias"])
+        assert result.exit_code == 0
+        data = json.loads(result.stdout)
+        assert data["action"] == "removed"
+
+    def test_set_default_list_hidden_from_help(self):
+        """set-default-list does not appear in config --help."""
+        result = runner.invoke(app, ["config", "--help"])
+        assert result.exit_code == 0
+        assert "alias" in result.stdout
+        assert "set-default-list" not in result.stdout
+
+    def test_alias_visible_in_help(self):
+        """config alias appears in config --help."""
+        result = runner.invoke(app, ["config", "--help"])
+        assert result.exit_code == 0
+        assert "alias" in result.stdout

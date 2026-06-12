@@ -7,7 +7,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-06-05T09:06:47.816398919Z"
+exclude-newer = "2026-06-05T09:23:02.610244163Z"
 exclude-newer-span = "P7D"
 
 [[package]]
@@ -138,7 +138,7 @@ wheels = [
 
 [[package]]
 name = "clickup-toolkit"
-version = "0.5.2"
+version = "0.5.3"
 source = { editable = "." }
 dependencies = [
     { name = "click" },

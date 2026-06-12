@@ -18,14 +18,18 @@ from ..output import (
     render_tasks,
 )
 from ..shared import (
+    BRIEF_HELP,
     gather_bounded,
     get_client,
     handle_clickup_errors,
+    partition_batch_results,
+    report_batch_failures,
     require_list_id,
     resolve_list_ids,
     resolve_workspace_id,
     split_csv,
     usage_error,
+    validate_output_flags,
 )
 from ..task_filters import (
     annotate_source_list,
@@ -95,7 +99,7 @@ def list_tasks(
     brief: bool = typer.Option(
         False,
         "--brief",
-        help="Compact projection: id, name, status, priority, assignees, due_date, date_updated, url, list.",
+        help=BRIEF_HELP,
     ),
 ) -> None:
     """List tasks from a ClickUp list.
@@ -186,7 +190,7 @@ def get_task(
     brief: bool = typer.Option(
         False,
         "--brief",
-        help="Compact projection: id, name, status, priority, assignees, due_date, date_updated, url, list.",
+        help=BRIEF_HELP,
     ),
 ) -> None:
     """Get detailed information about a specific task.
@@ -235,7 +239,7 @@ def my_tasks(
     brief: bool = typer.Option(
         False,
         "--brief",
-        help="Compact projection: id, name, status, priority, assignees, due_date, date_updated, url, list.",
+        help=BRIEF_HELP,
     ),
 ) -> None:
     """List tasks assigned to the authenticated user.
@@ -317,7 +321,7 @@ def create_task(
     brief: bool = typer.Option(
         False,
         "--brief",
-        help="Compact projection: id, name, status, priority, assignees, due_date, date_updated, url, list.",
+        help=BRIEF_HELP,
     ),
     ids_only: bool = typer.Option(
         False,
@@ -331,8 +335,7 @@ def create_task(
     (--description, --priority, --status, etc.) apply to every task.
     Single-name invocations are byte-identical to the old behavior.
     """
-    if ids_only and brief:
-        usage_error("Error: --ids-only and --brief are mutually exclusive.")
+    validate_output_flags(ids_only, brief)
     for task_name in names:
         validate_task_name(task_name)
     validate_priority(priority)
@@ -377,13 +380,7 @@ def create_task(
                     [client.create_task(list_id_to_use, name=n, **task_data) for n in names],
                     limit=5,
                 )
-                succeeded: list[Any] = []
-                failures: list[tuple[str, BaseException]] = []
-                for task_name, result in zip(names, results, strict=False):
-                    if isinstance(result, BaseException):
-                        failures.append((task_name, result))
-                    else:
-                        succeeded.append(result)
+                succeeded, failures = partition_batch_results(names, results)
 
                 if ids_only:
                     for task in succeeded:
@@ -430,7 +427,7 @@ def update_task(
     brief: bool = typer.Option(
         False,
         "--brief",
-        help="Compact projection: id, name, status, priority, assignees, due_date, date_updated, url, list.",
+        help=BRIEF_HELP,
     ),
 ) -> None:
     """Update a task. Only fields you pass are changed; everything else stays the same."""
@@ -516,20 +513,19 @@ async def _do_status_change_many(
     Exits 1 if any task failed, so agents can detect partial success by
     pairing the exit code with the stdout envelope's count.
     """
-    succeeded: list[Any] = []
-    failures: list[tuple[str, ClickUpError]] = []
     async with await get_client() as client:
         results = await gather_bounded(
             [client.update_task(task_id, status=status) for task_id in task_ids],
             limit=5,
         )
-        for task_id, result in zip(task_ids, results, strict=False):
-            if isinstance(result, ClickUpError):
-                failures.append((task_id, result))
-            elif isinstance(result, BaseException):
-                failures.append((task_id, ClickUpError(str(result))))
-            else:
-                succeeded.append(result)
+    # Wrap non-ClickUpError exceptions so the failure type is uniform.
+    wrapped: list[Any] = []
+    for r in results:
+        if isinstance(r, BaseException) and not isinstance(r, ClickUpError):
+            wrapped.append(ClickUpError(str(r)))
+        else:
+            wrapped.append(r)
+    succeeded, failures = partition_batch_results(task_ids, wrapped)
 
     if succeeded:
         if ids_only:
@@ -545,8 +541,7 @@ async def _do_status_change_many(
         else:
             render_message(f"Updated {len(succeeded)}/{len(task_ids)} task statuses -> {status}", "success")
 
-    for task_id, exc in failures:
-        render_error(f"ClickUp API Error ({task_id}): {exc}", error_type=type(exc).__name__)
+    report_batch_failures(failures)
     if failures:
         raise typer.Exit(1)
 
@@ -591,7 +586,7 @@ def change_status(
     brief: bool = typer.Option(
         False,
         "--brief",
-        help="Compact projection: id, name, status, priority, assignees, due_date, date_updated, url, list.",
+        help=BRIEF_HELP,
     ),
     ids_only: bool = typer.Option(
         False,
@@ -609,8 +604,7 @@ def change_status(
     Mixing positional + flag for the same parameter is rejected (exit 2) so
     agents don't silently get one value when they thought they passed two.
     """
-    if ids_only and brief:
-        usage_error("Error: --ids-only and --brief are mutually exclusive.")
+    validate_output_flags(ids_only, brief)
     if task_id_arg is not None and task_id_flag is not None:
         usage_error("Error: pass TASK_ID either as a positional argument OR via --task-id, not both.")
     if task_ids_flag is not None and (task_id_arg is not None or task_id_flag is not None):
@@ -632,90 +626,43 @@ def change_status(
     run_async(_do_status_change_many(task_ids, status, brief=brief, ids_only=ids_only))
 
 
-@app.command("done")
-def task_done(
-    task_ids: list[str] = typer.Argument(..., metavar="TASK_ID...", help="One or more task IDs"),
-    status: str = typer.Option(_DONE_STATUS, "--status", "-s", help=f"Target status name (default: '{_DONE_STATUS}')"),
-    brief: bool = typer.Option(
-        False,
-        "--brief",
-        help="Compact projection: id, name, status, priority, assignees, due_date, date_updated, url, list.",
-    ),
-    ids_only: bool = typer.Option(
-        False,
-        "--ids-only",
-        help="Print only the affected task IDs, one per line. Mutually exclusive with --brief.",
-    ),
-) -> None:
-    """Close one or more tasks. Sets status to 'complete' unless --status overrides."""
-    if ids_only and brief:
-        usage_error("Error: --ids-only and --brief are mutually exclusive.")
-    run_async(_do_status_change_many(task_ids, status, brief=brief, ids_only=ids_only))
+# ── Status-verb factory ───────────────────────────────────────────────────
+# done/close/start/park are near-identical: each sets a default status and
+# delegates to _do_status_change_many. A factory avoids 80+ lines of copy.
+
+_STATUS_VERB_TABLE: list[tuple[str, str, str]] = [
+    ("done", _DONE_STATUS, "Close one or more tasks. Sets status to 'complete' unless --status overrides."),
+    ("close", _DONE_STATUS, "Close one or more tasks. Alias for `task done`."),
+    ("start", _START_STATUS, "Move one or more tasks to 'in progress' unless --status overrides."),
+    ("park", _PARK_STATUS, "Park one or more tasks on the on-deck queue unless --status overrides."),
+]
 
 
-@app.command("close")
-def task_close(
-    task_ids: list[str] = typer.Argument(..., metavar="TASK_ID...", help="One or more task IDs"),
-    status: str = typer.Option(_DONE_STATUS, "--status", "-s", help=f"Target status name (default: '{_DONE_STATUS}')"),
-    brief: bool = typer.Option(
-        False,
-        "--brief",
-        help="Compact projection: id, name, status, priority, assignees, due_date, date_updated, url, list.",
-    ),
-    ids_only: bool = typer.Option(
-        False,
-        "--ids-only",
-        help="Print only the affected task IDs, one per line. Mutually exclusive with --brief.",
-    ),
-) -> None:
-    """Close one or more tasks. Alias for `task done`."""
-    if ids_only and brief:
-        usage_error("Error: --ids-only and --brief are mutually exclusive.")
-    run_async(_do_status_change_many(task_ids, status, brief=brief, ids_only=ids_only))
+def _make_status_verb(cmd_name: str, default_status: str, docstring: str) -> None:
+    """Register a status-verb command on *app* from a table entry."""
+
+    def _handler(
+        task_ids: list[str] = typer.Argument(..., metavar="TASK_ID...", help="One or more task IDs"),
+        status: str = typer.Option(
+            default_status, "--status", "-s", help=f"Target status name (default: '{default_status}')"
+        ),
+        brief: bool = typer.Option(False, "--brief", help=BRIEF_HELP),
+        ids_only: bool = typer.Option(
+            False,
+            "--ids-only",
+            help="Print only the affected task IDs, one per line. Mutually exclusive with --brief.",
+        ),
+    ) -> None:
+        validate_output_flags(ids_only, brief)
+        run_async(_do_status_change_many(task_ids, status, brief=brief, ids_only=ids_only))
+
+    _handler.__doc__ = docstring
+    _handler.__name__ = f"task_{cmd_name}"
+    app.command(cmd_name)(_handler)
 
 
-@app.command("start")
-def task_start(
-    task_ids: list[str] = typer.Argument(..., metavar="TASK_ID...", help="One or more task IDs"),
-    status: str = typer.Option(
-        _START_STATUS, "--status", "-s", help=f"Target status name (default: '{_START_STATUS}')"
-    ),
-    brief: bool = typer.Option(
-        False,
-        "--brief",
-        help="Compact projection: id, name, status, priority, assignees, due_date, date_updated, url, list.",
-    ),
-    ids_only: bool = typer.Option(
-        False,
-        "--ids-only",
-        help="Print only the affected task IDs, one per line. Mutually exclusive with --brief.",
-    ),
-) -> None:
-    """Move one or more tasks to 'in progress' unless --status overrides."""
-    if ids_only and brief:
-        usage_error("Error: --ids-only and --brief are mutually exclusive.")
-    run_async(_do_status_change_many(task_ids, status, brief=brief, ids_only=ids_only))
-
-
-@app.command("park")
-def task_park(
-    task_ids: list[str] = typer.Argument(..., metavar="TASK_ID...", help="One or more task IDs"),
-    status: str = typer.Option(_PARK_STATUS, "--status", "-s", help=f"Target status name (default: '{_PARK_STATUS}')"),
-    brief: bool = typer.Option(
-        False,
-        "--brief",
-        help="Compact projection: id, name, status, priority, assignees, due_date, date_updated, url, list.",
-    ),
-    ids_only: bool = typer.Option(
-        False,
-        "--ids-only",
-        help="Print only the affected task IDs, one per line. Mutually exclusive with --brief.",
-    ),
-) -> None:
-    """Park one or more tasks on the on-deck queue unless --status overrides."""
-    if ids_only and brief:
-        usage_error("Error: --ids-only and --brief are mutually exclusive.")
-    run_async(_do_status_change_many(task_ids, status, brief=brief, ids_only=ids_only))
+for _name, _status, _doc in _STATUS_VERB_TABLE:
+    _make_status_verb(_name, _status, _doc)
 
 
 @app.command("delete")
@@ -759,20 +706,19 @@ def delete_task(
             render_error("Refusing to delete without --force/--yes (this CLI never prompts).", error_type="UsageError")
             raise typer.Exit(2)
 
-        succeeded: list[dict[str, object]] = []
-        failures: list[tuple[str, Exception]] = []
         async with await get_client() as client:
-            results = await gather_bounded(
+            raw_results = await gather_bounded(
                 [client.delete_task(tid) for tid in target_ids],
                 limit=5,
             )
-            for tid, result in zip(target_ids, results, strict=False):
-                if isinstance(result, BaseException):
-                    exc = result if isinstance(result, ClickUpError) else ClickUpError(str(result))
-                    failures.append((tid, exc))
-                    render_message(f"Failed to delete task {tid}: {result}", "warn")
-                else:
-                    succeeded.append({"id": tid, "deleted": True})
+        _ok, failures = partition_batch_results(target_ids, raw_results)
+        succeeded: list[dict[str, object]] = [
+            {"id": tid, "deleted": True}
+            for tid, r in zip(target_ids, raw_results, strict=False)
+            if not isinstance(r, BaseException)
+        ]
+        for tid, exc in failures:
+            render_message(f"Failed to delete task {tid}: {exc}", "warn")
 
         if ids_only:
             for item in succeeded:
@@ -781,8 +727,8 @@ def delete_task(
             if len(target_ids) == 1 and not failures:
                 render_kv({"id": target_ids[0], "deleted": True})
             else:
-                results = list(succeeded) + [{"id": tid, "deleted": False} for tid, _ in failures]
-                _print_json({"data": results, "count": len(results)})
+                all_results = list(succeeded) + [{"id": tid, "deleted": False} for tid, _ in failures]
+                _print_json({"data": all_results, "count": len(all_results)})
         else:
             if succeeded and not failures:
                 if len(succeeded) == 1:
@@ -792,8 +738,7 @@ def delete_task(
             elif succeeded:
                 render_message(f"Deleted {len(succeeded)}/{len(target_ids)} tasks ({len(failures)} failed).", "warn")
 
-        for tid, exc in failures:
-            render_error(f"ClickUp API Error ({tid}): {exc}", error_type=type(exc).__name__)
+        report_batch_failures(failures)
         if failures:
             raise typer.Exit(1)
 
@@ -840,7 +785,7 @@ def search_tasks(
     brief: bool = typer.Option(
         False,
         "--brief",
-        help="Compact projection: id, name, status, priority, assignees, due_date, date_updated, url, list.",
+        help=BRIEF_HELP,
     ),
 ) -> None:
     """Search for tasks across the workspace.
@@ -903,11 +848,11 @@ def export_tasks(
     include_completed: bool = typer.Option(True, "--include-completed", help="Include completed tasks"),
 ) -> None:
     """Export tasks from a list to a file."""
+    from .bulk import _export_tasks_impl
 
     async def _export_tasks() -> None:
         list_id_to_use = require_list_id(list_id)
-        nonlocal output_file
-        output_file = output_file or f"tasks.{output_format.lower()}"
+        resolved_output = output_file or f"tasks.{output_format.lower()}"
 
         with handle_clickup_errors():
             async with await get_client() as client:
@@ -916,53 +861,12 @@ def export_tasks(
                     filters["include_closed"] = False
 
                 tasks = await client.get_tasks(list_id_to_use, **filters)
-                if output_format.lower() == "json":
-                    import json
 
-                    task_data = []
-                    for task in tasks:
-                        task_dict = task.model_dump()
-                        # Simplify complex fields for JSON export
-                        if task_dict.get("status"):
-                            task_dict["status"] = task_dict["status"].get("status", "")
-                        if task_dict.get("priority"):
-                            task_dict["priority"] = task_dict["priority"].get("priority", "")
-                        if task_dict.get("assignees"):
-                            task_dict["assignees"] = [a.get("username", "") for a in task_dict["assignees"]]
-                        task_data.append(task_dict)
-
-                    with open(output_file, "w", encoding="utf-8") as jsonfile:
-                        json.dump(task_data, jsonfile, indent=2, ensure_ascii=False)
-
-                elif output_format.lower() == "csv":
-                    import csv
-
-                    with open(output_file, "w", newline="", encoding="utf-8") as csvfile:
-                        fieldnames = ["id", "name", "status", "priority", "assignees", "due_date", "description"]
-                        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                        writer.writeheader()
-
-                        for task in tasks:
-                            t_status = task.status.status if task.status else ""
-                            t_priority = task.priority.priority or "" if task.priority else ""
-                            assignees = ", ".join([a.username for a in task.assignees]) if task.assignees else ""
-
-                            writer.writerow(
-                                {
-                                    "id": task.id,
-                                    "name": task.name,
-                                    "status": t_status,
-                                    "priority": t_priority,
-                                    "assignees": assignees,
-                                    "due_date": task.due_date or "",
-                                    "description": task.description or "",
-                                }
-                            )
-                else:
-                    render_error(f"Unsupported format: {output_format}")
-                    raise typer.Exit(1)
-
-                render_kv({"exported": len(tasks), "output_file": output_file, "format": output_format.lower()})
+                try:
+                    _export_tasks_impl(tasks, resolved_output, output_format)
+                except OSError as e:
+                    render_error(f"Error: {e}")
+                    raise typer.Exit(1) from e
 
     run_async(_export_tasks())
 

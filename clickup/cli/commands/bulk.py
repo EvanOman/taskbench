@@ -10,13 +10,83 @@ from rich.console import Console
 from rich.markup import escape
 from rich.table import Table
 
-from ...core import ClickUpError
 from ..output import _print_json, get_format, render_error, render_kv, render_message
-from ..shared import gather_bounded, get_client, require_list_id, resolve_list_ids
+from ..shared import gather_bounded, get_client, handle_clickup_errors, require_list_id, resolve_list_ids
 from ..utils import run_async
 
 app = typer.Typer(help="Bulk operations and import/export")
 console = Console()
+
+
+# ── Shared export implementation ──────────────────────────────────────────
+
+
+def _export_tasks_impl(tasks: list[Any], output_file: str, output_format: str) -> None:
+    """Write *tasks* to *output_file* in the given format (csv or json).
+
+    This is the single canonical export implementation used by both
+    ``bulk export-tasks`` and ``task export``.  Raises ``typer.Exit(1)``
+    for unsupported formats.  Disk errors (``OSError``) are re-raised so
+    callers can render them appropriately.
+    """
+    fmt = output_format.lower()
+    if fmt == "csv":
+        with open(output_file, "w", newline="", encoding="utf-8") as csvfile:
+            fieldnames = [
+                "id",
+                "name",
+                "description",
+                "status",
+                "priority",
+                "assignees",
+                "due_date",
+                "date_created",
+                "date_updated",
+                "url",
+            ]
+            writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+            writer.writeheader()
+
+            for task in tasks:
+                status = task.status.status if task.status else ""
+                priority = task.priority.priority or "" if task.priority else ""
+                assignees = ", ".join([a.username for a in task.assignees]) if task.assignees else ""
+
+                writer.writerow(
+                    {
+                        "id": task.id,
+                        "name": task.name,
+                        "description": task.description or "",
+                        "status": status,
+                        "priority": priority,
+                        "assignees": assignees,
+                        "due_date": task.due_date or "",
+                        "date_created": task.date_created or "",
+                        "date_updated": task.date_updated or "",
+                        "url": task.url or "",
+                    }
+                )
+
+    elif fmt == "json":
+        task_data = []
+        for task in tasks:
+            task_dict = task.model_dump()
+            if task_dict.get("status"):
+                task_dict["status"] = task_dict["status"].get("status", "")
+            if task_dict.get("priority"):
+                task_dict["priority"] = task_dict["priority"].get("priority", "")
+            if task_dict.get("assignees"):
+                task_dict["assignees"] = [a.get("username", "") for a in task_dict["assignees"]]
+            task_data.append(task_dict)
+
+        with open(output_file, "w", encoding="utf-8") as jsonfile:
+            json.dump(task_data, jsonfile, indent=2, ensure_ascii=False)
+
+    else:
+        render_error(f"Unsupported format: {output_format}")
+        raise typer.Exit(1)
+
+    render_kv({"exported": len(tasks), "output_file": output_file, "format": fmt})
 
 
 @app.command("export-tasks")
@@ -33,85 +103,21 @@ def export_tasks(
 
     async def _export_tasks() -> None:
         list_id_to_use = require_list_id(list_id)
-        nonlocal output_file
-        output_file = output_file or f"tasks.{output_format.lower()}"
+        resolved_output = output_file or f"tasks.{output_format.lower()}"
 
-        try:
+        with handle_clickup_errors():
             async with await get_client() as client:
-                filters = {}
+                filters: dict[str, Any] = {}
                 if not include_completed:
                     filters["include_closed"] = False
 
                 tasks = await client.get_tasks(list_id_to_use, **filters)
 
-                if output_format.lower() == "csv":
-                    # Export to CSV
-                    with open(output_file, "w", newline="", encoding="utf-8") as csvfile:
-                        fieldnames = [
-                            "id",
-                            "name",
-                            "description",
-                            "status",
-                            "priority",
-                            "assignees",
-                            "due_date",
-                            "date_created",
-                            "date_updated",
-                            "url",
-                        ]
-                        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-                        writer.writeheader()
-
-                        for task in tasks:
-                            status = task.status.status if task.status else ""
-                            priority = task.priority.priority or "" if task.priority else ""
-                            assignees = ", ".join([a.username for a in task.assignees]) if task.assignees else ""
-
-                            writer.writerow(
-                                {
-                                    "id": task.id,
-                                    "name": task.name,
-                                    "description": task.description or "",
-                                    "status": status,
-                                    "priority": priority,
-                                    "assignees": assignees,
-                                    "due_date": task.due_date or "",
-                                    "date_created": task.date_created or "",
-                                    "date_updated": task.date_updated or "",
-                                    "url": task.url or "",
-                                }
-                            )
-
-                elif output_format.lower() == "json":
-                    # Export to JSON
-                    task_data = []
-                    for task in tasks:
-                        task_dict = task.model_dump()
-                        # Simplify complex fields for JSON export
-                        if task_dict.get("status"):
-                            task_dict["status"] = task_dict["status"].get("status", "")
-                        if task_dict.get("priority"):
-                            task_dict["priority"] = task_dict["priority"].get("priority", "")
-                        if task_dict.get("assignees"):
-                            task_dict["assignees"] = [a.get("username", "") for a in task_dict["assignees"]]
-                        task_data.append(task_dict)
-
-                    with open(output_file, "w", encoding="utf-8") as jsonfile:
-                        json.dump(task_data, jsonfile, indent=2, ensure_ascii=False)
-
-                else:
-                    render_error(f"Unsupported format: {output_format}")
-                    raise typer.Exit(1) from None
-                render_kv({"exported": len(tasks), "output_file": output_file, "format": output_format.lower()})
-
-        except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
-            raise typer.Exit(1) from e
-        except typer.Exit:
-            raise
-        except Exception as e:
-            render_error(f"Error: {e}")
-            raise typer.Exit(1) from e
+                try:
+                    _export_tasks_impl(tasks, resolved_output, output_format)
+                except OSError as e:
+                    render_error(f"Error: {e}")
+                    raise typer.Exit(1) from e
 
     run_async(_export_tasks())
 
@@ -136,6 +142,7 @@ def import_tasks(
     async def _import_tasks() -> None:
         list_id_to_use = require_list_id(list_id)
 
+        # File IO — targeted OSError handling so disk errors don't become tracebacks.
         try:
             file_path = Path(input_file)
             if not file_path.exists():
@@ -143,7 +150,7 @@ def import_tasks(
                 raise typer.Exit(1)
 
             # Read and parse file
-            tasks_data = []
+            tasks_data: list[dict[str, Any]] = []
             if file_path.suffix.lower() == ".csv":
                 with open(file_path, encoding="utf-8") as csvfile:
                     reader = csv.DictReader(csvfile)
@@ -154,55 +161,59 @@ def import_tasks(
             else:
                 render_error(f"Unsupported file format: {file_path.suffix}")
                 raise typer.Exit(1)
+        except OSError as e:
+            render_error(f"Error: {e}")
+            raise typer.Exit(1) from e
 
-            if not tasks_data:
-                render_message("No tasks found in file.", level="info")
-                return
+        if not tasks_data:
+            render_message("No tasks found in file.", level="info")
+            return
 
-            render_message(f"Found {len(tasks_data)} tasks to import", level="info")
+        render_message(f"Found {len(tasks_data)} tasks to import", level="info")
 
-            if dry_run:
-                if get_format() == "json":
-                    _print_json(
-                        {
-                            "dry_run": True,
-                            "would_create": len(tasks_data),
-                            "tasks": tasks_data[:10],
-                        }
-                    )
-                    return
-
-                table = Table(title="Import Preview", show_header=True)
-                table.add_column("Name", style="bold")
-                table.add_column("Description", style="dim")
-                table.add_column("Priority", style="yellow")
-                table.add_column("Assignees", style="blue")
-
-                for task_data in tasks_data[:10]:
-                    table.add_row(
-                        escape(task_data.get("name", "")),
-                        escape(
-                            task_data.get("description", "")[:50] + "..."
-                            if len(task_data.get("description", "")) > 50
-                            else task_data.get("description", "")
-                        ),
-                        str(task_data.get("priority", "")),
-                        escape(task_data.get("assignees", "")),
-                    )
-
-                console.print(table)
-                if len(tasks_data) > 10:
-                    render_message(f"... and {len(tasks_data) - 10} more tasks", level="info")
-                render_message("This was a dry run. Use --no-dry-run to actually import.", level="info")
-                return
-
-            if not force:
-                render_error(
-                    f"Refusing to import {len(tasks_data)} tasks without --force/--yes (use --dry-run to preview).",
-                    error_type="UsageError",
+        if dry_run:
+            if get_format() == "json":
+                _print_json(
+                    {
+                        "dry_run": True,
+                        "would_create": len(tasks_data),
+                        "tasks": tasks_data[:10],
+                    }
                 )
-                raise typer.Exit(2)
+                return
 
+            table = Table(title="Import Preview", show_header=True)
+            table.add_column("Name", style="bold")
+            table.add_column("Description", style="dim")
+            table.add_column("Priority", style="yellow")
+            table.add_column("Assignees", style="blue")
+
+            for task_data in tasks_data[:10]:
+                table.add_row(
+                    escape(task_data.get("name", "")),
+                    escape(
+                        task_data.get("description", "")[:50] + "..."
+                        if len(task_data.get("description", "")) > 50
+                        else task_data.get("description", "")
+                    ),
+                    str(task_data.get("priority", "")),
+                    escape(task_data.get("assignees", "")),
+                )
+
+            console.print(table)
+            if len(tasks_data) > 10:
+                render_message(f"... and {len(tasks_data) - 10} more tasks", level="info")
+            render_message("This was a dry run. Use --no-dry-run to actually import.", level="info")
+            return
+
+        if not force:
+            render_error(
+                f"Refusing to import {len(tasks_data)} tasks without --force/--yes (use --dry-run to preview).",
+                error_type="UsageError",
+            )
+            raise typer.Exit(2)
+
+        with handle_clickup_errors():
             async with await get_client() as client:
                 created_count = 0
                 failed_count = 0
@@ -239,15 +250,6 @@ def import_tasks(
                 render_kv(summary)
                 if failed_count:
                     raise typer.Exit(1)
-
-        except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
-            raise typer.Exit(1) from e
-        except typer.Exit:
-            raise
-        except Exception as e:
-            render_error(f"Error: {e}")
-            raise typer.Exit(1) from e
 
     run_async(_import_tasks())
 
@@ -297,7 +299,7 @@ def bulk_update(
             render_error("Error: Must specify at least one update (--status, --priority, or --assignee)")
             raise typer.Exit(1)
 
-        try:
+        with handle_clickup_errors():
             async with await get_client() as client:
                 filters: dict[str, Any] = {}
                 if filter_status:
@@ -397,14 +399,5 @@ def bulk_update(
                 render_kv(summary)
                 if failed_count:
                     raise typer.Exit(1)
-
-        except ClickUpError as e:
-            render_error(f"ClickUp API Error: {e}", error_type=type(e).__name__)
-            raise typer.Exit(1) from e
-        except typer.Exit:
-            raise
-        except Exception as e:
-            render_error(f"Error: {e}")
-            raise typer.Exit(1) from e
 
     run_async(_bulk_update())
