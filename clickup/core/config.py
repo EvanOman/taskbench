@@ -181,9 +181,8 @@ class Config:
             self.config_path.parent.mkdir(parents=True, exist_ok=True)
             with open(self.config_path, "w") as f:
                 json.dump(self._config.model_dump(exclude_none=True), f, indent=2)
-        except (OSError, PermissionError):
-            # Handle permission errors gracefully
-            pass
+        except OSError as e:
+            print(f"Warning: failed to save config to {self.config_path}: {e}", file=sys.stderr)
 
     def save(self) -> None:
         """Alias for save_config for test compatibility."""
@@ -215,12 +214,6 @@ class Config:
         Prints a warning to stderr for unrecognised keys but does not error,
         preserving backward compatibility.
         """
-        # Blacklist obviously invalid keys
-        invalid_keys = {"invalid_key", "bad_key", "wrong_key"}
-
-        if key in invalid_keys:
-            raise ValueError(f"Unknown configuration key: {key}")
-
         # Warn (but don't error) on unknown keys for forward compat
         if not is_known_key(key):
             print(
@@ -249,7 +242,6 @@ class Config:
             self.save_config()
             return
 
-        # Handle direct keys - allow if not blacklisted
         setattr(self._config, key, value)
         self.save_config()
 

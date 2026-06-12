@@ -7,6 +7,7 @@ from typing import Any
 
 import typer
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 
 from ...core import ClickUpError, Config, TaskProvider, get_provider, provider_requires_credentials
@@ -322,7 +323,7 @@ def bulk_update(
             )
             raise typer.Exit(1)
 
-        if not any([new_status, new_priority, new_assignee]):
+        if new_status is None and new_priority is None and new_assignee is None:
             render_error("Error: Must specify at least one update (--status, --priority, or --assignee)")
             raise typer.Exit(1)
 
@@ -356,17 +357,17 @@ def bulk_update(
                 table.add_column("New Priority", style="yellow")
 
                 updates: dict[str, Any] = {}
-                if new_status:
+                if new_status is not None:
                     updates["status"] = new_status
-                if new_priority:
+                if new_priority is not None:
                     updates["priority"] = new_priority
-                if new_assignee:
+                if new_assignee is not None:
                     updates["assignees"] = [new_assignee]
 
                 for lid, task in all_tasks[:10]:  # Show first 10
                     current_status = task.status.status if task.status else "Unknown"
                     current_priority = (task.priority.priority or "None") if task.priority else "None"
-                    row = [task.name[:30] + "..." if len(task.name) > 30 else task.name]
+                    row = [escape(task.name[:30] + "..." if len(task.name) > 30 else task.name)]
                     if len(list_ids_to_use) > 1:
                         row.append(lid)
                     row.extend(

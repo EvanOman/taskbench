@@ -64,12 +64,15 @@ def test_config_headers_no_token(temp_config_dir, monkeypatch):
         config.get_headers()
 
 
-def test_set_invalid_key(temp_config_dir):
-    """Test setting invalid configuration key."""
+def test_set_unknown_key_warns_but_stores(temp_config_dir, capsys):
+    """Unknown keys warn to stderr but are still stored (forward compat)."""
     config = Config(config_path=temp_config_dir / "config.json")
 
-    with pytest.raises(ValueError, match="Unknown configuration key"):
-        config.set("invalid_key", "value")
+    config.set("some_unknown_key", "value")
+
+    captured = capsys.readouterr()
+    assert "not a recognised config key" in captured.err
+    assert config.get("some_unknown_key") == "value"
 
 
 def test_default_values(temp_config_dir):

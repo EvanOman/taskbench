@@ -176,13 +176,13 @@ def create_list(
         try:
             list_data: dict[str, Any] = {"name": name}
 
-            if content:
+            if content is not None:
                 list_data["content"] = content
-            if due_date:
+            if due_date is not None:
                 list_data["due_date"] = due_date
-            if priority:
+            if priority is not None:
                 list_data["priority"] = priority
-            if assignee:
+            if assignee is not None:
                 list_data["assignee"] = assignee
 
             async with await get_client() as client:

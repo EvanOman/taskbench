@@ -2,6 +2,7 @@
 
 import typer
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 
 from ...core import ClickUpError, Config, TaskProvider, get_provider, provider_requires_credentials
@@ -136,7 +137,7 @@ def show_ids(
                         table.add_column("Tasks", style="yellow")
 
                         for lst in lists:
-                            table.add_row(lst.name, lst.id, str(lst.task_count))
+                            table.add_row(escape(lst.name), lst.id, str(lst.task_count))
                         console.print(table)
                     else:
                         console.print("[yellow]No lists found in this folder.[/yellow]")
@@ -152,14 +153,14 @@ def show_ids(
                     try:
                         folders = await client.get_folders(space_id)
                         for folder in folders:
-                            table.add_row("📂 Folder", folder.name, folder.id, f"{folder.task_count} tasks")
+                            table.add_row("📂 Folder", escape(folder.name), folder.id, f"{folder.task_count} tasks")
                     except ClickUpError:
                         pass
 
                     try:
                         lists = await client.get_folderless_lists(space_id)
                         for lst in lists:
-                            table.add_row("📋 List", lst.name, lst.id, f"{lst.task_count} tasks")
+                            table.add_row("📋 List", escape(lst.name), lst.id, f"{lst.task_count} tasks")
                     except ClickUpError:
                         pass
 
@@ -179,7 +180,10 @@ def show_ids(
 
                         for space in spaces:
                             table.add_row(
-                                space.name, space.id, "Yes" if space.private else "No", str(len(space.statuses))
+                                escape(space.name),
+                                space.id,
+                                "Yes" if space.private else "No",
+                                str(len(space.statuses)),
                             )
                         console.print(table)
                     else:
@@ -197,7 +201,10 @@ def show_ids(
 
                         for workspace in workspaces:
                             table.add_row(
-                                workspace.name, workspace.id, workspace.color or "N/A", str(len(workspace.members))
+                                escape(workspace.name),
+                                workspace.id,
+                                workspace.color or "N/A",
+                                str(len(workspace.members)),
                             )
                         console.print(table)
 
@@ -225,7 +232,7 @@ def find_path(list_id: str = typer.Argument(..., help="List ID to find path for"
 
                 # Build path by working backwards
                 path_parts = []
-                path_parts.append(f"📋 [green]{lst.name}[/green] ([dim]{lst.id}[/dim])")
+                path_parts.append(f"📋 [green]{escape(lst.name)}[/green] ([dim]{lst.id}[/dim])")
 
                 # Find which folder/space contains this list
                 workspaces = await client.get_teams()
@@ -245,9 +252,11 @@ def find_path(list_id: str = typer.Argument(..., help="List ID to find path for"
                             try:
                                 folderless_lists = await client.get_folderless_lists(space.id)
                                 if any(lst.id == list_id for lst in folderless_lists):
-                                    path_parts.insert(0, f"📁 [blue]{space.name}[/blue] ([dim]{space.id}[/dim])")
                                     path_parts.insert(
-                                        0, f"🏢 [cyan]{workspace.name}[/cyan] ([dim]{workspace.id}[/dim])"
+                                        0, f"📁 [blue]{escape(space.name)}[/blue] ([dim]{space.id}[/dim])"
+                                    )
+                                    path_parts.insert(
+                                        0, f"🏢 [cyan]{escape(workspace.name)}[/cyan] ([dim]{workspace.id}[/dim])"
                                     )
                                     found_path = True
                                     break
@@ -262,13 +271,14 @@ def find_path(list_id: str = typer.Argument(..., help="List ID to find path for"
                                         lists = await client.get_lists(folder.id)
                                         if any(lst.id == list_id for lst in lists):
                                             path_parts.insert(
-                                                0, f"📂 [yellow]{folder.name}[/yellow] ([dim]{folder.id}[/dim])"
+                                                0, f"📂 [yellow]{escape(folder.name)}[/yellow] ([dim]{folder.id}[/dim])"
                                             )
                                             path_parts.insert(
-                                                0, f"📁 [blue]{space.name}[/blue] ([dim]{space.id}[/dim])"
+                                                0, f"📁 [blue]{escape(space.name)}[/blue] ([dim]{space.id}[/dim])"
                                             )
                                             path_parts.insert(
-                                                0, f"🏢 [cyan]{workspace.name}[/cyan] ([dim]{workspace.id}[/dim])"
+                                                0,
+                                                f"🏢 [cyan]{escape(workspace.name)}[/cyan] ([dim]{workspace.id}[/dim])",
                                             )
                                             found_path = True
                                             break

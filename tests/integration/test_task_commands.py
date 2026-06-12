@@ -916,3 +916,52 @@ def test_task_error_handling(mock_get_client):
     result = runner.invoke(app, ["task", "list", "--list-id", "list123"])
 
     assert result.exit_code != 0
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_create_empty_description_is_sent(mock_get_client):
+    """--description '' must reach the provider, not be silently dropped."""
+    mock_client = AsyncMock()
+    task_mock = Mock()
+    task_mock.id = "new_task"
+    task_mock.name = "New Task"
+    mock_client.create_task.return_value = task_mock
+
+    def create_mock_client():
+        ctx_mgr = AsyncMock()
+        ctx_mgr.__aenter__.return_value = mock_client
+        return ctx_mgr
+
+    mock_get_client.side_effect = create_mock_client
+
+    result = runner.invoke(app, ["task", "create", "New Task", "--list-id", "list123", "--description", ""])
+
+    assert result.exit_code == 0
+    kwargs = mock_client.create_task.call_args.kwargs
+    assert kwargs["description"] == ""
+
+
+@patch("clickup.cli.commands.task.get_client")
+def test_task_create_omitted_fields_not_sent(mock_get_client):
+    """Fields not passed on the command line must not appear in the payload."""
+    mock_client = AsyncMock()
+    task_mock = Mock()
+    task_mock.id = "new_task"
+    task_mock.name = "New Task"
+    mock_client.create_task.return_value = task_mock
+
+    def create_mock_client():
+        ctx_mgr = AsyncMock()
+        ctx_mgr.__aenter__.return_value = mock_client
+        return ctx_mgr
+
+    mock_get_client.side_effect = create_mock_client
+
+    result = runner.invoke(app, ["task", "create", "New Task", "--list-id", "list123"])
+
+    assert result.exit_code == 0
+    kwargs = mock_client.create_task.call_args.kwargs
+    assert "description" not in kwargs
+    assert "priority" not in kwargs
+    assert "assignees" not in kwargs
+    assert "due_date" not in kwargs
