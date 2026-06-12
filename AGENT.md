@@ -110,7 +110,7 @@ Every user-visible output is rendered via functions in `clickup/cli/output.py`:
 Direct `console.print` of structured data is a regression — route it through a renderer instead. All commands now route through `output.py` renderers.
 
 JSON shape:
-- Collections: `{"data": [...], "count": N}`
+- Collections: `{"data": [...], "count": N}` — collections MAY carry `"truncated": true` when `--limit` clipped the result set.
 - Singletons: `model.model_dump(mode="json")` (gives ISO 8601 timestamps via pydantic)
 
 ### 2. `--format` is a GLOBAL flag, not per-command

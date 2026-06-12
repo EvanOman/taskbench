@@ -39,7 +39,9 @@ from ..task_filters import (
 )
 from ..utils import run_async
 
-app = typer.Typer(help="Task management")
+app = typer.Typer(
+    help="Task management. Includes a 'comments' subgroup: clickup task comments list/add <task-id>.",
+)
 
 # Subgroup for comments
 comments_app = typer.Typer(help="Task comment operations")
@@ -93,10 +95,7 @@ def list_tasks(
     brief: bool = typer.Option(
         False,
         "--brief",
-        help=(
-            "Return only id/name/status/priority/assignees/due_date/url/list. "
-            "Drops noisy null fields and flattens status to a string."
-        ),
+        help="Compact projection: id, name, status, priority, assignees, due_date, date_updated, url, list.",
     ),
 ) -> None:
     """List tasks from a ClickUp list.
@@ -166,8 +165,9 @@ def list_tasks(
                     sort_field=order_by,
                     sort_descending=descending,
                 )
+                was_truncated = len(tasks) > limit
                 tasks = tasks[:limit]
-                render_tasks(tasks, brief=brief)
+                render_tasks(tasks, brief=brief, truncated=True if was_truncated else None)
                 if not tasks:
                     if has_filters:
                         render_message(
@@ -186,10 +186,7 @@ def get_task(
     brief: bool = typer.Option(
         False,
         "--brief",
-        help=(
-            "Return only id/name/status/priority/assignees/due_date/url/list. "
-            "Drops noisy null fields and flattens status to a string."
-        ),
+        help="Compact projection: id, name, status, priority, assignees, due_date, date_updated, url, list.",
     ),
 ) -> None:
     """Get detailed information about a specific task.
@@ -235,7 +232,11 @@ def my_tasks(
         "--open",
         help="Hide tasks whose status type is 'closed'.",
     ),
-    brief: bool = typer.Option(False, "--brief", help="Return a stripped projection (see `task list --brief`)."),
+    brief: bool = typer.Option(
+        False,
+        "--brief",
+        help="Compact projection: id, name, status, priority, assignees, due_date, date_updated, url, list.",
+    ),
 ) -> None:
     """List tasks assigned to the authenticated user.
 
@@ -275,8 +276,9 @@ def my_tasks(
                     sort_field=order_by,
                     sort_descending=descending,
                 )
+                was_truncated = len(tasks) > limit
                 tasks = tasks[:limit]
-                render_tasks(tasks, brief=brief)
+                render_tasks(tasks, brief=brief, truncated=True if was_truncated else None)
                 if not tasks:
                     if has_filters:
                         render_message(
@@ -312,7 +314,16 @@ def create_task(
         "-s",
         help="Initial status (e.g. 'on-deck'). Falls back to config default_status, then list default.",
     ),
-    brief: bool = typer.Option(False, "--brief", help="Return a stripped projection (see `task get --brief`)."),
+    brief: bool = typer.Option(
+        False,
+        "--brief",
+        help="Compact projection: id, name, status, priority, assignees, due_date, date_updated, url, list.",
+    ),
+    ids_only: bool = typer.Option(
+        False,
+        "--ids-only",
+        help="Print only the affected task IDs, one per line. Mutually exclusive with --brief.",
+    ),
 ) -> None:
     """Create one or more tasks.
 
@@ -320,6 +331,8 @@ def create_task(
     (--description, --priority, --status, etc.) apply to every task.
     Single-name invocations are byte-identical to the old behavior.
     """
+    if ids_only and brief:
+        usage_error("Error: --ids-only and --brief are mutually exclusive.")
     for task_name in names:
         validate_task_name(task_name)
     validate_priority(priority)
@@ -348,6 +361,9 @@ def create_task(
                 if len(names) == 1:
                     # Single task — byte-identical to old behavior.
                     task = await client.create_task(list_id_to_use, name=names[0], **task_data)
+                    if ids_only:
+                        print(task.id)
+                        return
                     if get_format() == "json":
                         render_task(task, brief=brief)
                         return
@@ -369,9 +385,13 @@ def create_task(
                     else:
                         succeeded.append(result)
 
-                # Render successes preserving input order.
-                ordered = [r for r in results if not isinstance(r, BaseException)]
-                render_tasks(ordered, brief=brief)
+                if ids_only:
+                    for task in succeeded:
+                        print(task.id)
+                else:
+                    # Render successes preserving input order.
+                    ordered = [r for r in results if not isinstance(r, BaseException)]
+                    render_tasks(ordered, brief=brief)
 
                 for task_name, exc in failures:
                     render_error(f"Failed to create task '{task_name}': {exc}", error_type=type(exc).__name__)
@@ -407,7 +427,11 @@ def update_task(
         None, "--due-date", help="New due date (YYYY-MM-DD, ISO datetime, epoch ms, or relative like 7d)"
     ),
     archived: bool | None = typer.Option(None, "--archived/--unarchived", help="Archive state"),
-    brief: bool = typer.Option(False, "--brief", help="Return a stripped projection (see `task get --brief`)."),
+    brief: bool = typer.Option(
+        False,
+        "--brief",
+        help="Compact projection: id, name, status, priority, assignees, due_date, date_updated, url, list.",
+    ),
 ) -> None:
     """Update a task. Only fields you pass are changed; everything else stays the same."""
     validate_priority(priority)
@@ -481,7 +505,9 @@ def update_task(
     run_async(_update_task())
 
 
-async def _do_status_change_many(task_ids: list[str], status: str, *, brief: bool = False) -> None:
+async def _do_status_change_many(
+    task_ids: list[str], status: str, *, brief: bool = False, ids_only: bool = False
+) -> None:
     """Shared implementation for `task status` and short verb aliases.
 
     Each task is attempted independently — one bad ID doesn't abort the rest
@@ -506,7 +532,10 @@ async def _do_status_change_many(task_ids: list[str], status: str, *, brief: boo
                 succeeded.append(result)
 
     if succeeded:
-        if get_format() == "json":
+        if ids_only:
+            for task in succeeded:
+                print(task.id)
+        elif get_format() == "json":
             if len(task_ids) == 1:
                 render_task(succeeded[0], brief=brief)
             else:
@@ -559,7 +588,16 @@ def change_status(
     status_flag: str | None = typer.Option(
         None, "--status", "-s", help="New status (back-compat alias for positional)"
     ),
-    brief: bool = typer.Option(False, "--brief", help="Return a stripped projection (see `task get --brief`)."),
+    brief: bool = typer.Option(
+        False,
+        "--brief",
+        help="Compact projection: id, name, status, priority, assignees, due_date, date_updated, url, list.",
+    ),
+    ids_only: bool = typer.Option(
+        False,
+        "--ids-only",
+        help="Print only the affected task IDs, one per line. Mutually exclusive with --brief.",
+    ),
 ) -> None:
     """Change task status.
 
@@ -571,6 +609,8 @@ def change_status(
     Mixing positional + flag for the same parameter is rejected (exit 2) so
     agents don't silently get one value when they thought they passed two.
     """
+    if ids_only and brief:
+        usage_error("Error: --ids-only and --brief are mutually exclusive.")
     if task_id_arg is not None and task_id_flag is not None:
         usage_error("Error: pass TASK_ID either as a positional argument OR via --task-id, not both.")
     if task_ids_flag is not None and (task_id_arg is not None or task_id_flag is not None):
@@ -589,27 +629,49 @@ def change_status(
 
     # Type-narrow for the type checker; the _usage_error calls above raise on None.
     assert status is not None
-    run_async(_do_status_change_many(task_ids, status, brief=brief))
+    run_async(_do_status_change_many(task_ids, status, brief=brief, ids_only=ids_only))
 
 
 @app.command("done")
 def task_done(
     task_ids: list[str] = typer.Argument(..., metavar="TASK_ID...", help="One or more task IDs"),
     status: str = typer.Option(_DONE_STATUS, "--status", "-s", help=f"Target status name (default: '{_DONE_STATUS}')"),
-    brief: bool = typer.Option(False, "--brief", help="Return a stripped projection (see `task get --brief`)."),
+    brief: bool = typer.Option(
+        False,
+        "--brief",
+        help="Compact projection: id, name, status, priority, assignees, due_date, date_updated, url, list.",
+    ),
+    ids_only: bool = typer.Option(
+        False,
+        "--ids-only",
+        help="Print only the affected task IDs, one per line. Mutually exclusive with --brief.",
+    ),
 ) -> None:
     """Close one or more tasks. Sets status to 'complete' unless --status overrides."""
-    run_async(_do_status_change_many(task_ids, status, brief=brief))
+    if ids_only and brief:
+        usage_error("Error: --ids-only and --brief are mutually exclusive.")
+    run_async(_do_status_change_many(task_ids, status, brief=brief, ids_only=ids_only))
 
 
 @app.command("close")
 def task_close(
     task_ids: list[str] = typer.Argument(..., metavar="TASK_ID...", help="One or more task IDs"),
     status: str = typer.Option(_DONE_STATUS, "--status", "-s", help=f"Target status name (default: '{_DONE_STATUS}')"),
-    brief: bool = typer.Option(False, "--brief", help="Return a stripped projection (see `task get --brief`)."),
+    brief: bool = typer.Option(
+        False,
+        "--brief",
+        help="Compact projection: id, name, status, priority, assignees, due_date, date_updated, url, list.",
+    ),
+    ids_only: bool = typer.Option(
+        False,
+        "--ids-only",
+        help="Print only the affected task IDs, one per line. Mutually exclusive with --brief.",
+    ),
 ) -> None:
     """Close one or more tasks. Alias for `task done`."""
-    run_async(_do_status_change_many(task_ids, status, brief=brief))
+    if ids_only and brief:
+        usage_error("Error: --ids-only and --brief are mutually exclusive.")
+    run_async(_do_status_change_many(task_ids, status, brief=brief, ids_only=ids_only))
 
 
 @app.command("start")
@@ -618,20 +680,42 @@ def task_start(
     status: str = typer.Option(
         _START_STATUS, "--status", "-s", help=f"Target status name (default: '{_START_STATUS}')"
     ),
-    brief: bool = typer.Option(False, "--brief", help="Return a stripped projection (see `task get --brief`)."),
+    brief: bool = typer.Option(
+        False,
+        "--brief",
+        help="Compact projection: id, name, status, priority, assignees, due_date, date_updated, url, list.",
+    ),
+    ids_only: bool = typer.Option(
+        False,
+        "--ids-only",
+        help="Print only the affected task IDs, one per line. Mutually exclusive with --brief.",
+    ),
 ) -> None:
     """Move one or more tasks to 'in progress' unless --status overrides."""
-    run_async(_do_status_change_many(task_ids, status, brief=brief))
+    if ids_only and brief:
+        usage_error("Error: --ids-only and --brief are mutually exclusive.")
+    run_async(_do_status_change_many(task_ids, status, brief=brief, ids_only=ids_only))
 
 
 @app.command("park")
 def task_park(
     task_ids: list[str] = typer.Argument(..., metavar="TASK_ID...", help="One or more task IDs"),
     status: str = typer.Option(_PARK_STATUS, "--status", "-s", help=f"Target status name (default: '{_PARK_STATUS}')"),
-    brief: bool = typer.Option(False, "--brief", help="Return a stripped projection (see `task get --brief`)."),
+    brief: bool = typer.Option(
+        False,
+        "--brief",
+        help="Compact projection: id, name, status, priority, assignees, due_date, date_updated, url, list.",
+    ),
+    ids_only: bool = typer.Option(
+        False,
+        "--ids-only",
+        help="Print only the affected task IDs, one per line. Mutually exclusive with --brief.",
+    ),
 ) -> None:
     """Park one or more tasks on the on-deck queue unless --status overrides."""
-    run_async(_do_status_change_many(task_ids, status, brief=brief))
+    if ids_only and brief:
+        usage_error("Error: --ids-only and --brief are mutually exclusive.")
+    run_async(_do_status_change_many(task_ids, status, brief=brief, ids_only=ids_only))
 
 
 @app.command("delete")
@@ -649,6 +733,11 @@ def delete_task(
         "--yes",
         "-y",
         help="Required to confirm deletion. No interactive prompt.",
+    ),
+    ids_only: bool = typer.Option(
+        False,
+        "--ids-only",
+        help="Print only the deleted task IDs, one per line. Mutually exclusive with --brief.",
     ),
 ) -> None:
     """Delete one or more tasks.
@@ -685,7 +774,10 @@ def delete_task(
                 else:
                     succeeded.append({"id": tid, "deleted": True})
 
-        if get_format() == "json":
+        if ids_only:
+            for item in succeeded:
+                print(item["id"])
+        elif get_format() == "json":
             if len(target_ids) == 1 and not failures:
                 render_kv({"id": target_ids[0], "deleted": True})
             else:
@@ -745,7 +837,11 @@ def search_tasks(
             "(ClickUp's search is full-text across descriptions/comments)."
         ),
     ),
-    brief: bool = typer.Option(False, "--brief", help="Return a stripped projection (see `task list --brief`)."),
+    brief: bool = typer.Option(
+        False,
+        "--brief",
+        help="Compact projection: id, name, status, priority, assignees, due_date, date_updated, url, list.",
+    ),
 ) -> None:
     """Search for tasks across the workspace.
 
@@ -780,8 +876,9 @@ def search_tasks(
                 if name_only and query:
                     query_lower = query.lower()
                     tasks = [t for t in tasks if query_lower in t.name.lower()]
+                was_truncated = len(tasks) > limit
                 tasks = tasks[:limit]
-                render_tasks(tasks, brief=brief)
+                render_tasks(tasks, brief=brief, truncated=True if was_truncated else None)
                 if not tasks:
                     if has_filters:
                         render_message(

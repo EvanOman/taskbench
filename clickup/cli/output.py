@@ -505,12 +505,19 @@ def render_task(task: Task, *, brief: bool = False) -> None:
     _console.print(table)
 
 
-def render_tasks(tasks: list[Task], *, brief: bool = False) -> None:
+def render_tasks(tasks: list[Task], *, brief: bool = False, truncated: bool | None = None) -> None:
     """Render a list of Tasks. ``brief=True`` switches to a stripped JSON
-    projection (still wrapped in the ``{"data": [...], "count": N}`` envelope)."""
+    projection (still wrapped in the ``{"data": [...], "count": N}`` envelope).
+
+    When ``truncated`` is ``True`` the envelope includes ``"truncated": true``
+    indicating that ``--limit`` clipped the result set.
+    """
     if get_format() == "json":
         serialize = _task_to_brief_dict if brief else _task_to_json_dict
-        _print_json({"data": [serialize(t) for t in tasks], "count": len(tasks)})
+        envelope: dict[str, Any] = {"data": [serialize(t) for t in tasks], "count": len(tasks)}
+        if truncated is not None:
+            envelope["truncated"] = truncated
+        _print_json(envelope)
         return
 
     table = Table(title="Tasks", show_header=True)

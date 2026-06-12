@@ -961,7 +961,7 @@ components:
 
     Comment:
       type: object
-      required: [id, comment_text, user, date]
+      required: [id, comment_text, date]
       properties:
         id: { type: string }
         comment:
@@ -973,7 +973,9 @@ components:
         comment_text:
           type: string
           description: Plain-text body.
-        user: { $ref: "#/components/schemas/User" }
+        user:
+          $ref: "#/components/schemas/User"
+          description: Absent on create responses.
         date: { $ref: "#/components/schemas/EpochMillis" }
         resolved: { type: boolean, default: false }
       additionalProperties: true

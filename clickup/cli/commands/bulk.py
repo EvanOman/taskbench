@@ -26,7 +26,10 @@ def export_tasks(
     output_format: str = typer.Option("json", "--output-format", "--format", "-f", help="Output format (json, csv)"),
     include_completed: bool = typer.Option(True, "--include-completed", help="Include completed tasks"),
 ) -> None:
-    """Export tasks to JSON or CSV file."""
+    """Export tasks to JSON or CSV file.
+
+    Defaults to the configured default list when --list-id is omitted.
+    """
 
     async def _export_tasks() -> None:
         list_id_to_use = require_list_id(list_id)
