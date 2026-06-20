@@ -26,10 +26,10 @@ When the user asks for an eval / benchmark / agent-usability check, or right aft
 3. **Purge and re-warm the uvx wheel cache.** uvx caches wheels by name+version, and `--refresh-package` only fixes the *refreshing* invocation — the sub-agents' plain `uvx` calls can still resolve the stale archive (this silently invalidated the 2026-06-12 run: agents evaluated a wheel several PRs old while the version number matched). The only reliable sequence is:
    ```bash
    uv cache clean taskbench
-   uvx --python 3.13 --from /home/evan/dev/clickup-tools taskbench version
+   uvx --python 3.13 --from /home/evan/dev/taskbench taskbench version
    ```
    If `uv cache clean` times out on the cache lock (concurrent uv processes hold it), bump the patch version instead — a new version is a new cache key, which sidesteps the stale archive entirely.
-   Then verify freshness with a **behavioral sentinel**, not just the version number: pick a command/flag added by the most recent merged PR and confirm plain `uvx --python 3.13 --from /home/evan/dev/clickup-tools taskbench ... --help` shows it. A good standing sentinel: `taskbench task list --list-id 1 --format json` must emit a one-line JSON error envelope with a hint (not a rich traceback). Do not dispatch until the sentinel passes.
+   Then verify freshness with a **behavioral sentinel**, not just the version number: pick a command/flag added by the most recent merged PR and confirm plain `uvx --python 3.13 --from /home/evan/dev/taskbench taskbench ... --help` shows it. A good standing sentinel: `taskbench task list --list-id 1 --format json` must emit a one-line JSON error envelope with a hint (not a rich traceback). Do not dispatch until the sentinel passes.
 4. Confirm the user's workspace state. Real values for the eval:
    - User: Evan Oman, ID `150240437`, email `evan058@gmail.com`
    - Workspace: `90131945555` ("Evan Oman's Workspace") — singleton
@@ -46,16 +46,16 @@ Use the Agent tool, `subagent_type: general-purpose`, `model: opus`, single mess
 You are evaluating whether the Taskbench CLI is easy for a brand-new AI agent to use. You have never seen this CLI before. Behave like a competent coding agent doing a real job for a user — not like a QA engineer hunting for bugs.
 
 SETUP
-- Project root: /home/evan/dev/clickup-tools
+- Project root: /home/evan/dev/taskbench
 - A real CLICKUP_API_KEY is in .env there.
-- Invoke the CLI as a real user would: `uvx --python 3.13 --from /home/evan/dev/clickup-tools taskbench ...` (Python 3.13 required — pydantic-core build fails on 3.14).
+- Invoke the CLI as a real user would: `uvx --python 3.13 --from /home/evan/dev/taskbench taskbench ...` (Python 3.13 required — pydantic-core build fails on 3.14).
 - Both `taskbench` and `tb` are valid binary names after install.
 - IMPORTANT: Before running any CLI command, export the isolated config path so your writes don't pollute the user's real config:
   `export TASKBENCH_CONFIG_PATH="{TASKBENCH_CONFIG_PATH}"`
 
 HARD CONSTRAINTS
 - Do NOT read the CLI's source code. No Read on taskbench/cli/* or taskbench/core/*. No grep through those dirs. No reading AGENT.md or CLAUDE.md.
-- Your only docs are `--help` output, the README at /home/evan/dev/clickup-tools/README.md, and trial-and-error.
+- Your only docs are `--help` output, the README at /home/evan/dev/taskbench/README.md, and trial-and-error.
 - If you create anything, you must also clean it up (delete it / restore original state) before finishing, and say so in your report.
 - Time budget ~5 minutes. If you hit a wall, stop and report honestly — a truthful FAIL is more valuable than a flattering PARTIAL.
 
