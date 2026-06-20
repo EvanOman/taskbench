@@ -1,0 +1,35 @@
+{
+  "commit": "7ac60b7",
+  "commit_full": "7ac60b7",
+  "timestamp": "2026-06-20T17:35:00-05:00",
+  "suite_version": 2,
+  "rubric_version": 3,
+  "summary": {
+    "pass": 18,
+    "partial": 0,
+    "fail": 0,
+    "total_command_count": 60,
+    "total_elapsed_seconds": 1040
+  },
+  "notes": "First eval against v1.0.0 — taskbench rename + planka split + entry-point plugin discovery. Validates the breaking changes (binary clickup/cup → taskbench/tb, env var CLICKUP_PROVIDER → TASKBENCH_PROVIDER, config path move, planka adapter externalized) did not degrade agent ergonomics. Every agent picked up the new binary name from --help and README without comment. Two non-blocking findings worth follow-up: (1) task 8 reported --name-only excluded a task whose name contains 'test' — likely limit-truncation artifact in their sample (47 vs 8) but worth a unit test; (2) task 17's ResourceAccessError body still leads with '401: Team not authorized' before the explanation (4th run flagging this). v1.0.0 product surface validated.",
+  "tasks": [
+    {"id": 1, "name": "identity", "verdict": "pass", "self_verdict": "pass", "command_count": 1, "elapsed_seconds": 25, "top_friction": "none"},
+    {"id": 2, "name": "list teams", "verdict": "pass", "self_verdict": "pass", "command_count": 1, "elapsed_seconds": 30, "top_friction": "none"},
+    {"id": 3, "name": "hierarchy", "verdict": "pass", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 60, "top_friction": "--format placement noted but no failure (the hoist works)"},
+    {"id": 4, "name": "my tasks", "verdict": "pass", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 45, "top_friction": "zero-result hint diagnostic idea"},
+    {"id": 5, "name": "sort", "verdict": "pass", "self_verdict": "pass", "command_count": 3, "elapsed_seconds": 45, "top_friction": "none"},
+    {"id": 6, "name": "create+delete", "verdict": "pass", "self_verdict": "pass", "command_count": 2, "elapsed_seconds": 45, "top_friction": "default status 'backlog' (isolated config has no default_status) -- not a CLI bug"},
+    {"id": 7, "name": "update flow", "verdict": "pass", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 45, "top_friction": "none"},
+    {"id": 8, "name": "search", "verdict": "pass", "self_verdict": "pass", "command_count": 3, "elapsed_seconds": 90, "top_friction": "FOLLOW-UP: --name-only reportedly excluded 'agent-test-eval-7 update-flow' (likely limit truncation; worth a unit test)"},
+    {"id": 9, "name": "task get+comments", "verdict": "pass", "self_verdict": "pass", "command_count": 4, "elapsed_seconds": 45, "top_friction": "none"},
+    {"id": 10, "name": "export", "verdict": "pass", "self_verdict": "pass", "command_count": 2, "elapsed_seconds": 45, "top_friction": "--format namespace overlap (noted, not hit)"},
+    {"id": 11, "name": "most-active", "verdict": "pass", "self_verdict": "pass", "command_count": 3, "elapsed_seconds": 60, "top_friction": "activity-sort default answered in one call"},
+    {"id": 12, "name": "no-flag flow", "verdict": "pass", "self_verdict": "pass", "command_count": 2, "elapsed_seconds": 60, "top_friction": "setup/run nesting (suggest collapse) -- mild"},
+    {"id": 13, "name": "status workflow", "verdict": "pass", "self_verdict": "pass", "command_count": 7, "elapsed_seconds": 90, "top_friction": "task status returns full task (--brief exists)"},
+    {"id": 14, "name": "batch ops", "verdict": "pass", "self_verdict": "pass", "command_count": 5, "elapsed_seconds": 90, "top_friction": "variadic create handled all three in one call; --ids-only used"},
+    {"id": 15, "name": "triage filter", "verdict": "pass", "self_verdict": "pass", "command_count": 3, "elapsed_seconds": 60, "top_friction": "zero-result detail (newest-update hint) idea"},
+    {"id": 16, "name": "comment flow", "verdict": "pass", "self_verdict": "pass", "command_count": 5, "elapsed_seconds": 90, "top_friction": "delete --force gate (by-design; recovery instant from envelope)"},
+    {"id": 17, "name": "error probe", "verdict": "pass", "self_verdict": "pass", "command_count": 5, "elapsed_seconds": 90, "top_friction": "FOLLOW-UP: ResourceAccessError body still leads with '401: Team not authorized' (4th run flagging this — needs deeper rewrite)"},
+    {"id": 18, "name": "alias flow", "verdict": "pass", "self_verdict": "pass", "command_count": 5, "elapsed_seconds": 60, "top_friction": "config alias --help could note --list-id accepts aliases"}
+  ]
+}

@@ -210,6 +210,7 @@ After the eval:
 | 2026-06-12 r6 | v2 (18), rubric v3 | `fd8b775` | **18/18/0** | zero CLI-caused failures; precedent: delete safety-gate refusal is the documented contract, not a failure |
 | 2026-06-12 r7 | v2 (18), rubric v3 | `fd8b775` | **18/18/0** | second consecutive clean run on the same binary — consistency goal met; remaining ideas appended to issue #49 |
 | 2026-06-12 r8 | v2 (18), rubric v3 | `35a48b9` | **18/18/0** | third consecutive clean run; validated v0.5.x features in the wild (variadic create → 3-command batch flow, --name-only, activity sort, config alias, JSON exports) |
+| 2026-06-20 r9 | v2 (18), rubric v3 | `7ac60b7` | **18/18/0** | first eval on v1.0.0 (taskbench rename + planka entry-point split + Python <3.14 pin); zero agents commented on the rename; two follow-ups noted: --name-only sample miss, ResourceAccessError leading phrase |
 
 Append a row after every run.
 
