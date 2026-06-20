@@ -19,7 +19,7 @@ from .models import List as ClickUpList
 
 def default_store_path() -> Path:
     """Default JSON store path for the local provider."""
-    return Path.home() / ".config" / "clickup-toolkit" / "mock-store.json"
+    return Path.home() / ".config" / "taskbench" / "mock-store.json"
 
 
 def _now_ms() -> str:

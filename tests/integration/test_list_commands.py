@@ -13,12 +13,12 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from typer.testing import CliRunner
 
-from clickup.cli import output
-from clickup.cli.main import app
-from clickup.cli.output import FormatChoice, set_format
-from clickup.core.config import Config
-from clickup.core.exceptions import ClickUpError
-from clickup.core.models import List as ClickUpList
+from taskbench.cli import output
+from taskbench.cli.main import app
+from taskbench.cli.output import FormatChoice, set_format
+from taskbench.core.config import Config
+from taskbench.core.exceptions import ClickUpError
+from taskbench.core.models import List as ClickUpList
 
 from .conftest import make_mock_ctx
 
@@ -80,7 +80,7 @@ def sample_list_detail():
     return list_detail
 
 
-@patch("clickup.cli.commands.list.get_client")
+@patch("taskbench.cli.commands.list.get_client")
 async def test_list_show_in_folder(mock_get_client, sample_lists):
     """Test showing lists in a folder."""
     mock_client = AsyncMock()
@@ -95,7 +95,7 @@ async def test_list_show_in_folder(mock_get_client, sample_lists):
     assert "Done" in result.stdout
 
 
-@patch("clickup.cli.commands.list.get_client")
+@patch("taskbench.cli.commands.list.get_client")
 async def test_list_show_in_space(mock_get_client, sample_lists):
     """Test showing lists in a space (folderless)."""
     mock_client = AsyncMock()
@@ -108,7 +108,7 @@ async def test_list_show_in_space(mock_get_client, sample_lists):
     assert "Todo List" in result.stdout
 
 
-@patch("clickup.cli.commands.list.get_client")
+@patch("taskbench.cli.commands.list.get_client")
 async def test_list_get_details(mock_get_client, sample_list_detail):
     """Test getting detailed list information."""
     mock_client = AsyncMock()
@@ -130,7 +130,7 @@ async def test_list_get_details(mock_get_client, sample_list_detail):
     assert "7" in result.stdout  # task count
 
 
-@patch("clickup.cli.commands.list.get_client")
+@patch("taskbench.cli.commands.list.get_client")
 async def test_list_create_in_folder(mock_get_client):
     """Test creating a list in a folder."""
     mock_client = AsyncMock()
@@ -154,7 +154,7 @@ async def test_list_create_in_folder(mock_get_client):
     assert "New List" in result.stdout
 
 
-@patch("clickup.cli.commands.list.get_client")
+@patch("taskbench.cli.commands.list.get_client")
 async def test_list_create_in_space(mock_get_client):
     """Test creating a folderless list in a space."""
     mock_client = AsyncMock()
@@ -190,7 +190,7 @@ def test_list_create_missing_params():
     assert result.exit_code != 0
 
 
-@patch("clickup.cli.commands.list.get_client")
+@patch("taskbench.cli.commands.list.get_client")
 async def test_list_show_empty_folder(mock_get_client):
     """Test showing lists in an empty folder."""
     mock_client = AsyncMock()
@@ -204,7 +204,7 @@ async def test_list_show_empty_folder(mock_get_client):
     assert "Todo List" not in result.stdout
 
 
-@patch("clickup.cli.commands.list.get_client")
+@patch("taskbench.cli.commands.list.get_client")
 async def test_list_get_not_found(mock_get_client):
     """Test getting non-existent list."""
     mock_client = AsyncMock()
@@ -224,7 +224,7 @@ async def test_list_get_not_found(mock_get_client):
     assert "error" in result.output.lower() or "not found" in result.output.lower()
 
 
-@patch("clickup.cli.commands.list.get_client")
+@patch("taskbench.cli.commands.list.get_client")
 async def test_list_create_with_all_options(mock_get_client):
     """Test creating a list with all available options."""
     mock_client = AsyncMock()
@@ -278,7 +278,7 @@ def isolated_config(tmp_path, monkeypatch):
     return tmp_path
 
 
-@patch("clickup.cli.commands.list.get_client")
+@patch("taskbench.cli.commands.list.get_client")
 async def test_list_get_resolves_alias(mock_get_client, sample_list_detail, isolated_config):
     """`list get` should resolve list aliases via Config.resolve_list_id, like `task list` does."""
     Config().set("default_lists", {"omegapoint": "list123"})
@@ -299,7 +299,7 @@ async def test_list_get_resolves_alias(mock_get_client, sample_list_detail, isol
     mock_client.get_list.assert_awaited_with("list123")
 
 
-@patch("clickup.cli.commands.list.get_client")
+@patch("taskbench.cli.commands.list.get_client")
 async def test_list_get_respects_format_json(mock_get_client, isolated_config):
     """`list get` should emit valid JSON when `--format json` is set."""
     real_list = ClickUpList(id="list123", name="Test List", task_count=7)
@@ -322,7 +322,7 @@ async def test_list_get_respects_format_json(mock_get_client, isolated_config):
     assert payload["task_count"] == 7
 
 
-@patch("clickup.cli.commands.list.get_client")
+@patch("taskbench.cli.commands.list.get_client")
 async def test_list_show_respects_format_json(mock_get_client, isolated_config):
     """`list show` should emit valid JSON when `--format json` is set."""
     real_lists = [
@@ -341,7 +341,7 @@ async def test_list_show_respects_format_json(mock_get_client, isolated_config):
     assert {item["id"] for item in payload["data"]} == {"list1", "list2"}
 
 
-@patch("clickup.cli.commands.list.get_client")
+@patch("taskbench.cli.commands.list.get_client")
 async def test_list_show_defaults_to_json(mock_get_client, isolated_config):
     """Without an explicit --format flag, the CLI defaults to JSON."""
     real_lists = [ClickUpList(id="list1", name="Todo List", task_count=5)]
@@ -362,7 +362,7 @@ async def test_list_show_defaults_to_json(mock_get_client, isolated_config):
 # =============================================================================
 
 
-@patch("clickup.cli.commands.list.get_client")
+@patch("taskbench.cli.commands.list.get_client")
 def test_list_show_in_folder_sync(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_lists.return_value = [ClickUpList(id="L1", name="Sprint", task_count=5)]
@@ -373,7 +373,7 @@ def test_list_show_in_folder_sync(mock_get_client):
     assert "Sprint" in result.output
 
 
-@patch("clickup.cli.commands.list.get_client")
+@patch("taskbench.cli.commands.list.get_client")
 def test_list_show_in_space_sync(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_folderless_lists.return_value = [ClickUpList(id="L1", name="Sprint", task_count=5)]
@@ -389,7 +389,7 @@ def test_list_show_no_args_errors():
     assert result.exit_code == 1
 
 
-@patch("clickup.cli.commands.list.get_client")
+@patch("taskbench.cli.commands.list.get_client")
 def test_list_get_sync(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_list.return_value = ClickUpList(
@@ -406,7 +406,7 @@ def test_list_get_sync(mock_get_client):
     assert "Sprint" in result.output
 
 
-@patch("clickup.cli.commands.list.get_client")
+@patch("taskbench.cli.commands.list.get_client")
 def test_list_create_in_folder_sync(mock_get_client):
     mock_client = AsyncMock()
     mock_client.create_list.return_value = ClickUpList(id="L1", name="New", task_count=0)
@@ -416,7 +416,7 @@ def test_list_create_in_folder_sync(mock_get_client):
     assert result.exit_code == 0
 
 
-@patch("clickup.cli.commands.list.get_client")
+@patch("taskbench.cli.commands.list.get_client")
 def test_list_create_in_space_sync(mock_get_client):
     mock_client = AsyncMock()
     mock_client.create_folderless_list.return_value = ClickUpList(id="L1", name="New", task_count=0)
@@ -436,7 +436,7 @@ def test_list_create_no_parent_errors():
 # =============================================================================
 
 
-@patch("clickup.cli.commands.list.get_client")
+@patch("taskbench.cli.commands.list.get_client")
 def test_list_show_api_error(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_lists.side_effect = ClickUpError("nope")
@@ -446,7 +446,7 @@ def test_list_show_api_error(mock_get_client):
     assert result.exit_code == 1
 
 
-@patch("clickup.cli.commands.list.get_client")
+@patch("taskbench.cli.commands.list.get_client")
 def test_list_create_with_all_fields(mock_get_client):
     """Exercise the create_list path with all option flags set."""
     mock_client = AsyncMock()
@@ -483,19 +483,19 @@ class TestListAliases:
     """``list list`` and ``list ls`` should be registered commands."""
 
     def test_list_list_alias_registered(self):
-        from clickup.cli.commands.list import app as list_app
+        from taskbench.cli.commands.list import app as list_app
 
         command_names = [cmd.name for cmd in list_app.registered_commands]
         assert "list" in command_names
 
     def test_list_ls_alias_registered(self):
-        from clickup.cli.commands.list import app as list_app
+        from taskbench.cli.commands.list import app as list_app
 
         command_names = [cmd.name for cmd in list_app.registered_commands]
         assert "ls" in command_names
 
     def test_show_still_registered(self):
-        from clickup.cli.commands.list import app as list_app
+        from taskbench.cli.commands.list import app as list_app
 
         command_names = [cmd.name for cmd in list_app.registered_commands]
         assert "show" in command_names
@@ -525,7 +525,7 @@ class TestListShowSpaceIdInfo:
 
     def test_space_id_info_message_json(self, capsys):
         """In JSON mode info-level messages are suppressed (render_message contract)."""
-        from clickup.cli.commands.list import list_lists
+        from taskbench.cli.commands.list import list_lists
 
         set_format("json")
 
@@ -536,7 +536,7 @@ class TestListShowSpaceIdInfo:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=None)
 
-        with patch("clickup.cli.commands.list.get_client", return_value=mock_client):
+        with patch("taskbench.cli.commands.list.get_client", return_value=mock_client):
             list_lists(folder_id=None, space_id="S1")
 
         captured = capsys.readouterr()
@@ -544,7 +544,7 @@ class TestListShowSpaceIdInfo:
 
     def test_space_id_info_message_table(self, capture_console, capsys):
         """In table mode the info message mentions 'discover hierarchy'."""
-        from clickup.cli.commands.list import list_lists
+        from taskbench.cli.commands.list import list_lists
 
         mock_client = AsyncMock()
         mock_client.get_folderless_lists = AsyncMock(
@@ -553,7 +553,7 @@ class TestListShowSpaceIdInfo:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=None)
 
-        with patch("clickup.cli.commands.list.get_client", return_value=mock_client):
+        with patch("taskbench.cli.commands.list.get_client", return_value=mock_client):
             list_lists(folder_id=None, space_id="S1")
 
         console_out = capture_console.getvalue()
@@ -561,7 +561,7 @@ class TestListShowSpaceIdInfo:
 
     def test_folder_id_no_info_message(self, capsys):
         """--folder-id does NOT emit the folderless info."""
-        from clickup.cli.commands.list import list_lists
+        from taskbench.cli.commands.list import list_lists
 
         set_format("json")
 
@@ -570,7 +570,7 @@ class TestListShowSpaceIdInfo:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=None)
 
-        with patch("clickup.cli.commands.list.get_client", return_value=mock_client):
+        with patch("taskbench.cli.commands.list.get_client", return_value=mock_client):
             list_lists(folder_id="F1", space_id=None)
 
         captured = capsys.readouterr()

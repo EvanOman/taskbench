@@ -1,4 +1,4 @@
-"""Tests for `clickup list stats` — per-list statistics command."""
+"""Tests for `taskbench list stats` — per-list statistics command."""
 
 from __future__ import annotations
 
@@ -7,9 +7,9 @@ from unittest.mock import AsyncMock
 
 from typer.testing import CliRunner
 
-from clickup.cli.main import app
-from clickup.core.models import Folder, Space, SpaceRef, StatusInfo, Task, Team
-from clickup.core.models import List as ClickUpList
+from taskbench.cli.main import app
+from taskbench.core.models import Folder, Space, SpaceRef, StatusInfo, Task, Team
+from taskbench.core.models import List as ClickUpList
 
 from .conftest import make_mock_ctx
 
@@ -115,7 +115,7 @@ class TestListStatsJson:
         )
         from unittest.mock import patch
 
-        with patch("clickup.cli.commands.list.get_client", return_value=make_mock_ctx(client)):
+        with patch("taskbench.cli.commands.list.get_client", return_value=make_mock_ctx(client)):
             result = runner.invoke(app, ["--format", "json", "list", "stats", "--workspace-id", "T1"])
 
         assert result.exit_code == 0, result.output
@@ -152,7 +152,7 @@ class TestListStatsJson:
         )
         from unittest.mock import patch
 
-        with patch("clickup.cli.commands.list.get_client", return_value=make_mock_ctx(client)):
+        with patch("taskbench.cli.commands.list.get_client", return_value=make_mock_ctx(client)):
             result = runner.invoke(
                 app, ["--format", "json", "list", "stats", "--workspace-id", "T1", "--sort", "tasks"]
             )
@@ -176,7 +176,7 @@ class TestListStatsJson:
         )
         from unittest.mock import patch
 
-        with patch("clickup.cli.commands.list.get_client", return_value=make_mock_ctx(client)):
+        with patch("taskbench.cli.commands.list.get_client", return_value=make_mock_ctx(client)):
             result = runner.invoke(
                 app, ["--format", "json", "list", "stats", "--workspace-id", "T1", "--sort", "updated"]
             )
@@ -200,7 +200,7 @@ class TestListStatsJson:
         )
         from unittest.mock import patch
 
-        with patch("clickup.cli.commands.list.get_client", return_value=make_mock_ctx(client)):
+        with patch("taskbench.cli.commands.list.get_client", return_value=make_mock_ctx(client)):
             result = runner.invoke(app, ["--format", "json", "list", "stats", "--workspace-id", "T1"])
 
         assert result.exit_code == 0, result.output
@@ -220,7 +220,7 @@ class TestListStatsJson:
         )
         from unittest.mock import patch
 
-        with patch("clickup.cli.commands.list.get_client", return_value=make_mock_ctx(client)):
+        with patch("taskbench.cli.commands.list.get_client", return_value=make_mock_ctx(client)):
             result = runner.invoke(app, ["--format", "json", "list", "stats", "--workspace-id", "T1"])
 
         assert result.exit_code == 0
@@ -240,7 +240,7 @@ class TestListStatsJson:
         )
         from unittest.mock import patch
 
-        with patch("clickup.cli.commands.list.get_client", return_value=make_mock_ctx(client)):
+        with patch("taskbench.cli.commands.list.get_client", return_value=make_mock_ctx(client)):
             result = runner.invoke(app, ["--format", "json", "list", "stats", "--workspace-id", "T1"])
 
         assert result.exit_code == 0
@@ -262,7 +262,7 @@ class TestListStatsTable:
         )
         from unittest.mock import patch
 
-        with patch("clickup.cli.commands.list.get_client", return_value=make_mock_ctx(client)):
+        with patch("taskbench.cli.commands.list.get_client", return_value=make_mock_ctx(client)):
             result = runner.invoke(app, ["--format", "table", "list", "stats", "--workspace-id", "T1"])
 
         assert result.exit_code == 0
@@ -285,7 +285,7 @@ class TestListStatsSpaceId:
         )
         from unittest.mock import patch
 
-        with patch("clickup.cli.commands.list.get_client", return_value=make_mock_ctx(client)):
+        with patch("taskbench.cli.commands.list.get_client", return_value=make_mock_ctx(client)):
             result = runner.invoke(app, ["--format", "json", "list", "stats", "--space-id", "S1"])
 
         assert result.exit_code == 0
@@ -311,7 +311,7 @@ class TestListStatsTaskFetchError:
 
         from unittest.mock import patch
 
-        with patch("clickup.cli.commands.list.get_client", return_value=make_mock_ctx(client)):
+        with patch("taskbench.cli.commands.list.get_client", return_value=make_mock_ctx(client)):
             result = runner.invoke(app, ["--format", "json", "list", "stats", "--workspace-id", "T1"])
 
         assert result.exit_code == 0
@@ -330,7 +330,7 @@ class TestListStatsTaskFetchError:
 
 class TestListStatsHelp:
     def test_stats_in_help(self):
-        """stats subcommand appears in `clickup list --help`."""
+        """stats subcommand appears in `taskbench list --help`."""
         result = runner.invoke(app, ["list", "--help"])
         assert result.exit_code == 0
         assert "stats" in result.stdout
@@ -356,7 +356,7 @@ class TestListStatsActivitySort:
         )
         from unittest.mock import patch
 
-        with patch("clickup.cli.commands.list.get_client", return_value=make_mock_ctx(client)):
+        with patch("taskbench.cli.commands.list.get_client", return_value=make_mock_ctx(client)):
             result = runner.invoke(app, ["--format", "json", "list", "stats", "--workspace-id", "T1"])
 
         assert result.exit_code == 0
@@ -384,7 +384,7 @@ class TestListStatsActivitySort:
         )
         from unittest.mock import patch
 
-        with patch("clickup.cli.commands.list.get_client", return_value=make_mock_ctx(client)):
+        with patch("taskbench.cli.commands.list.get_client", return_value=make_mock_ctx(client)):
             result = runner.invoke(
                 app, ["--format", "json", "list", "stats", "--workspace-id", "T1", "--sort", "activity"]
             )
@@ -410,7 +410,7 @@ class TestListStatsActivitySort:
         )
         from unittest.mock import patch
 
-        with patch("clickup.cli.commands.list.get_client", return_value=make_mock_ctx(client)):
+        with patch("taskbench.cli.commands.list.get_client", return_value=make_mock_ctx(client)):
             result = runner.invoke(
                 app, ["--format", "json", "list", "stats", "--workspace-id", "T1", "--sort", "activity"]
             )

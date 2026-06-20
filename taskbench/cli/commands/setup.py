@@ -1,4 +1,4 @@
-"""Setup wizard for ClickUp CLI.
+"""Setup wizard for Taskbench CLI.
 
 Supports both interactive (human-driven) and non-interactive (agent-driven)
 flows. Pass ``--token``, ``--team-id``, ``--space-id`` and ``--list-id`` to
@@ -78,7 +78,7 @@ def _run_auto_setup(
                 "No API token configured.",
                 hint=(
                     "Set CLICKUP_API_KEY in your environment (or .env), pass --token, "
-                    "or run 'clickup setup run' interactively."
+                    "or run 'taskbench setup run' interactively."
                 ),
             )
             raise typer.Exit(2)
@@ -215,7 +215,7 @@ def setup_wizard(
         ),
     ),
 ) -> None:
-    """Setup wizard — configure defaults for the ClickUp CLI.
+    """Setup wizard — configure defaults for Taskbench.
 
     Interactive by default. To run non-interactively (agent flow), pass
     --token / --team-id / --space-id / --list-id and (optionally)
@@ -231,7 +231,7 @@ def setup_wizard(
     async def _setup() -> None:
         config = Config()
 
-        console.print("\n[bold]ClickUp CLI Setup Wizard[/bold]")
+        console.print("\n[bold]Taskbench Setup Wizard[/bold]")
         console.print("=" * 40)
 
         # ── Step 1: Validate API token ────────────────────────────────
@@ -338,7 +338,7 @@ def setup_wizard(
             render_message(f"Selected list: {chosen_list_opt.name} (via --list-id)", "success")
         elif not all_lists:
             render_message("No lists found in this space.", "warn")
-            console.print("You can set a default list later with: clickup config set default_list_id <ID>")
+            console.print("You can set a default list later with: taskbench config set default_list_id <ID>")
         else:
             table = Table(title="Available Lists", show_header=True)
             table.add_column("#", style="cyan", width=4)
@@ -404,7 +404,7 @@ def setup_wizard(
 
         # ── Done ───────────────────────────────────────────────────────
         console.print()
-        render_message("You're set -- try `clickup task list` to see your tasks.", "success")
+        render_message("You're set -- try `taskbench task list` to see your tasks.", "success")
 
     try:
         run_async(_setup())

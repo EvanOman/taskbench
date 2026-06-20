@@ -49,7 +49,7 @@ def list_spaces(
         if not workspace_id_to_use:
             render_error(
                 "No workspace ID provided and no default workspace configured. "
-                "Use --workspace-id or set a default with 'clickup config set default_team_id <id>'."
+                "Use --workspace-id or set a default with 'taskbench config set default_team_id <id>'."
             )
             raise typer.Exit(2) from None
 
@@ -86,7 +86,7 @@ def list_folders(
         if not space_id_to_use:
             render_error(
                 "No space ID provided and no default space configured. "
-                "Use --space-id or set a default with 'clickup config set default_space_id <id>'."
+                "Use --space-id or set a default with 'taskbench config set default_space_id <id>'."
             )
             raise typer.Exit(2) from None
 
@@ -124,7 +124,7 @@ def list_members(
         if not workspace_id_to_use:
             render_error(
                 "No workspace ID provided and no default workspace configured. "
-                "Use --workspace-id or set a default with 'clickup config set default_team_id <id>'."
+                "Use --workspace-id or set a default with 'taskbench config set default_team_id <id>'."
             )
             raise typer.Exit(2) from None
 

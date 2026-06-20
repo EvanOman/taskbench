@@ -11,9 +11,9 @@ from unittest.mock import AsyncMock, Mock, patch
 
 from typer.testing import CliRunner
 
-from clickup.cli.main import app
-from clickup.cli.task_filters import apply_task_filters
-from clickup.core.models import PriorityInfo, StatusInfo, Task
+from taskbench.cli.main import app
+from taskbench.cli.task_filters import apply_task_filters
+from taskbench.core.models import PriorityInfo, StatusInfo, Task
 
 runner = CliRunner()
 
@@ -185,7 +185,7 @@ class TestApplyTaskFiltersCombined:
 
 
 class TestSearchOptionalQuery:
-    @patch("clickup.cli.commands.task.get_client")
+    @patch("taskbench.cli.commands.task.get_client")
     def test_bare_search_enumerates_all(self, mock_get_client):
         """Omitting --query returns all tasks (empty string query)."""
         mock_client = AsyncMock()
@@ -198,7 +198,7 @@ class TestSearchOptionalQuery:
         assert data["count"] == 1
         mock_client.search_tasks.assert_awaited_once_with("W1", "")
 
-    @patch("clickup.cli.commands.task.get_client")
+    @patch("taskbench.cli.commands.task.get_client")
     def test_search_with_query_passes_through(self, mock_get_client):
         mock_client = AsyncMock()
         mock_client.search_tasks.return_value = [Task(id="t1", name="Match")]
@@ -210,7 +210,7 @@ class TestSearchOptionalQuery:
 
 
 class TestSearchStatusFilter:
-    @patch("clickup.cli.commands.task.get_client")
+    @patch("taskbench.cli.commands.task.get_client")
     def test_status_filters_results(self, mock_get_client):
         mock_client = AsyncMock()
         mock_client.search_tasks.return_value = [
@@ -228,7 +228,7 @@ class TestSearchStatusFilter:
         assert data["count"] == 1
         assert data["data"][0]["id"] == "t1"
 
-    @patch("clickup.cli.commands.task.get_client")
+    @patch("taskbench.cli.commands.task.get_client")
     def test_multi_status_csv(self, mock_get_client):
         mock_client = AsyncMock()
         mock_client.search_tasks.return_value = [
@@ -249,7 +249,7 @@ class TestSearchStatusFilter:
 
 
 class TestSearchSort:
-    @patch("clickup.cli.commands.task.get_client")
+    @patch("taskbench.cli.commands.task.get_client")
     def test_sort_by_priority(self, mock_get_client):
         mock_client = AsyncMock()
         mock_client.search_tasks.return_value = [
@@ -266,7 +266,7 @@ class TestSearchSort:
         data = json.loads(result.stdout)
         assert [t["id"] for t in data["data"]] == ["t2", "t1"]
 
-    @patch("clickup.cli.commands.task.get_client")
+    @patch("taskbench.cli.commands.task.get_client")
     def test_sort_desc(self, mock_get_client):
         mock_client = AsyncMock()
         mock_client.search_tasks.return_value = [
@@ -285,7 +285,7 @@ class TestSearchSort:
 
 
 class TestSearchOpenOnly:
-    @patch("clickup.cli.commands.task.get_client")
+    @patch("taskbench.cli.commands.task.get_client")
     def test_open_only_hides_closed(self, mock_get_client):
         mock_client = AsyncMock()
         mock_client.search_tasks.return_value = [
@@ -305,7 +305,7 @@ class TestSearchOpenOnly:
 
 
 class TestSearchUpdatedSince:
-    @patch("clickup.cli.commands.task.get_client")
+    @patch("taskbench.cli.commands.task.get_client")
     def test_updated_since_filters(self, mock_get_client):
         mock_client = AsyncMock()
         mock_client.search_tasks.return_value = [
@@ -334,7 +334,7 @@ class TestSearchUpdatedSince:
 
 
 class TestSearchLimit:
-    @patch("clickup.cli.commands.task.get_client")
+    @patch("taskbench.cli.commands.task.get_client")
     def test_limit_caps_results(self, mock_get_client):
         mock_client = AsyncMock()
         mock_client.search_tasks.return_value = [Task(id=f"t{i}", name=f"Task {i}") for i in range(10)]
@@ -350,7 +350,7 @@ class TestSearchLimit:
 
 
 class TestSearchNoWorkspaceErrors:
-    @patch("clickup.cli.commands.task.get_client")
+    @patch("taskbench.cli.commands.task.get_client")
     def test_no_workspace_errors(self, mock_get_client):
         mock_client = AsyncMock()
         mock_client.get_teams.return_value = []

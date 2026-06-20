@@ -6,8 +6,8 @@ with the real ClickUp API.
 
 import pytest
 
-from clickup.core import ClickUpClient, Space, Team
-from clickup.core import List as ClickUpList
+from taskbench.core import ClickUpClient, Space, Team
+from taskbench.core import List as ClickUpList
 
 
 @pytest.mark.live

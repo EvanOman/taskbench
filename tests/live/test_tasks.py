@@ -6,9 +6,9 @@ work correctly with the real ClickUp API.
 
 import pytest
 
-from clickup.core import ClickUpClient, Task, Team
-from clickup.core import List as ClickUpList
-from clickup.core.exceptions import NotFoundError
+from taskbench.core import ClickUpClient, Task, Team
+from taskbench.core import List as ClickUpList
+from taskbench.core.exceptions import NotFoundError
 
 
 @pytest.mark.live

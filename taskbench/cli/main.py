@@ -17,11 +17,11 @@ from .commands import setup as setup_cmd
 from .output import FormatChoice, _print_json, error_payload, get_format, render_kv, render_message, set_format
 
 app = typer.Typer(
-    name="clickup",
-    help="ClickUp CLI - Task management from the command line.",
+    name="taskbench",
+    help="Taskbench - An agent-first task CLI, backend-pluggable.",
     add_completion=False,
     rich_markup_mode="rich",
-    epilog="New here? Run [bold]clickup setup run --auto[/bold] to get started non-interactively.",
+    epilog="New here? Run [bold]taskbench setup run --auto[/bold] to get started non-interactively.",
     # Rich tracebacks on stderr drown the structured error envelope agents
     # parse; main() below renders all expected errors itself.
     pretty_exceptions_enable=False,
@@ -70,7 +70,7 @@ _FORMAT_OPTION = typer.Option(
 def _root_callback(
     output_format: FormatChoice | None = _FORMAT_OPTION,
 ) -> None:
-    """ClickUp CLI - Task management from the command line."""
+    """Taskbench - An agent-first task CLI, backend-pluggable."""
     # Reset format every invocation so module-level state doesn't bleed across
     # repeated CliRunner.invoke() calls in tests (and across long-running
     # processes that re-enter the CLI).
@@ -209,7 +209,7 @@ def status() -> None:
             return
 
         # ── Table output ──────────────────────────────────────────────
-        table = Table(title="ClickUp Status", show_header=True)
+        table = Table(title="Taskbench Status", show_header=True)
         table.add_column("Setting", style="cyan")
         table.add_column("Value", style="green")
 
@@ -257,16 +257,16 @@ def status() -> None:
         if not has_token:
             render_message(
                 "No API token configured. Set CLICKUP_API_KEY environment variable "
-                "or use 'clickup config set-token <token>'.",
+                "or use 'taskbench config set-token <token>'.",
                 level="warn",
             )
         elif missing_defaults:
             render_message(
-                "Some defaults are not configured. Run `clickup setup run` to set them up.",
+                "Some defaults are not configured. Run `taskbench setup run` to set them up.",
                 level="warn",
             )
         else:
-            render_message("All defaults configured. Use 'clickup task list' to see your tasks!", level="success")
+            render_message("All defaults configured. Use 'taskbench task list' to see your tasks!", level="success")
 
     asyncio.run(_status())
 
@@ -276,7 +276,7 @@ def version() -> None:
     """Show version information."""
     from . import __version__
 
-    render_kv({"name": "ClickUp Toolkit CLI", "version": __version__})
+    render_kv({"name": "Taskbench", "version": __version__})
 
 
 async def async_main() -> None:
@@ -287,7 +287,7 @@ async def async_main() -> None:
 def _hoist_global_format(argv: list[str]) -> list[str]:
     """Move a trailing ``--format <value>`` to the front so it parses globally.
 
-    Agents overwhelmingly append flags (``clickup task list --format json``),
+    Agents overwhelmingly append flags (``taskbench task list --format json``),
     but ``--format`` lives on the root callback. Rewriting argv accepts the
     flag in any position instead of erroring. Skipped when:
 
@@ -333,13 +333,13 @@ def _format_hint(exc: Any) -> str | None:
     """Return a targeted hint when --format is misplaced after a subcommand.
 
     ``--format`` is a global flag on the root Typer callback. When agents
-    place it after the subcommand (e.g. ``clickup task search --format table``),
+    place it after the subcommand (e.g. ``taskbench task search --format table``),
     Click raises ``NoSuchOption`` because the subcommand doesn't declare it.
     This helper detects that specific case and returns an actionable hint.
     """
     option_name = getattr(exc, "option_name", None)
     if option_name and option_name.lstrip("-") == "format":
-        return "Global flag --format goes before the subcommand: clickup --format <table|json> <command> ..."
+        return "Global flag --format goes before the subcommand: taskbench --format <table|json> <command> ..."
     return None
 
 
@@ -349,8 +349,8 @@ def _emit_click_error_envelope(exc: Any) -> None:
     This closes the last gap from issue #29 P0 #2: Typer/Click usage errors
     (unknown subcommand, ``--limit abc``, missing required arg) used to emit
     Rich-formatted prose on stderr, bypassing the JSON envelope contract.
-    The payload shape is shared with :func:`clickup.cli.output.render_error`
-    via :func:`clickup.cli.output.error_payload`.
+    The payload shape is shared with :func:`taskbench.cli.output.render_error`
+    via :func:`taskbench.cli.output.error_payload`.
     """
     ctx = getattr(exc, "ctx", None)
     command = ctx.command_path if ctx is not None and ctx.command_path else None

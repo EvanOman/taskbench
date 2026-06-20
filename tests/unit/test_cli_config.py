@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from typer.testing import CliRunner
 
-from clickup.cli.main import app
+from taskbench.cli.main import app
 
 runner = CliRunner()
 
@@ -79,7 +79,7 @@ def test_config_clean_without_flag_refuses():
     import json as json_mod
     from pathlib import Path
 
-    from clickup.core import Config
+    from taskbench.core import Config
 
     cfg = Config()
     cfg_path = Path(cfg._get_config_path())

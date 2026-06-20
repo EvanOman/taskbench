@@ -14,9 +14,9 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from typer.testing import CliRunner
 
-from clickup.cli.main import app
-from clickup.core.exceptions import ClickUpError
-from clickup.core.models import PriorityInfo, Task
+from taskbench.cli.main import app
+from taskbench.core.exceptions import ClickUpError
+from taskbench.core.models import PriorityInfo, Task
 
 from .conftest import make_mock_ctx
 
@@ -26,7 +26,7 @@ runner = CliRunner()
 @pytest.fixture(autouse=True)
 def isolated_config():
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
+        with patch("taskbench.core.config.Path.home", return_value=Path(tmpdir)):
             yield
 
 
@@ -146,7 +146,7 @@ def test_template_help():
 def test_template_list_with_custom_templates():
     """Test listing templates including custom ones."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("clickup.cli.commands.templates.get_templates_dir", return_value=Path(tmpdir)):
+        with patch("taskbench.cli.commands.templates.get_templates_dir", return_value=Path(tmpdir)):
             result = runner.invoke(app, ["template", "list", "--include-custom"])
             assert result.exit_code == 0
 
@@ -154,9 +154,9 @@ def test_template_list_with_custom_templates():
 def test_template_list_with_include_custom_on_disk():
     """--include-custom picks up a real template file on disk."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
-            with patch("clickup.cli.commands.templates.Path.home", return_value=Path(tmpdir)):
-                custom_dir = Path(tmpdir) / ".config" / "clickup-toolkit" / "templates"
+        with patch("taskbench.core.config.Path.home", return_value=Path(tmpdir)):
+            with patch("taskbench.cli.commands.templates.Path.home", return_value=Path(tmpdir)):
+                custom_dir = Path(tmpdir) / ".config" / "taskbench" / "templates"
                 custom_dir.mkdir(parents=True, exist_ok=True)
                 (custom_dir / "my_template.json").write_text(
                     json.dumps({"name": "Custom {x}", "description": "d", "variables": ["x"]})
@@ -170,9 +170,9 @@ def test_template_list_with_include_custom_on_disk():
 def test_template_show_custom_from_disk():
     """Show a custom template loaded from disk."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
-            with patch("clickup.cli.commands.templates.Path.home", return_value=Path(tmpdir)):
-                custom_dir = Path(tmpdir) / ".config" / "clickup-toolkit" / "templates"
+        with patch("taskbench.core.config.Path.home", return_value=Path(tmpdir)):
+            with patch("taskbench.cli.commands.templates.Path.home", return_value=Path(tmpdir)):
+                custom_dir = Path(tmpdir) / ".config" / "taskbench" / "templates"
                 custom_dir.mkdir(parents=True, exist_ok=True)
                 (custom_dir / "test_t.json").write_text(
                     json.dumps({"name": "T {x}", "description": "Desc", "priority": 2, "variables": ["x"]})
@@ -188,7 +188,7 @@ def test_template_show_custom_from_disk():
 # =============================================================================
 
 
-@patch("clickup.cli.commands.templates.get_client")
+@patch("taskbench.cli.commands.templates.get_client")
 async def test_template_create_from_builtin(mock_get_client):
     """Test creating task from built-in template."""
     mock_client = AsyncMock()
@@ -235,7 +235,7 @@ async def test_template_create_from_builtin(mock_get_client):
     assert "task123" in result.stdout
 
 
-@patch("clickup.cli.commands.templates.get_client")
+@patch("taskbench.cli.commands.templates.get_client")
 async def test_template_create_from_custom(mock_get_client, sample_custom_template):
     """Test creating task from custom template file."""
     mock_client = AsyncMock()
@@ -269,7 +269,7 @@ async def test_template_create_from_custom(mock_get_client, sample_custom_templa
     assert "id" in data
 
 
-@patch("clickup.cli.commands.templates.get_client")
+@patch("taskbench.cli.commands.templates.get_client")
 async def test_template_create_with_variable_substitution(mock_get_client):
     """Test template variable substitution."""
     mock_client = AsyncMock()
@@ -317,7 +317,7 @@ async def test_template_create_with_variable_substitution(mock_get_client):
     assert "id" in data
 
 
-@patch("clickup.cli.commands.templates.get_client")
+@patch("taskbench.cli.commands.templates.get_client")
 def test_template_create_with_variables_file(mock_get_client):
     """Use --variables file path with all bug_report vars."""
     mock_client = AsyncMock()
@@ -359,7 +359,7 @@ def test_template_create_with_variables_file(mock_get_client):
     assert data["id"] == "t1"
 
 
-@patch("clickup.cli.commands.templates.get_client")
+@patch("taskbench.cli.commands.templates.get_client")
 def test_template_create_with_template_file(mock_get_client):
     """Provide a custom template file via --template-file."""
     mock_client = AsyncMock()
@@ -388,7 +388,7 @@ def test_template_create_with_template_file(mock_get_client):
     assert data["id"] == "t1"
 
 
-@patch("clickup.cli.commands.templates.get_client")
+@patch("taskbench.cli.commands.templates.get_client")
 def test_template_create_custom_template_by_name(mock_get_client):
     """--template <name> resolves to a custom file on disk if not built-in."""
     mock_client = AsyncMock()
@@ -396,8 +396,8 @@ def test_template_create_custom_template_by_name(mock_get_client):
     mock_get_client.return_value = make_mock_ctx(mock_client)
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("clickup.cli.commands.templates.Path.home", return_value=Path(tmpdir)):
-            custom_dir = Path(tmpdir) / ".config" / "clickup-toolkit" / "templates"
+        with patch("taskbench.cli.commands.templates.Path.home", return_value=Path(tmpdir)):
+            custom_dir = Path(tmpdir) / ".config" / "taskbench" / "templates"
             custom_dir.mkdir(parents=True, exist_ok=True)
             (custom_dir / "my_t.json").write_text(
                 json.dumps({"name": "{n}", "description": "d", "priority": 3, "variables": ["n"]})
@@ -452,7 +452,7 @@ def test_template_create_no_template_no_interactive():
     assert result.exit_code == 1
 
 
-@patch("clickup.cli.commands.templates.get_client")
+@patch("taskbench.cli.commands.templates.get_client")
 def test_template_create_invalid_var_format(mock_get_client):
     """--var without an = sign is rejected."""
     mock_client = AsyncMock()
@@ -487,7 +487,7 @@ def test_template_create_invalid_template_file():
         assert result.exit_code != 0
 
 
-@patch("clickup.cli.commands.templates.get_client")
+@patch("taskbench.cli.commands.templates.get_client")
 def test_template_create_template_file_missing(mock_get_client):
     """A nonexistent --template-file path errors."""
     mock_client = AsyncMock()
@@ -509,7 +509,7 @@ def test_template_create_template_file_missing(mock_get_client):
     assert "Error loading template" in result.output
 
 
-@patch("clickup.cli.commands.templates.get_client")
+@patch("taskbench.cli.commands.templates.get_client")
 def test_template_create_api_error(mock_get_client):
     """API failure during create propagates cleanly."""
     mock_client = AsyncMock()
@@ -570,7 +570,7 @@ def test_template_create_variables_file_missing():
     assert "variables file" in result.output.lower() or "error" in result.output.lower()
 
 
-@patch("clickup.cli.commands.templates.get_client")
+@patch("taskbench.cli.commands.templates.get_client")
 async def test_template_create_missing_variables(mock_get_client):
     """Test creating template with missing required variables."""
     mock_client = AsyncMock()
@@ -606,7 +606,7 @@ def test_template_save_from_task():
         )
 
 
-@patch("clickup.cli.commands.templates.get_client")
+@patch("taskbench.cli.commands.templates.get_client")
 def test_template_save_with_pattern_flags(mock_get_client):
     """Non-interactive save with --name-pattern / --description-pattern."""
     mock_client = AsyncMock()
@@ -616,7 +616,7 @@ def test_template_save_with_pattern_flags(mock_get_client):
     mock_get_client.return_value = make_mock_ctx(mock_client)
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("clickup.cli.commands.templates.Path.home", return_value=Path(tmpdir)):
+        with patch("taskbench.cli.commands.templates.Path.home", return_value=Path(tmpdir)):
             result = runner.invoke(
                 app,
                 [
@@ -636,7 +636,7 @@ def test_template_save_with_pattern_flags(mock_get_client):
             assert data["name"] == "test-template"
 
 
-@patch("clickup.cli.commands.templates.get_client")
+@patch("taskbench.cli.commands.templates.get_client")
 def test_template_save_refuses_overwrite_without_force(mock_get_client):
     """template save must refuse to overwrite without --force."""
     mock_client = AsyncMock()
@@ -652,7 +652,7 @@ def test_template_save_refuses_overwrite_without_force(mock_get_client):
     mock_get_client.side_effect = _ctx
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("clickup.cli.commands.templates.Path.home", return_value=Path(tmpdir)):
+        with patch("taskbench.cli.commands.templates.Path.home", return_value=Path(tmpdir)):
             result1 = runner.invoke(app, ["template", "save", "overwrite-test", "--from-task", "t1"])
             assert result1.exit_code == 0, result1.output
 

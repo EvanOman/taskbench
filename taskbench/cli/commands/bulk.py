@@ -262,7 +262,7 @@ def bulk_update(
         "--all-lists",
         help=(
             "Update tasks across every list configured in the default_lists aliases — NOT every "
-            "list in the workspace. See configured aliases with 'clickup config get default_lists'."
+            "list in the workspace. See configured aliases with 'taskbench config get default_lists'."
         ),
     ),
     filter_status: str | None = typer.Option(None, "--filter-status", help="Only update tasks with this status"),
@@ -291,7 +291,7 @@ def bulk_update(
         if not list_ids_to_use:
             render_error(
                 "Error: No list ID provided and no default list configured.",
-                hint="Use --list-id or set a default with 'clickup config set default_list_id <id>'",
+                hint="Use --list-id or set a default with 'taskbench config set default_list_id <id>'",
             )
             raise typer.Exit(2)
 

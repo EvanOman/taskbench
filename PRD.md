@@ -1,7 +1,7 @@
-# ClickUp CLI - Product Requirements Document
+# Taskbench - Product Requirements Document
 
 ## Product Vision
-Create a powerful ClickUp CLI for seamless task management through command-line operations.
+Create a powerful, backend-pluggable task management CLI. ClickUp is the default backend.
 
 ## Core Architecture
 - **Core Library**: Python core with ClickUp API client, authentication, and data models

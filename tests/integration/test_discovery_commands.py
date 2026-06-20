@@ -13,8 +13,8 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from typer.testing import CliRunner
 
-from clickup.cli.main import app
-from clickup.core.exceptions import ClickUpError
+from taskbench.cli.main import app
+from taskbench.core.exceptions import ClickUpError
 
 from .conftest import make_mock_ctx, named_mock
 
@@ -37,7 +37,7 @@ def sample_hierarchy():
     }
 
 
-@patch("clickup.cli.commands.discover.get_client")
+@patch("taskbench.cli.commands.discover.get_client")
 def test_discover_hierarchy(mock_get_client, sample_hierarchy):
     """Test discover hierarchy command."""
     mock_client = AsyncMock()
@@ -64,7 +64,7 @@ def test_discover_hierarchy(mock_get_client, sample_hierarchy):
     assert "Test List" in result.output
 
 
-@patch("clickup.cli.commands.discover.get_client")
+@patch("taskbench.cli.commands.discover.get_client")
 async def test_discover_hierarchy_with_team_filter(mock_get_client, sample_hierarchy):
     """Test discover hierarchy with team filter."""
     mock_client = AsyncMock()
@@ -80,7 +80,7 @@ async def test_discover_hierarchy_with_team_filter(mock_get_client, sample_hiera
     assert "Test Team" in result.output
 
 
-@patch("clickup.cli.commands.discover.get_client")
+@patch("taskbench.cli.commands.discover.get_client")
 def test_discover_ids_interactive(mock_get_client, sample_hierarchy):
     """Test discover IDs command with interactive selection."""
     mock_client = AsyncMock()
@@ -112,7 +112,7 @@ def test_discover_ids_interactive(mock_get_client, sample_hierarchy):
         assert "list123" in result.stdout  # Final list ID should be shown
 
 
-@patch("clickup.cli.commands.discover.get_client")
+@patch("taskbench.cli.commands.discover.get_client")
 def test_discover_path_to_list(mock_get_client, sample_hierarchy):
     """Test discover path to specific list."""
     mock_client = AsyncMock()
@@ -144,7 +144,7 @@ def test_discover_path_to_list(mock_get_client, sample_hierarchy):
     assert "Test List" in path_names
 
 
-@patch("clickup.cli.commands.discover.get_client")
+@patch("taskbench.cli.commands.discover.get_client")
 def test_discover_path_list_not_found(mock_get_client):
     """Test discover path with non-existent list."""
     mock_client = AsyncMock()
@@ -175,7 +175,7 @@ def test_discover_help():
     assert "path" in result.stdout
 
 
-@patch("clickup.cli.commands.discover.get_client")
+@patch("taskbench.cli.commands.discover.get_client")
 def test_discover_hierarchy_empty_workspace(mock_get_client):
     """Test discover hierarchy with empty workspace."""
     mock_client = AsyncMock()
@@ -192,10 +192,10 @@ def test_discover_hierarchy_empty_workspace(mock_get_client):
     result = runner.invoke(app, ["--format", "table", "discover", "hierarchy"])
 
     assert result.exit_code == 0
-    assert "ClickUp Hierarchy" in result.stdout
+    assert "Workspace Hierarchy" in result.stdout
 
 
-@patch("clickup.cli.commands.discover.get_client")
+@patch("taskbench.cli.commands.discover.get_client")
 def test_discover_hierarchy_with_depth_limit(mock_get_client, sample_hierarchy):
     """Test discover hierarchy with depth limitation."""
     mock_client = AsyncMock()
@@ -218,11 +218,11 @@ def test_discover_hierarchy_with_depth_limit(mock_get_client, sample_hierarchy):
     assert "Test Space" in result.stdout
 
 
-@patch("clickup.cli.commands.discover.get_client")
+@patch("taskbench.cli.commands.discover.get_client")
 def test_discover_ids_json_folder(mock_get_client, sample_hierarchy):
     """discover ids --folder-id emits JSON collection via render_lists."""
     mock_client = AsyncMock()
-    from clickup.core.models import List as ClickUpList
+    from taskbench.core.models import List as ClickUpList
 
     mock_client.get_lists.return_value = [ClickUpList(id="L1", name="Sprint", task_count=5)]
 
@@ -240,7 +240,7 @@ def test_discover_ids_json_folder(mock_get_client, sample_hierarchy):
     assert data["data"][0]["id"] == "L1"
 
 
-@patch("clickup.cli.commands.discover.get_client")
+@patch("taskbench.cli.commands.discover.get_client")
 def test_discover_ids_json_space(mock_get_client):
     """discover ids --space-id emits render_id_rows JSON."""
     mock_client = AsyncMock()
@@ -262,7 +262,7 @@ def test_discover_ids_json_space(mock_get_client):
     assert data["data"][1]["type"] == "list"
 
 
-@patch("clickup.cli.commands.discover.get_client")
+@patch("taskbench.cli.commands.discover.get_client")
 def test_discover_path_json_not_found(mock_get_client):
     """discover path emits {found: false} when not found."""
     mock_client = AsyncMock()
@@ -283,11 +283,11 @@ def test_discover_path_json_not_found(mock_get_client):
     assert data["path"] == []
 
 
-@patch("clickup.cli.commands.discover.get_client")
+@patch("taskbench.cli.commands.discover.get_client")
 def test_discover_ids_table_mode(mock_get_client, sample_hierarchy):
     """discover ids --format table keeps human output."""
     mock_client = AsyncMock()
-    from clickup.core.models import List as ClickUpList
+    from taskbench.core.models import List as ClickUpList
 
     mock_client.get_lists.return_value = [ClickUpList(id="L1", name="Sprint", task_count=5)]
 
@@ -303,7 +303,7 @@ def test_discover_ids_table_mode(mock_get_client, sample_hierarchy):
     assert "Sprint" in result.output
 
 
-@patch("clickup.cli.commands.discover.get_client")
+@patch("taskbench.cli.commands.discover.get_client")
 def test_discover_path_table_mode(mock_get_client, sample_hierarchy):
     """discover path --format table shows the emoji tree."""
     mock_client = AsyncMock()
@@ -332,9 +332,9 @@ def test_discover_path_table_mode(mock_get_client, sample_hierarchy):
 # =============================================================================
 
 
-@patch("clickup.cli.commands.discover.get_client")
+@patch("taskbench.cli.commands.discover.get_client")
 def test_discover_ids_lists_in_folder(mock_get_client):
-    from clickup.core.models import List as ClickUpList
+    from taskbench.core.models import List as ClickUpList
 
     mock_client = AsyncMock()
     lst = ClickUpList(id="L1", name="Sprint", task_count=5)
@@ -347,7 +347,7 @@ def test_discover_ids_lists_in_folder(mock_get_client):
     assert data["data"][0]["name"] == "Sprint"
 
 
-@patch("clickup.cli.commands.discover.get_client")
+@patch("taskbench.cli.commands.discover.get_client")
 def test_discover_ids_in_space_mixed(mock_get_client):
     """discover ids --space-id returns both folders and folderless lists."""
     mock_client = AsyncMock()
@@ -363,9 +363,9 @@ def test_discover_ids_in_space_mixed(mock_get_client):
     assert "Loose" in names
 
 
-@patch("clickup.cli.commands.discover.get_client")
+@patch("taskbench.cli.commands.discover.get_client")
 def test_discover_ids_in_workspace(mock_get_client):
-    from clickup.core.models import Space
+    from taskbench.core.models import Space
 
     mock_client = AsyncMock()
     mock_client.get_spaces.return_value = [
@@ -379,9 +379,9 @@ def test_discover_ids_in_workspace(mock_get_client):
     assert data["data"][0]["name"] == "Eng"
 
 
-@patch("clickup.cli.commands.discover.get_client")
+@patch("taskbench.cli.commands.discover.get_client")
 def test_discover_ids_no_args_lists_workspaces(mock_get_client):
-    from clickup.core.models import Team
+    from taskbench.core.models import Team
 
     mock_client = AsyncMock()
     mock_client.get_teams.return_value = [Team(id="T1", name="Acme", color="#fff", members=[])]
@@ -398,7 +398,7 @@ def test_discover_ids_no_args_lists_workspaces(mock_get_client):
 # =============================================================================
 
 
-@patch("clickup.cli.commands.discover.get_client")
+@patch("taskbench.cli.commands.discover.get_client")
 def test_discover_path_finds_list_folderless(mock_get_client):
     """Path traversal finds a folderless list."""
     mock_client = AsyncMock()
@@ -419,7 +419,7 @@ def test_discover_path_finds_list_folderless(mock_get_client):
     assert data["list"]["name"] == "Sprint"
 
 
-@patch("clickup.cli.commands.discover.get_client")
+@patch("taskbench.cli.commands.discover.get_client")
 def test_discover_path_in_folder(mock_get_client):
     """Path traversal that finds the list inside a folder."""
     mock_client = AsyncMock()
@@ -444,7 +444,7 @@ def test_discover_path_in_folder(mock_get_client):
     assert "Backend" in path_names
 
 
-@patch("clickup.cli.commands.discover.get_client")
+@patch("taskbench.cli.commands.discover.get_client")
 def test_discover_path_not_found_empty_workspace(mock_get_client):
     """Path that doesn't find the list anywhere."""
     mock_client = AsyncMock()
@@ -463,7 +463,7 @@ def test_discover_path_not_found_empty_workspace(mock_get_client):
 # =============================================================================
 
 
-@patch("clickup.cli.commands.discover.get_client")
+@patch("taskbench.cli.commands.discover.get_client")
 def test_discover_hierarchy_api_error(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_teams.side_effect = ClickUpError("server fault")
@@ -474,7 +474,7 @@ def test_discover_hierarchy_api_error(mock_get_client):
     assert "server fault" in result.stderr
 
 
-@patch("clickup.cli.commands.discover.get_client")
+@patch("taskbench.cli.commands.discover.get_client")
 def test_discover_ids_api_error(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_teams.side_effect = ClickUpError("server fault")
@@ -489,7 +489,7 @@ def test_discover_hierarchy_no_credentials():
     from pathlib import Path
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
+        with patch("taskbench.core.config.Path.home", return_value=Path(tmpdir)):
             from os import environ
 
             for k in [k for k in environ if k.startswith("CLICKUP_")]:

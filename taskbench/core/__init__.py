@@ -1,6 +1,6 @@
-"""ClickUp Toolkit Core - Shared ClickUp API client and utilities."""
+"""Taskbench Core - Shared task-backend client and utilities."""
 
-__version__ = "0.1.0"
+__version__ = "1.0.0"
 
 from .client import ClickUpClient
 from .config import Config

@@ -12,15 +12,15 @@ from unittest.mock import AsyncMock, Mock, patch
 
 from typer.testing import CliRunner
 
-from clickup.cli.main import app
-from clickup.core.models import (
+from taskbench.cli.main import app
+from taskbench.core.models import (
     Folder,
     Space,
     SpaceRef,
     Team,
     User,
 )
-from clickup.core.models import (
+from taskbench.core.models import (
     List as ClickUpList,
 )
 
@@ -74,7 +74,7 @@ def _ctx(client):
 # ---------- workspace --------------------------------------------------------
 
 
-@patch("clickup.cli.commands.workspace.get_client")
+@patch("taskbench.cli.commands.workspace.get_client")
 def test_workspace_list_json(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_teams.return_value = [_team(), _team(id="T2", name="Other")]
@@ -87,7 +87,7 @@ def test_workspace_list_json(mock_get_client):
     assert {t["name"] for t in data["data"]} == {"Acme", "Other"}
 
 
-@patch("clickup.cli.commands.workspace.get_client")
+@patch("taskbench.cli.commands.workspace.get_client")
 def test_workspace_spaces_json(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_spaces.return_value = [_space()]
@@ -100,7 +100,7 @@ def test_workspace_spaces_json(mock_get_client):
     assert data["data"][0]["name"] == "Eng"
 
 
-@patch("clickup.cli.commands.workspace.get_client")
+@patch("taskbench.cli.commands.workspace.get_client")
 def test_workspace_folders_json(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_folders.return_value = [_folder()]
@@ -113,7 +113,7 @@ def test_workspace_folders_json(mock_get_client):
     assert data["data"][0]["name"] == "Backend"
 
 
-@patch("clickup.cli.commands.workspace.get_client")
+@patch("taskbench.cli.commands.workspace.get_client")
 def test_workspace_members_json(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_team_members.return_value = [_user(id=1, username="a"), _user(id=2, username="b")]
@@ -137,7 +137,7 @@ def _named(**kw):
     return m
 
 
-@patch("clickup.cli.commands.discover.get_client")
+@patch("taskbench.cli.commands.discover.get_client")
 def test_discover_hierarchy_json(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_teams.return_value = [_named(id="T1", name="Acme")]
@@ -155,7 +155,7 @@ def test_discover_hierarchy_json(mock_get_client):
     assert data["workspaces"][0]["spaces"][0]["folders"][0]["name"] == "Backend"
 
 
-@patch("clickup.cli.commands.discover.get_client")
+@patch("taskbench.cli.commands.discover.get_client")
 def test_discover_hierarchy_table_no_crash(mock_get_client):
     """Default table mode also works (regression for the Mock(name=...) bug)."""
     mock_client = AsyncMock()
@@ -173,9 +173,9 @@ def test_discover_hierarchy_table_no_crash(mock_get_client):
 # ---------- task list (smoke) ------------------------------------------------
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_list_json(mock_get_client):
-    from clickup.core.models import Task
+    from taskbench.core.models import Task
 
     mock_client = AsyncMock()
     mock_client.get_tasks.return_value = [Task(id="t1", name="One"), Task(id="t2", name="Two")]
@@ -188,9 +188,9 @@ def test_task_list_json(mock_get_client):
     assert {t["name"] for t in data["data"]} == {"One", "Two"}
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_get_json(mock_get_client):
-    from clickup.core.models import Task
+    from taskbench.core.models import Task
 
     mock_client = AsyncMock()
     mock_client.get_task.return_value = Task(id="t1", name="One", description="d")

@@ -140,7 +140,7 @@ class ClickUpClient:
                     continue
                 raise RequestTimeoutError(
                     f"Request timed out: {e}. "
-                    "Consider retrying or increasing the timeout with 'clickup config set timeout <seconds>'."
+                    "Consider retrying or increasing the timeout with 'taskbench config set timeout <seconds>'."
                 ) from e
             except httpx.ConnectError as e:
                 if attempt < max_retries:

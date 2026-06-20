@@ -2,7 +2,7 @@
 
 `openapi.yaml` defines the HTTP contract a server must implement to act as a
 backend for this CLI. It is the HTTP projection of the Python `TaskProvider`
-protocol in `clickup/core/providers.py`.
+protocol in `taskbench/core/providers.py`.
 
 **Source of truth: the Python protocol.** The spec is derived from it. If you
 change `TaskProvider` (or the pydantic models it returns), update the spec in
@@ -21,10 +21,10 @@ the generic provider with zero code changes here.
 
 | Route | Write | Best when |
 |---|---|---|
-| **Native adapter** | A Python class implementing `TaskProvider`, registered in `get_provider()` | You're contributing to this repo; the backend has a Python SDK (see `planka_provider.py`) |
+| **Native adapter** | A Python class implementing `TaskProvider`, registered via entry point or `get_provider()` | You're contributing to this repo or publishing a plugin; the backend has a Python SDK |
 | **Spec-conformant shim** | An HTTP service implementing `spec/openapi.yaml` | You don't want to touch this repo; your backend logic isn't Python; you want one shim to serve many CLI installs |
 
-The generic provider (`CLICKUP_PROVIDER=generic`, planned — see Status below)
+The generic provider (`TASKBENCH_PROVIDER=generic`, planned — see Status below)
 speaks exactly this spec.
 
 ## Protocol ↔ endpoint mapping
@@ -68,7 +68,7 @@ folder → list → task → comment. The CLI's JSON output, models, and flags a
 use these terms; a shim translates once (its tool's terms → spec terms)
 instead of every consumer translating differently. The Planka adapter's
 mapping (project→space, board→list, column→status, card→task) is the worked
-example.
+example (see `docs/writing-an-adapter.md`).
 
 **Folders are optional, not core.** Planka proved a backend can live without
 them: declare `folders: false` in `/capabilities`, or synthesize one
@@ -103,7 +103,7 @@ fields (models use `extra="allow"`). `comment_count` on tasks and `statuses`
 on lists are RECOMMENDED extras the CLI already understands.
 
 **Errors are a typed envelope.** `{"error": {"code", "message"}}` with codes
-mapping 1:1 onto `clickup/core/exceptions.py`
+mapping 1:1 onto `taskbench/core/exceptions.py`
 (`authentication`/`authorization`/`not_found`/`validation`/`rate_limit`/
 `unsupported`/`server`). 429 responses should include `Retry-After`.
 
@@ -126,5 +126,5 @@ treats server-side filtering as best-effort.
 ## Status
 
 - [x] Spec drafted (v0.1.0)
-- [ ] `GenericProvider` adapter (`CLICKUP_PROVIDER=generic`, reads `TASKBACKEND_URL` + `TASKBACKEND_TOKEN`)
+- [ ] `GenericProvider` adapter (`TASKBENCH_PROVIDER=generic`, reads `TASKBACKEND_URL` + `TASKBACKEND_TOKEN`)
 - [ ] Conformance test suite runnable against any base URL

@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-import os
+from importlib.metadata import entry_points
 from typing import Any, Protocol, Self, Unpack
 
 from rich.console import Console
 
 from .client import ClickUpClient
-from .config import Config
+from .config import Config, _env_with_deprecation
 from .json_provider import JsonProvider
 from .models import Comment, Folder, Space, Task, Team, User
 from .models import List as ClickUpList
@@ -19,7 +19,7 @@ class TaskProvider(Protocol):
     """Port consumed by the CLI; adapters implement this interface.
 
     Task write/query methods use typed ``**kwargs`` via ``Unpack`` and
-    the ``TypedDict`` shapes defined in ``clickup.core.params``:
+    the ``TypedDict`` shapes defined in ``taskbench.core.params``:
 
     - ``create_task`` — ``TaskCreateParams``
     - ``update_task`` — ``TaskUpdateParams``
@@ -84,13 +84,19 @@ class TaskProvider(Protocol):
 
 def provider_name(config: Config) -> str:
     """Return the configured provider name."""
-    return (os.getenv("CLICKUP_PROVIDER") or config.get("provider") or "clickup").strip().lower()
+    env_val = _env_with_deprecation("TASKBENCH_PROVIDER", "CLICKUP_PROVIDER")
+    return (env_val or config.get("provider") or "clickup").strip().lower()
 
 
 def provider_requires_credentials(config: Config) -> bool:
-    """Whether the selected provider needs ClickUp credentials."""
+    """Whether the selected provider needs ClickUp credentials.
+
+    Only built-in providers are checked here. External adapters (discovered
+    via entry points) are assumed to NOT require ClickUp credentials -- the
+    adapter's own code can raise if it needs them.
+    """
     name = provider_name(config)
-    return name in {"clickup", "planka"}
+    return name == "clickup"
 
 
 def get_provider(config: Config | None = None, console: Console | None = None) -> TaskProvider:
@@ -101,8 +107,19 @@ def get_provider(config: Config | None = None, console: Console | None = None) -
         return JsonProvider(config, console)
     if name == "clickup":
         return ClickUpClient(config, console)
-    if name == "planka":
-        from .planka_provider import PlankaProvider
 
-        return PlankaProvider(config, console)
-    raise ValueError(f"Unknown provider '{name}'. Use 'clickup', 'json', or 'planka'.")
+    # Entry-point discovery for external adapters
+    eps = entry_points(group="taskbench.providers")
+    for ep in eps:
+        if ep.name == name:
+            factory = ep.load()
+            return factory(config, console)
+
+    # Provide a helpful message for known-but-removed adapters
+    if name == "planka":
+        raise ValueError("Provider 'planka' not installed. Try: uv pip install taskbench-planka")
+
+    raise ValueError(
+        f"Unknown provider '{name}'. Built-in providers: 'clickup', 'json'. "
+        f"For external adapters, install the appropriate package (e.g. 'uv pip install taskbench-{name}')."
+    )

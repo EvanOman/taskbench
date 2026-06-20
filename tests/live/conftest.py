@@ -13,8 +13,8 @@ from collections.abc import AsyncGenerator
 
 import pytest
 
-from clickup.core import ClickUpClient, Config, Space, Task, Team
-from clickup.core import List as ClickUpList
+from taskbench.core import ClickUpClient, Config, Space, Task, Team
+from taskbench.core import List as ClickUpList
 
 
 def pytest_configure(config: pytest.Config) -> None:

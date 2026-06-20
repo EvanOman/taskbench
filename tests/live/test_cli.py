@@ -12,8 +12,8 @@ import pytest
 
 
 def run_cli(*args: str, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
-    """Run the ClickUp CLI with the given arguments."""
-    cmd = ["uv", "run", "clickup", *args]
+    """Run the Taskbench CLI with the given arguments."""
+    cmd = ["uv", "run", "taskbench", *args]
 
     # Merge environment with current env
     full_env = os.environ.copy()

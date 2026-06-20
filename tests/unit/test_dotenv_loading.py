@@ -30,10 +30,10 @@ class TestDotenvLoading:
         assert os.environ.get("CLICKUP_API_KEY") == "test_key_from_cwd"
 
     def test_load_from_user_config_directory(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-        """Test loading .env from ~/.config/clickup-toolkit/."""
+        """Test loading .env from ~/.config/taskbench/."""
         # Create fake home directory structure
         fake_home = tmp_path / "home"
-        config_dir = fake_home / ".config" / "clickup-toolkit"
+        config_dir = fake_home / ".config" / "taskbench"
         config_dir.mkdir(parents=True)
 
         env_file = config_dir / ".env"
@@ -54,7 +54,7 @@ class TestDotenvLoading:
         """Test that .env in current directory overrides user config."""
         # Create fake home directory with .env
         fake_home = tmp_path / "home"
-        config_dir = fake_home / ".config" / "clickup-toolkit"
+        config_dir = fake_home / ".config" / "taskbench"
         config_dir.mkdir(parents=True)
         user_env = config_dir / ".env"
         user_env.write_text("CLICKUP_API_KEY=user_config_key\nCLICKUP_DEFAULT_TEAM_ID=user_team\n")
@@ -87,7 +87,7 @@ class TestDotenvLoading:
         monkeypatch.setenv("CLICKUP_API_KEY", "dotenv_api_key")
         monkeypatch.setenv("CLICKUP_DEFAULT_TEAM_ID", "dotenv_team_123")
 
-        from clickup.core import Config
+        from taskbench.core import Config
 
         config = Config(config_path=tmp_path / "config.json")
 
@@ -182,7 +182,7 @@ class TestDotenvLoading:
 
         # Create fake home with config
         fake_home = tmp_path / "home"
-        config_dir = fake_home / ".config" / "clickup-toolkit"
+        config_dir = fake_home / ".config" / "taskbench"
         config_dir.mkdir(parents=True)
 
         user_env = config_dir / ".env"
@@ -218,7 +218,7 @@ class TestConfigWithDotenv:
         """Test that env vars (from .env) are used when config file is empty."""
         monkeypatch.setenv("CLICKUP_API_KEY", "env_key")
 
-        from clickup.core import Config
+        from taskbench.core import Config
 
         config = Config(config_path=tmp_path / "config.json")
 
@@ -229,7 +229,7 @@ class TestConfigWithDotenv:
         """Test that explicitly set token overrides env var."""
         monkeypatch.setenv("CLICKUP_API_KEY", "env_key")
 
-        from clickup.core import Config
+        from taskbench.core import Config
 
         config = Config(config_path=tmp_path / "config.json")
         config.set_api_token("explicit_key")
@@ -242,7 +242,7 @@ class TestConfigWithDotenv:
         monkeypatch.delenv("CLICKUP_API_KEY", raising=False)
         monkeypatch.setenv("CLICKUP_API_TOKEN", "token_var")
 
-        from clickup.core import Config
+        from taskbench.core import Config
 
         config = Config(config_path=tmp_path / "config1.json")
         assert config.get_api_token() == "token_var"
@@ -259,7 +259,7 @@ class TestConfigWithDotenv:
         monkeypatch.setenv("CLICKUP_CLIENT_ID", "client_123")
         monkeypatch.setenv("CLICKUP_CLIENT_SECRET", "secret_456")
 
-        from clickup.core import Config
+        from taskbench.core import Config
 
         config = Config(config_path=tmp_path / "config.json")
 

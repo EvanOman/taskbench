@@ -4,9 +4,9 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from clickup.core.client import ClickUpClient
-from clickup.core.config import Config
-from clickup.core.exceptions import (
+from taskbench.core.client import ClickUpClient
+from taskbench.core.config import Config
+from taskbench.core.exceptions import (
     AuthenticationError,
     AuthorizationError,
     NotFoundError,

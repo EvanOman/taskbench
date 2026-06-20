@@ -1,4 +1,4 @@
-"""Output rendering for the ClickUp CLI.
+"""Output rendering for the Taskbench CLI.
 
 Provides format-aware renderers (table / JSON) for every model the CLI displays.
 Other modules import ``render_*`` helpers and call them; the active format is
@@ -451,7 +451,7 @@ def render_hierarchy(data: dict[str, Any]) -> None:
 
     from rich.tree import Tree
 
-    tree = Tree("🏢 ClickUp Hierarchy")
+    tree = Tree("🏢 Workspace Hierarchy")
     for workspace in data.get("workspaces", []):
         ws_node = tree.add(f"🏢 [bold cyan]{escape(workspace['name'])}[/bold cyan] ([dim]{workspace['id']}[/dim])")
         for space in workspace.get("spaces", []):

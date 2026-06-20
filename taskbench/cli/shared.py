@@ -68,10 +68,15 @@ async def get_client() -> TaskProvider:
     if provider_requires_credentials(config) and not config.has_credentials():
         render_error(
             "No ClickUp API token configured.",
-            hint="Set CLICKUP_API_KEY in your environment (or .env), or run 'clickup config set-token <token>'.",
+            hint="Set CLICKUP_API_KEY in your environment (or .env), or run 'taskbench config set-token <token>'.",
         )
         raise typer.Exit(2)
-    return get_provider(config, console)
+    try:
+        return get_provider(config, console)
+    except ValueError as e:
+        # Unknown provider name, or external adapter not installed.
+        # get_provider raises plain ValueError so it stays CLI-agnostic.
+        usage_error(str(e))
 
 
 def usage_error(msg: str, hint: str | None = None) -> NoReturn:
@@ -87,11 +92,11 @@ def resolve_list_id(list_id: str | None) -> str | None:
     aliases are rejected early with a helpful usage error (exit 2) instead of
     being forwarded to the API where they produce an opaque failure.
 
-    Other providers (``json``, ``planka``) use non-numeric list IDs
-    legitimately, so the strictness is skipped for them.  The check is also
-    skipped when the clickup provider has no credentials configured, since
-    the request will fail later at the ``get_client`` stage anyway (and this
-    avoids false positives in test environments where ``get_client`` is mocked).
+    Other providers (``json``) use non-numeric list IDs legitimately, so the
+    strictness is skipped for them.  The check is also skipped when the
+    ClickUp provider has no credentials configured, since the request will
+    fail later at the ``get_client`` stage anyway (and this avoids false
+    positives in test environments where ``get_client`` is mocked).
     """
     config = Config()
     resolved = config.resolve_list_id(list_id)
@@ -105,7 +110,7 @@ def resolve_list_id(list_id: str | None) -> str | None:
         alias_names = ", ".join(sorted(aliases.keys())) if aliases else "(none)"
         usage_error(
             f"Unknown list or alias '{list_id}'. Configured aliases: {alias_names}.",
-            hint="Run 'clickup config get default_lists' to see aliases, or 'clickup setup run' to configure them.",
+            hint="Run 'taskbench config get default_lists' to see aliases, or 'taskbench setup run' to configure them.",
         )
     return resolved
 
@@ -129,7 +134,7 @@ def resolve_list_ids(list_id: str | None, *, all_lists: bool = False) -> list[st
             usage_error(
                 "Error: --all-lists queries the configured default_lists aliases, and none are configured.",
                 hint=(
-                    "Configure aliases with 'clickup config set default_lists "
+                    "Configure aliases with 'taskbench config set default_lists "
                     '\'{"inbox": "<list-id>", ...}\'\' — or use task search / task mine for a '
                     "workspace-wide query."
                 ),
@@ -151,9 +156,9 @@ def require_list_id(list_id: str | None) -> str:
     usage_error(
         "Error: No list ID provided and no default list configured.",
         hint=(
-            "Use --list-id or set a default with 'clickup config set default_list_id <id>' "
-            "(or 'clickup setup run --auto'). Find IDs with 'clickup discover hierarchy', "
-            "or query across lists with 'clickup task search' / 'clickup task mine'."
+            "Use --list-id or set a default with 'taskbench config set default_list_id <id>' "
+            "(or 'taskbench setup run --auto'). Find IDs with 'taskbench discover hierarchy', "
+            "or query across lists with 'taskbench task search' / 'taskbench task mine'."
         ),
     )
 

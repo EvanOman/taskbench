@@ -7,8 +7,8 @@ latest state regardless of what was stored at write time.
 
 import pytest
 
-from clickup.core import Config
-from clickup.core.json_provider import JsonProvider, write_seed_store
+from taskbench.core import Config
+from taskbench.core.json_provider import JsonProvider, write_seed_store
 
 
 @pytest.fixture()

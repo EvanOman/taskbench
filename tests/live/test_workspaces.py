@@ -5,7 +5,7 @@ These tests verify that workspace operations work correctly with the real ClickU
 
 import pytest
 
-from clickup.core import ClickUpClient, Team
+from taskbench.core import ClickUpClient, Team
 
 
 @pytest.mark.live

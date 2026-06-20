@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from clickup.cli.output import set_format
+from taskbench.cli.output import set_format
 
 
 @pytest.fixture(autouse=True)

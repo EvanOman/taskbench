@@ -1,16 +1,16 @@
-# ClickUp Toolkit
+# Taskbench
 
 [![Test](https://github.com/EvanOman/clickup-tools/actions/workflows/test.yml/badge.svg)](https://github.com/EvanOman/clickup-tools/actions/workflows/test.yml)
 ![coverage](assets/coverage.svg)
 
-A CLI for ClickUp task management, built with Python.
+A backend-pluggable task-management CLI, built for AI agents. ClickUp is the default backend; the JSON local adapter works with zero setup.
 
 ## Agent Quickstart (uvx)
 
 The fastest way for an AI agent to use this CLI -- no clone, no install:
 
 ```bash
-uvx --from git+https://github.com/EvanOman/clickup-tools.git clickup --help
+uvx --from git+https://github.com/EvanOman/clickup-tools.git taskbench --help
 ```
 
 Four-command happy path:
@@ -19,28 +19,28 @@ Four-command happy path:
 # 1. Non-interactive setup -- with CLICKUP_API_KEY in the env or .env, this
 #    auto-picks your workspace/space/list (agents: always prefer --auto;
 #    humans can drop the flag for interactive prompts)
-uvx --from git+https://github.com/EvanOman/clickup-tools.git clickup setup run --auto
+uvx --from git+https://github.com/EvanOman/clickup-tools.git taskbench setup run --auto
 
 # 2. Verify everything works
-uvx --from git+https://github.com/EvanOman/clickup-tools.git clickup status
+uvx --from git+https://github.com/EvanOman/clickup-tools.git taskbench status
 
 # 3. Discover list IDs in your workspace
-uvx --from git+https://github.com/EvanOman/clickup-tools.git clickup discover hierarchy
+uvx --from git+https://github.com/EvanOman/clickup-tools.git taskbench discover hierarchy
 
 # 4. Orient: per-list task counts and last-updated times
-uvx --from git+https://github.com/EvanOman/clickup-tools.git clickup list stats
+uvx --from git+https://github.com/EvanOman/clickup-tools.git taskbench list stats
 
 # 5. List tasks in your default list (--brief = compact projection, recommended for agents)
-uvx --from git+https://github.com/EvanOman/clickup-tools.git clickup task list --brief
+uvx --from git+https://github.com/EvanOman/clickup-tools.git taskbench task list --brief
 ```
 
-For repeat use, install once and then call `clickup` directly:
+For repeat use, install once and then call `taskbench` (or `tb`) directly:
 
 ```bash
 uv tool install git+https://github.com/EvanOman/clickup-tools.git
-clickup setup
-clickup status
-clickup task list
+taskbench setup
+taskbench status
+taskbench task list
 ```
 
 ## Installation
@@ -49,9 +49,9 @@ Choose the method that fits your workflow:
 
 | Method | Command | Best for |
 |--------|---------|----------|
-| **One-shot (no install)** | `uvx --from git+https://github.com/EvanOman/clickup-tools.git clickup ...` | Agents, CI, quick checks |
-| **Persistent install** | `uv tool install git+https://github.com/EvanOman/clickup-tools.git` then `clickup ...` | Repeat use |
-| **Local development** | `git clone <repo> && cd clickup-tools && uv sync && uv run clickup ...` | Contributing (always reflects latest source; no cache) |
+| **One-shot (no install)** | `uvx --from git+https://github.com/EvanOman/clickup-tools.git taskbench ...` | Agents, CI, quick checks |
+| **Persistent install** | `uv tool install git+https://github.com/EvanOman/clickup-tools.git` then `taskbench ...` | Repeat use |
+| **Local development** | `git clone <repo> && cd clickup-tools && uv sync && uv run taskbench ...` | Contributing (always reflects latest source; no cache) |
 
 ## Wiring this up for an AI coding agent
 
@@ -65,17 +65,17 @@ Pick one (any of the methods above works, but for agent use `uv tool install` is
 uv tool install git+https://github.com/EvanOman/clickup-tools.git
 ```
 
-Both `clickup` and `cup` are now on your `PATH`.
+Both `taskbench` and `tb` are now on your `PATH`.
 
 ### 2. Drop your API token in a cwd-independent location
 
-Put the token at `~/.config/clickup-toolkit/.env` so it loads regardless of where the agent invokes the CLI:
+Put the token at `~/.config/taskbench/.env` so it loads regardless of where the agent invokes the CLI:
 
 ```bash
-mkdir -p ~/.config/clickup-toolkit
-echo 'CLICKUP_API_KEY=pk_<your_token>' >> ~/.config/clickup-toolkit/.env
-chmod 600 ~/.config/clickup-toolkit/.env
-clickup status   # should print "Auth Status: Valid"
+mkdir -p ~/.config/taskbench
+echo 'CLICKUP_API_KEY=pk_<your_token>' >> ~/.config/taskbench/.env
+chmod 600 ~/.config/taskbench/.env
+taskbench status   # should print "Auth Status: Valid"
 ```
 
 Get a personal token from **ClickUp → Settings → Apps → API Token**.
@@ -85,36 +85,36 @@ Get a personal token from **ClickUp → Settings → Apps → API Token**.
 Before configuring aliases, find the numeric list IDs for the lists you want agents to target:
 
 ```bash
-clickup discover hierarchy          # prints workspace > space > folder > list tree with IDs
+taskbench discover hierarchy          # prints workspace > space > folder > list tree with IDs
 ```
 
-Or skip discovery entirely: `clickup setup run --auto` picks the only workspace/space automatically (and the largest list when several exist) — zero-to-working `clickup task list` in one non-interactive command. Pass explicit `--team-id/--space-id/--list-id` to override any level, or use `--non-interactive` with all IDs for fully pinned setup.
+Or skip discovery entirely: `taskbench setup run --auto` picks the only workspace/space automatically (and the largest list when several exist) — zero-to-working `taskbench task list` in one non-interactive command. Pass explicit `--team-id/--space-id/--list-id` to override any level, or use `--non-interactive` with all IDs for fully pinned setup.
 
 ### 4. Configure aliases for your spaces and a default status
 
 Agents shouldn't have to run discovery commands every time they create a task. Map your real list IDs to short aliases so the agent can route by name:
 
 ```bash
-clickup setup run --auto     # one-shot non-interactive: auto-picks workspace/space/list
-clickup setup run            # same, but interactive prompts (for humans)
+taskbench setup run --auto     # one-shot non-interactive: auto-picks workspace/space/list
+taskbench setup run            # same, but interactive prompts (for humans)
 # or set the alias map by hand:
-clickup config alias omegapoint <list-id>
-clickup config alias overhead <list-id>
-clickup config alias personal <list-id>
-clickup config set default_status on-deck   # tasks land in your "ready" column by default
+taskbench config alias omegapoint <list-id>
+taskbench config alias overhead <list-id>
+taskbench config alias personal <list-id>
+taskbench config set default_status on-deck   # tasks land in your "ready" column by default
 ```
 
-Find the IDs with `clickup discover hierarchy --depth 5`. The `--list-id` flag accepts both numeric IDs and configured aliases (e.g. `--list-id omegapoint`).
+Find the IDs with `taskbench discover hierarchy --depth 5`. The `--list-id` flag accepts both numeric IDs and configured aliases (e.g. `--list-id omegapoint`).
 
 ### 5. Add a shell alias (optional)
 
-Short one-liner so the agent (and you) can type `cup` instead of the full binary name:
+Short one-liner so the agent (and you) can type `tb` instead of the full binary name:
 
 ```bash
 # zsh (~/.zshrc) or bash (~/.bashrc)
-alias cup='clickup'
+alias tb='taskbench'
 # or, if you want local-source-on-edit (developer mode):
-# alias cup='uv run --project /path/to/clickup-tools clickup'
+# alias tb='uv run --project /path/to/clickup-tools taskbench'
 ```
 
 ### 6. Teach your agent how to use it
@@ -122,11 +122,11 @@ alias cup='clickup'
 Drop this snippet into your agent's global instructions file. For Claude Code that's `~/.claude/CLAUDE.md`; for Cursor it's `.cursorrules` (project-level) or the user-level rules file; for Codex CLI it's `~/.codex/AGENTS.md` (project-level `AGENTS.md` works too); for Aider it's `~/.aider.conf.yml`'s `read` setting.
 
 ```markdown
-## Capturing Follow-up Tasks (use `cup`)
+## Capturing Follow-up Tasks (use `tb`)
 
 When you identify a real follow-up the user might lose track of, capture it
-as a ClickUp task via `cup`. The CLI is at `~/.local/bin/clickup` (installed
-via `uv tool install`); the alias `cup` is shorter.
+as a ClickUp task via `tb`. The CLI is at `~/.local/bin/taskbench` (installed
+via `uv tool install`); the alias `tb` is shorter.
 
 Available spaces (route by content; do NOT run discovery commands):
 
@@ -141,8 +141,8 @@ automatically.
 
 Invocation:
 ```
-cup task create "Short imperative title" --list-id omegapoint --description "Context."
-cup task create "Title" --list-id personal --priority 2 --status in-progress
+tb task create "Short imperative title" --list-id omegapoint --description "Context."
+tb task create "Title" --list-id personal --priority 2 --status in-progress
 ```
 
 When NOT to capture: anything you can resolve in the current turn, trivial
@@ -155,14 +155,14 @@ Edit the alias table to match the spaces you set up in step 3. After this, any a
 
 ### Verifying the agent path works
 
-From a fresh shell, ask your agent: *"Add a todo to verify cup integration."* It should run a single `cup task create ...` and report the task ID and URL. If it asks discovery questions instead, your instructions snippet didn't load — check the file path your agent reads from.
+From a fresh shell, ask your agent: *"Add a todo to verify tb integration."* It should run a single `tb task create ...` and report the task ID and URL. If it asks discovery questions instead, your instructions snippet didn't load — check the file path your agent reads from.
 
 ## Features
 
-- **CLI Interface**: Command-line tool for ClickUp task management
+- **CLI Interface**: Command-line tool for task management (ClickUp default backend)
 - **Workspace Discovery**: Navigate ClickUp hierarchy to find IDs
 - **Auth Validation**: Verify API credentials and user info
-- **Shared Core**: Common ClickUp API client and data models
+- **Shared Core**: Common API client and data models
 - **Type Safety**: Full type hints and pydantic validation
 - **Modern Python**: Built with Python 3.12+ and uv package manager
 
@@ -184,13 +184,13 @@ uv sync
 export CLICKUP_API_KEY="your_api_key_here"
 
 # Verify credentials
-clickup status
+taskbench status
 
 # Discover your workspace structure
-clickup discover ids
+taskbench discover ids
 
 # Create a task (use list ID from discover command)
-clickup task create "My new task" --list-id <discovered-id>
+taskbench task create "My new task" --list-id <discovered-id>
 ```
 
 ## Getting Started
@@ -201,13 +201,13 @@ Set your ClickUp personal API token. The CLI checks these sources in order:
 
 1. **`CLICKUP_API_KEY` environment variable** -- highest priority, checked first.
 2. **`.env` file** in the current directory -- loaded automatically if present.
-3. **`clickup config set-token <token>`** -- persists the token to `~/.config/clickup-toolkit/config.json`.
+3. **`taskbench config set-token <token>`** -- persists the token to `~/.config/taskbench/config.json`.
 
 You can get a personal API token from **ClickUp Settings > Apps > API Token**.
 
 Verify your credentials work:
 ```bash
-clickup config validate
+taskbench config validate
 ```
 
 ### 2. Finding Your Workspace Structure
@@ -218,58 +218,58 @@ To find the IDs you need:
 
 ```bash
 # Start with your workspaces
-clickup discover ids
+taskbench discover ids
 
 # Explore a workspace's spaces
-clickup discover ids --workspace-id <id>
+taskbench discover ids --workspace-id <id>
 
 # See folders and lists in a space
-clickup discover ids --space-id <id>
+taskbench discover ids --space-id <id>
 
 # View complete hierarchy as a tree
-clickup discover hierarchy
+taskbench discover hierarchy
 
 # Find the path to any list
-clickup discover path <id>
+taskbench discover path <id>
 ```
 
 ### 3. Working with Tasks
 
 ```bash
 # List tasks in a list
-clickup task list --list-id <id>
+taskbench task list --list-id <id>
 
 # Create a task
-clickup task create "New task" --list-id <id>
+taskbench task create "New task" --list-id <id>
 
 # Get task details
-clickup task get task123
+taskbench task get task123
 
 # Update a task
-clickup task update task123 --name "Updated name"
+taskbench task update task123 --name "Updated name"
 
 # Search tasks across your workspace
-clickup task search --query "keyword"
+taskbench task search --query "keyword"
 
 # List tasks assigned to you
-clickup task mine
+taskbench task mine
 
 # View and add comments
-clickup task comments list <task-id>
-clickup task comments add <task-id> "Comment text"
+taskbench task comments list <task-id>
+taskbench task comments add <task-id> "Comment text"
 ```
 
 ### 4. Configuration
 
 ```bash
 # View current status
-clickup status
+taskbench status
 
 # Set default workspace/space/list
-clickup config set default_list_id <id>
+taskbench config set default_list_id <id>
 
 # Show all config
-clickup config show
+taskbench config show
 ```
 
 ## Development
@@ -292,54 +292,51 @@ uv run ty check
 ## Available Commands
 
 ### Get started
-- `clickup setup` - Interactive first-run setup (API token + defaults)
-- `clickup status` - Show the authenticated user, connection status, and configuration
-- `clickup config` - Manage configuration and validate credentials
+- `taskbench setup` - Interactive first-run setup (API token + defaults)
+- `taskbench status` - Show the authenticated user, connection status, and configuration
+- `taskbench config` - Manage configuration and validate credentials
 
 ### Task workflow
-- `clickup task list` - List tasks in a list
-- `clickup task create` - Create new tasks
-- `clickup task get` - Get task details
-- `clickup task update` - Update existing tasks
-- `clickup task delete` - Delete tasks
-- `clickup task mine` - List tasks assigned to you across all configured lists
-- `clickup task search` - Search tasks by keyword across a workspace
-- `clickup task comments list` - List comments on a task
-- `clickup task comments add` - Add a comment to a task
+- `taskbench task list` - List tasks in a list
+- `taskbench task create` - Create new tasks
+- `taskbench task get` - Get task details
+- `taskbench task update` - Update existing tasks
+- `taskbench task delete` - Delete tasks
+- `taskbench task mine` - List tasks assigned to you across all configured lists
+- `taskbench task search` - Search tasks by keyword across a workspace
+- `taskbench task comments list` - List comments on a task
+- `taskbench task comments add` - Add a comment to a task
 
 ### Workspace navigation
-- `clickup workspace list` - List workspaces/teams
-- `clickup workspace spaces` - List spaces in a workspace
-- `clickup workspace folders` - List folders in a space
-- `clickup workspace members` - List team members
-- `clickup list` - Manage lists (`clickup list stats` for per-list task/open counts)
-- `clickup discover` - Navigate workspace hierarchy and find IDs
+- `taskbench workspace list` - List workspaces/teams
+- `taskbench workspace spaces` - List spaces in a workspace
+- `taskbench workspace folders` - List folders in a space
+- `taskbench workspace members` - List team members
+- `taskbench list` - Manage lists (`taskbench list stats` for per-list task/open counts)
+- `taskbench discover` - Navigate workspace hierarchy and find IDs
 
 ### Other
-- `clickup bulk` - Bulk operations and import/export
-- `clickup template` - Template management
-- `clickup version` - Show version information
+- `taskbench bulk` - Bulk operations and import/export
+- `taskbench template` - Template management
+- `taskbench version` - Show version information
 
 ## Architecture
 
 The project uses a modular structure:
 
-- **`clickup/core/`**: Shared ClickUp API client and data models
-- **`clickup/cli/`**: Command-line interface built with Typer
+- **`taskbench/core/`**: Shared API client and data models
+- **`taskbench/cli/`**: Command-line interface built with Typer
 
 See `AGENT.md` for development guidelines.
 
 ## Backends
 
-The CLI talks to any backend implementing the `TaskProvider` protocol (`clickup/core/providers.py`). Adapters live in this repo; backend *deployments* do not. Per-backend setup and spin-up instructions: [docs/backends.md](docs/backends.md). Implementing a backend in another language? Target the [OpenAPI contract](spec/openapi.yaml) ([design notes](spec/README.md)).
+The CLI talks to any backend implementing the `TaskProvider` protocol (`taskbench/core/providers.py`). External adapters are discovered via `entry_points(group="taskbench.providers")`. Per-backend setup and spin-up instructions: [docs/backends.md](docs/backends.md). Implementing a backend in another language? Target the [OpenAPI contract](spec/openapi.yaml) ([design notes](spec/README.md)).
 
 | Backend | Adapter | Deployment |
 |---------|---------|------------|
-| ClickUp | `clickup/core/client.py` (default) | SaaS — nothing to deploy |
-| Planka | `clickup/core/planka_provider.py` (`CLICKUP_PROVIDER=planka`) | [EvanOman/planka-deploy](https://github.com/EvanOman/planka-deploy) (private) — Railway stack, Caddy proxy, backups, seed data. Live at https://caddy-production-5cac.up.railway.app |
-| Local JSON | `clickup/core/json_provider.py` | None — file-backed, used for evals |
-
-Plane and Todoist adapter prototypes exist on the `adapter/plane` and `adapter/todoist` branches (closed PRs #30/#31 — Planka won the bake-off).
+| ClickUp | `taskbench/core/client.py` (default) | SaaS — nothing to deploy |
+| Local JSON | `taskbench/core/json_provider.py` | None — file-backed, used for evals |
 
 ## License
 

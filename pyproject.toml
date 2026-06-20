@@ -1,16 +1,16 @@
 [project]
-name = "clickup-toolkit"
-version = "0.5.3"
-description = "A powerful CLI for ClickUp task management"
+name = "taskbench"
+version = "1.0.0"
+description = "An agent-first task CLI, backend-pluggable, with ClickUp + JSON built-in"
 authors = [
     { name = "Evan Oman", email = "evan@example.com" }
 ]
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.12"
-keywords = ["clickup", "cli", "task-management"]
+keywords = ["taskbench", "clickup", "cli", "task-management", "agent"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
@@ -24,7 +24,6 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "typer>=0.26.0",
     "rich>=13.0.0",
-    "plankapy>=2.2.2",
 ]
 
 [tool.uv]
@@ -45,11 +44,11 @@ dev = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["clickup"]
+packages = ["taskbench"]
 
 [project.scripts]
-clickup = "clickup.cli.main:main"
-cup = "clickup.cli.main:main"
+taskbench = "taskbench.cli.main:main"
+tb = "taskbench.cli.main:main"
 
 
 [tool.ruff]
@@ -82,17 +81,12 @@ indent-style = "space"
 python-version = "3.12"
 
 [tool.ty.src]
-exclude = ["tests/**", "clickup/core/planka_provider.py"]
+exclude = ["tests/**"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-v --cov=clickup --cov-report=term-missing --cov-fail-under=90 --ignore=tests/live"
+addopts = "-v --cov=taskbench --cov-report=term-missing --cov-fail-under=90 --ignore=tests/live"
 asyncio_mode = "auto"
 markers = [
     "live: marks tests as requiring live ClickUp API access (deselect with '-m \"not live\"')",
-]
-
-[tool.coverage.run]
-omit = [
-    "clickup/core/planka_provider.py",
 ]
