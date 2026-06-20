@@ -345,9 +345,13 @@ async def test_401_on_resource_endpoint_raises_resource_access_error(mock_clicku
     with pytest.raises(ResourceAccessError) as exc:
         await mock_clickup_client._request("GET", "/task/doesnotexist123")
     msg = str(exc.value)
+    # Agent ergonomics (r9 follow-up): lead with the most-likely cause so the
+    # first thing a reader sees is "not found", not "401 Team not authorized".
+    assert msg.startswith("Resource not found or not accessible: /task/doesnotexist123")
+    assert msg.index("Resource not found") < msg.index("401")
+    # The literal API detail stays in the message, just demoted into the parenthetical.
     assert "Team not authorized" in msg
-    assert "401 for /task/doesnotexist123" in msg
-    assert "the ID does not exist" in msg
+    assert "double-check the ID" in msg
 
 
 @pytest.mark.asyncio
