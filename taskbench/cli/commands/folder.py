@@ -26,7 +26,7 @@ def list_folders(
         if not space_id_to_use:
             render_error(
                 "Error: No space ID provided and no default space configured.",
-                hint="Use --space-id or set a default with 'clickup config set default_space_id <id>'",
+                hint="Use --space-id or set a default with 'taskbench config set default_space_id <id>'",
             )
             raise typer.Exit(2)
         with handle_clickup_errors():
@@ -69,7 +69,7 @@ def create_folder(
         if not space_id_to_use:
             render_error(
                 "Error: No space ID provided and no default space configured.",
-                hint="Use --space-id or set a default with 'clickup config set default_space_id <id>'",
+                hint="Use --space-id or set a default with 'taskbench config set default_space_id <id>'",
             )
             raise typer.Exit(2)
         with handle_clickup_errors():

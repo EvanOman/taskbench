@@ -11,9 +11,9 @@ import json
 
 import pytest
 
-from clickup.core.client import ClickUpClient
-from clickup.core.json_provider import JsonProvider, seed_store
-from clickup.core.models import Comment, Task
+from taskbench.core.client import ClickUpClient
+from taskbench.core.json_provider import JsonProvider, seed_store
+from taskbench.core.models import Comment, Task
 
 # ---------------------------------------------------------------------------
 # Structural conformance — compile-time (ty) plus runtime check
@@ -147,7 +147,7 @@ async def test_update_task_clear_description(json_store, list_id):
 @pytest.mark.asyncio
 async def test_delete_task(json_store, list_id):
     """delete_task removes the task; subsequent get raises."""
-    from clickup.core.exceptions import NotFoundError
+    from taskbench.core.exceptions import NotFoundError
 
     async with JsonProvider() as p:
         created = await p.create_task(list_id, "Ephemeral")

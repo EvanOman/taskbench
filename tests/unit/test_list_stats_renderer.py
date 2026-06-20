@@ -7,7 +7,7 @@ import json
 import pytest
 import typer
 
-from clickup.cli.output import FormatChoice, render_list_stats, set_format
+from taskbench.cli.output import FormatChoice, render_list_stats, set_format
 
 
 class TestRenderListStatsJson:
@@ -63,7 +63,7 @@ class TestRenderListStatsTable:
 
         from rich.console import Console
 
-        from clickup.cli import output
+        from taskbench.cli import output
 
         buf = StringIO()
         monkeypatch.setattr(output, "_console", Console(file=buf, force_terminal=False, width=200))
@@ -92,7 +92,7 @@ class TestRenderListStatsTable:
 
         from rich.console import Console
 
-        from clickup.cli import output
+        from taskbench.cli import output
 
         buf = StringIO()
         monkeypatch.setattr(output, "_console", Console(file=buf, force_terminal=False, width=200))
@@ -117,9 +117,9 @@ class TestRenderListStatsTable:
 
 class TestRequireListIdHint:
     def test_hint_mentions_discover(self, capsys):
-        """require_list_id hint now mentions 'clickup discover hierarchy'."""
-        from clickup.cli.output import set_format
-        from clickup.cli.shared import require_list_id
+        """require_list_id hint now mentions 'taskbench discover hierarchy'."""
+        from taskbench.cli.output import set_format
+        from taskbench.cli.shared import require_list_id
 
         set_format("json")
         with pytest.raises(typer.Exit) as exc:
@@ -135,7 +135,7 @@ class TestStatusHelpText:
         """status command help text mentions 'authenticated user'."""
         from typer.testing import CliRunner
 
-        from clickup.cli.main import app
+        from taskbench.cli.main import app
 
         runner = CliRunner()
         result = runner.invoke(app, ["status", "--help"])

@@ -2,8 +2,8 @@
 
 import pytest
 
-from clickup.core.models import CustomField, PriorityInfo, Space, StatusInfo, Task, Team, User
-from clickup.core.models import List as ClickUpList
+from taskbench.core.models import CustomField, PriorityInfo, Space, StatusInfo, Task, Team, User
+from taskbench.core.models import List as ClickUpList
 
 
 def test_task_model() -> None:

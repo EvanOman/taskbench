@@ -14,8 +14,8 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from typer.testing import CliRunner
 
-from clickup.cli.main import app
-from clickup.core.models import User
+from taskbench.cli.main import app
+from taskbench.core.models import User
 
 from .conftest import make_mock_ctx
 
@@ -27,7 +27,7 @@ def test_cli_version():
     result = runner.invoke(app, ["version"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
-    assert data["name"] == "ClickUp Toolkit CLI"
+    assert data["name"] == "Taskbench"
     assert "version" in data
 
 
@@ -100,7 +100,7 @@ def test_config_set_unknown_key_warns():
             assert "not a recognised config key" in result.output
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_list_no_token(mock_get_client):
     """Test task list command without API token."""
     mock_get_client.side_effect = Exception("No API token configured")
@@ -109,7 +109,7 @@ def test_task_list_no_token(mock_get_client):
     assert result.exit_code == 1
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 async def test_task_create_success(mock_get_client):
     """Test successful task creation."""
     # Mock the async client
@@ -161,7 +161,7 @@ def test_template_show_nonexistent():
     assert "not found" in result.output
 
 
-@patch("clickup.cli.commands.workspace.get_client")
+@patch("taskbench.cli.commands.workspace.get_client")
 async def test_workspace_list(mock_get_client):
     """Test listing workspaces."""
     mock_client = AsyncMock()
@@ -201,7 +201,7 @@ def test_cli_help():
     """Test CLI help command."""
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
-    assert "ClickUp CLI" in result.stdout
+    assert "Taskbench" in result.stdout
     assert "task" in result.stdout
     assert "config" in result.stdout
     assert "workspace" in result.stdout
@@ -233,7 +233,7 @@ def test_config_help():
 
 def test_config_set_client_id():
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
+        with patch("taskbench.core.config.Path.home", return_value=Path(tmpdir)):
             result = runner.invoke(app, ["config", "set-client-id", "client_123"])
             assert result.exit_code == 0
             data = json.loads(result.stdout)
@@ -242,7 +242,7 @@ def test_config_set_client_id():
 
 def test_config_set_client_secret():
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
+        with patch("taskbench.core.config.Path.home", return_value=Path(tmpdir)):
             result = runner.invoke(app, ["config", "set-client-secret", "secret_456"])
             assert result.exit_code == 0
 
@@ -270,7 +270,7 @@ def test_config_clean_no_unknowns():
 
 def test_config_clean_dry_run():
     """Plant an unknown key, then dry-run shouldn't remove it or refuse."""
-    from clickup.core import Config
+    from taskbench.core import Config
 
     cfg = Config()
     cfg_path = Path(cfg._get_config_path())
@@ -285,7 +285,7 @@ def test_config_clean_dry_run():
 
 
 def test_config_clean_with_force_removes():
-    from clickup.core import Config
+    from taskbench.core import Config
 
     cfg = Config()
     cfg_path = Path(cfg._get_config_path())
@@ -329,7 +329,7 @@ def test_config_set_default_list_no_id_errors():
 # =============================================================================
 
 
-@patch("clickup.cli.commands.config.get_provider")
+@patch("taskbench.cli.commands.config.get_provider")
 def test_config_validate_valid_token(mock_client_cls):
     mock_client = AsyncMock()
     mock_client.validate_auth.return_value = (
@@ -340,47 +340,47 @@ def test_config_validate_valid_token(mock_client_cls):
     mock_client_cls.return_value = make_mock_ctx(mock_client)
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
+        with patch("taskbench.core.config.Path.home", return_value=Path(tmpdir)):
             runner.invoke(app, ["config", "set-token", "pk_test"])
             result = runner.invoke(app, ["config", "validate"])
             assert result.exit_code == 0
             assert "evan" in result.output
 
 
-@patch("clickup.cli.commands.config.get_provider")
+@patch("taskbench.cli.commands.config.get_provider")
 def test_config_validate_invalid_token(mock_client_cls):
     mock_client = AsyncMock()
     mock_client.validate_auth.return_value = (False, "bad token", None)
     mock_client_cls.return_value = make_mock_ctx(mock_client)
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
+        with patch("taskbench.core.config.Path.home", return_value=Path(tmpdir)):
             runner.invoke(app, ["config", "set-token", "pk_bogus"])
             result = runner.invoke(app, ["config", "validate"])
             assert result.exit_code == 1
             assert "bad token" in result.output
 
 
-@patch("clickup.cli.commands.config.get_provider")
+@patch("taskbench.cli.commands.config.get_provider")
 def test_config_validate_exception(mock_client_cls):
     mock_client_cls.side_effect = Exception("network down")
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
+        with patch("taskbench.core.config.Path.home", return_value=Path(tmpdir)):
             runner.invoke(app, ["config", "set-token", "pk_test"])
             result = runner.invoke(app, ["config", "validate"])
             assert result.exit_code == 1
             assert "network down" in result.output
 
 
-@patch("clickup.cli.commands.config.get_provider")
+@patch("taskbench.cli.commands.config.get_provider")
 def test_config_whoami_authenticated(mock_client_cls):
     mock_client = AsyncMock()
     mock_client.get_user.return_value = User(id=1, username="evan", email="e@x.com", color="#fff")
     mock_client_cls.return_value = make_mock_ctx(mock_client)
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
+        with patch("taskbench.core.config.Path.home", return_value=Path(tmpdir)):
             runner.invoke(app, ["config", "set-token", "pk_test"])
             result = runner.invoke(app, ["config", "whoami"])
             assert result.exit_code == 0
@@ -389,7 +389,7 @@ def test_config_whoami_authenticated(mock_client_cls):
 
 def test_config_whoami_no_credentials():
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
+        with patch("taskbench.core.config.Path.home", return_value=Path(tmpdir)):
             with patch.dict("os.environ", {}, clear=False):
                 from os import environ
 
@@ -408,7 +408,7 @@ def test_config_whoami_no_credentials():
 def test_workspace_list_no_credentials():
     """Without a token, workspace list refuses with a setup hint."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
+        with patch("taskbench.core.config.Path.home", return_value=Path(tmpdir)):
             from os import environ
 
             for k in [k for k in environ if k.startswith("CLICKUP_")]:
@@ -420,7 +420,7 @@ def test_workspace_list_no_credentials():
 
 def test_task_list_no_credentials():
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
+        with patch("taskbench.core.config.Path.home", return_value=Path(tmpdir)):
             from os import environ
 
             for k in [k for k in environ if k.startswith("CLICKUP_")]:
@@ -437,7 +437,7 @@ def test_task_list_no_credentials():
 @pytest.mark.asyncio
 async def test_401_resource_endpoint_leads_with_id_interpretation(mock_clickup_client):
     """Resource endpoint 401 now leads with 'the ID does not exist'."""
-    from clickup.core.exceptions import ResourceAccessError
+    from taskbench.core.exceptions import ResourceAccessError
 
     mock_response = Mock()
     mock_response.status_code = 401
@@ -457,7 +457,7 @@ async def test_401_resource_endpoint_leads_with_id_interpretation(mock_clickup_c
 @pytest.mark.asyncio
 async def test_401_auth_endpoint_leads_with_invalid_token(mock_clickup_client):
     """Auth endpoint (/user) 401 still leads with invalid token."""
-    from clickup.core.exceptions import AuthenticationError
+    from taskbench.core.exceptions import AuthenticationError
 
     mock_response = Mock()
     mock_response.status_code = 401

@@ -13,8 +13,8 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from typer.testing import CliRunner
 
-from clickup.cli.main import app
-from clickup.core.exceptions import ClickUpError
+from taskbench.cli.main import app
+from taskbench.core.exceptions import ClickUpError
 
 from .conftest import make_mock_ctx
 
@@ -24,7 +24,7 @@ runner = CliRunner()
 @pytest.fixture(autouse=True)
 def isolated_config():
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
+        with patch("taskbench.core.config.Path.home", return_value=Path(tmpdir)):
             yield
 
 
@@ -107,7 +107,7 @@ def sample_members():
     return members
 
 
-@patch("clickup.cli.commands.workspace.get_client")
+@patch("taskbench.cli.commands.workspace.get_client")
 def test_workspace_list(mock_get_client, sample_teams):
     """Test listing all workspaces/teams."""
     mock_client = AsyncMock()
@@ -122,7 +122,7 @@ def test_workspace_list(mock_get_client, sample_teams):
     assert "Sales Team" in result.output
 
 
-@patch("clickup.cli.commands.workspace.get_client")
+@patch("taskbench.cli.commands.workspace.get_client")
 def test_workspace_spaces(mock_get_client, sample_spaces):
     """Test listing spaces in a workspace."""
     mock_client = AsyncMock()
@@ -137,7 +137,7 @@ def test_workspace_spaces(mock_get_client, sample_spaces):
     assert "Documentation" in result.output
 
 
-@patch("clickup.cli.commands.workspace.get_client")
+@patch("taskbench.cli.commands.workspace.get_client")
 def test_workspace_folders(mock_get_client, sample_folders):
     """Test listing folders in a space."""
     mock_client = AsyncMock()
@@ -152,7 +152,7 @@ def test_workspace_folders(mock_get_client, sample_folders):
     assert "DevOps" in result.output
 
 
-@patch("clickup.cli.commands.workspace.get_client")
+@patch("taskbench.cli.commands.workspace.get_client")
 def test_workspace_members(mock_get_client, sample_members):
     """Test listing team members."""
     mock_client = AsyncMock()
@@ -191,7 +191,7 @@ def test_workspace_members_missing_team_id():
     assert "no workspace id" in result.output.lower()
 
 
-@patch("clickup.cli.commands.workspace.get_client")
+@patch("taskbench.cli.commands.workspace.get_client")
 async def test_workspace_list_empty(mock_get_client):
     """Test listing workspaces when none exist."""
     mock_client = AsyncMock()
@@ -204,7 +204,7 @@ async def test_workspace_list_empty(mock_get_client):
     assert "No workspaces found" in result.stdout or len(result.stdout.strip()) == 0
 
 
-@patch("clickup.cli.commands.workspace.get_client")
+@patch("taskbench.cli.commands.workspace.get_client")
 async def test_workspace_spaces_empty(mock_get_client):
     """Test listing spaces when none exist."""
     mock_client = AsyncMock()
@@ -217,7 +217,7 @@ async def test_workspace_spaces_empty(mock_get_client):
     assert "No spaces found" in result.stdout or len(result.stdout.strip()) == 0
 
 
-@patch("clickup.cli.commands.workspace.get_client")
+@patch("taskbench.cli.commands.workspace.get_client")
 async def test_workspace_folders_empty(mock_get_client):
     """Test listing folders when none exist."""
     mock_client = AsyncMock()
@@ -230,7 +230,7 @@ async def test_workspace_folders_empty(mock_get_client):
     assert "No folders found" in result.stdout or len(result.stdout.strip()) == 0
 
 
-@patch("clickup.cli.commands.workspace.get_client")
+@patch("taskbench.cli.commands.workspace.get_client")
 async def test_workspace_members_empty(mock_get_client):
     """Test listing members when none exist."""
     mock_client = AsyncMock()
@@ -243,7 +243,7 @@ async def test_workspace_members_empty(mock_get_client):
     assert "No members found" in result.stdout or len(result.stdout.strip()) == 0
 
 
-@patch("clickup.cli.commands.workspace.get_client")
+@patch("taskbench.cli.commands.workspace.get_client")
 async def test_workspace_spaces_with_privacy_filter(mock_get_client, sample_spaces):
     """Test listing spaces with privacy information displayed."""
     mock_client = AsyncMock()
@@ -258,7 +258,7 @@ async def test_workspace_spaces_with_privacy_filter(mock_get_client, sample_spac
     assert "private" in result.stdout.lower() or "public" in result.stdout.lower()
 
 
-@patch("clickup.cli.commands.workspace.get_client")
+@patch("taskbench.cli.commands.workspace.get_client")
 async def test_workspace_folders_with_task_counts(mock_get_client, sample_folders):
     """Test listing folders with task count information."""
     mock_client = AsyncMock()
@@ -277,7 +277,7 @@ async def test_workspace_folders_with_task_counts(mock_get_client, sample_folder
     assert "5" in result.stdout  # Task count
 
 
-@patch("clickup.cli.commands.workspace.get_client")
+@patch("taskbench.cli.commands.workspace.get_client")
 async def test_workspace_members_with_role_filter(mock_get_client, sample_members):
     """Test listing members filtered by role."""
     mock_client = AsyncMock()
@@ -304,7 +304,7 @@ def test_workspace_help():
     assert "members" in result.stdout
 
 
-@patch("clickup.cli.commands.workspace.get_client")
+@patch("taskbench.cli.commands.workspace.get_client")
 async def test_workspace_error_handling(mock_get_client):
     """Test workspace command error handling."""
     mock_client = AsyncMock()
@@ -322,7 +322,7 @@ async def test_workspace_error_handling(mock_get_client):
 # =============================================================================
 
 
-@patch("clickup.cli.commands.workspace.get_client")
+@patch("taskbench.cli.commands.workspace.get_client")
 def test_workspace_list_empty_sync(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_teams.return_value = []
@@ -333,7 +333,7 @@ def test_workspace_list_empty_sync(mock_get_client):
     assert "No workspaces" not in result.stdout  # info-level notice suppressed in JSON mode
 
 
-@patch("clickup.cli.commands.workspace.get_client")
+@patch("taskbench.cli.commands.workspace.get_client")
 def test_workspace_spaces_empty_sync(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_spaces.return_value = []
@@ -344,7 +344,7 @@ def test_workspace_spaces_empty_sync(mock_get_client):
     assert "No spaces" not in result.stdout  # info-level notice suppressed in JSON mode
 
 
-@patch("clickup.cli.commands.workspace.get_client")
+@patch("taskbench.cli.commands.workspace.get_client")
 def test_workspace_folders_empty_sync(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_folders.return_value = []
@@ -355,7 +355,7 @@ def test_workspace_folders_empty_sync(mock_get_client):
     assert "No folders" not in result.stdout  # info-level notice suppressed in JSON mode
 
 
-@patch("clickup.cli.commands.workspace.get_client")
+@patch("taskbench.cli.commands.workspace.get_client")
 def test_workspace_members_empty_sync(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_team_members.return_value = []
@@ -371,7 +371,7 @@ def test_workspace_members_empty_sync(mock_get_client):
 # =============================================================================
 
 
-@patch("clickup.cli.commands.workspace.get_client")
+@patch("taskbench.cli.commands.workspace.get_client")
 def test_workspace_list_api_error(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_teams.side_effect = ClickUpError("rate limited")
@@ -382,7 +382,7 @@ def test_workspace_list_api_error(mock_get_client):
     assert "rate limited" in result.stderr
 
 
-@patch("clickup.cli.commands.workspace.get_client")
+@patch("taskbench.cli.commands.workspace.get_client")
 def test_workspace_list_unexpected_error(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_teams.side_effect = RuntimeError("kapow")

@@ -4,19 +4,19 @@ One diagram, then where to find everything.
 
 ```
                   ┌────────────────────────────────────────────┐
-                  │ clickup/cli/                               │
+                  │ taskbench/cli/                             │
   agent ──stdio──▶│   main.py        Typer root, global --format,
                   │                  exit codes, JSON error envelope
                   │   commands/*.py  per-feature subcommands    │
                   │   output.py      ALL rendering (table/JSON) │
                   └───────────────┬────────────────────────────┘
                                   │ TaskProvider protocol
-                                  │ (clickup/core/providers.py)
+                                  │ (taskbench/core/providers.py)
                   ┌───────────────┴────────────────────────────┐
-                  │ adapters (clickup/core/)                   │
+                  │ adapters (taskbench/core/)                 │
                   │   client.py           ClickUp SaaS (httpx) │
                   │   json_provider.py    local JSON file      │
-                  │   planka_provider.py  Planka via plankapy  │
+                  │   (external via entry_points)              │
                   └───────────────┬────────────────────────────┘
                                   │ pydantic models (models.py)
                                   ▼
@@ -25,34 +25,36 @@ One diagram, then where to find everything.
 
 ## The contract stack
 
-1. **`TaskProvider`** (`clickup/core/providers.py`) — the Python protocol all
+1. **`TaskProvider`** (`taskbench/core/providers.py`) — the Python protocol all
    adapters implement. ~25 async methods over the hierarchy
    workspace → space → folder → list → task → comment. **Source of truth.**
 2. **`spec/openapi.yaml`** — the HTTP projection of that protocol, for
    non-Python backend implementers. Derived; update it whenever the protocol
    changes. Design rationale in `spec/README.md`.
-3. **Models** (`clickup/core/models.py`) — pydantic, ClickUp-shaped wire
+3. **Models** (`taskbench/core/models.py`) — pydantic, ClickUp-shaped wire
    format (epoch-ms-string timestamps, string IDs, `extra="allow"`
    everywhere). Adapters translate their backend's shapes into these.
 
 ## Key flows
 
-**Provider selection** — `get_provider()` reads `CLICKUP_PROVIDER` env var,
+**Provider selection** — `get_provider()` reads `TASKBENCH_PROVIDER` env var
+(legacy `CLICKUP_PROVIDER` still works with a deprecation warning),
 then the `provider` config key, defaulting to `clickup`. See
 `docs/backends.md` for running each one.
 
-**Output** — every command renders through `clickup/cli/output.py`. JSON is
+**Output** — every command renders through `taskbench/cli/output.py`. JSON is
 the *default* format (agents are the primary consumer); `--format table` is
 the human opt-in. Collections emit `{"data": [...], "count": N}`.
 
-**Errors** — exceptions (`clickup/core/exceptions.py`) are caught in
+**Errors** — exceptions (`taskbench/core/exceptions.py`) are caught in
 `main.py` and rendered by `render_error()` to **stderr** (as `{"error": ...}`
 in JSON mode), keeping stdout clean for pipelines. Exit codes: `0` success,
 `1` runtime/API error, `2` usage error (including refused destructive ops).
 
-**Config** — `~/.config/clickup-toolkit/config.json` plus `.env` loading;
+**Config** — `~/.config/taskbench/config.json` plus `.env` loading;
 env vars always win. `default_lists` maps aliases (e.g. `omegapoint`) to list
-IDs so agents don't need discovery calls.
+IDs so agents don't need discovery calls. Legacy config at
+`~/.config/clickup-toolkit/` is auto-migrated on first run.
 
 ## Behavioral contracts (don't break these)
 
@@ -73,10 +75,3 @@ Full rationale in `AGENT.md` → "Architecture decisions". The headlines:
 - `.claude/skills/cli-agent-eval` — 12-task agent swarm regression eval; run
   after non-trivial CLI changes.
 - `just fc` before every commit (format + lint + type + test).
-
-## Related repos
-
-- **[EvanOman/planka-deploy](https://github.com/EvanOman/planka-deploy)**
-  (private) — runs the Planka backend: Railway infra, Caddy proxy, backups,
-  local compose stack, seed data. This repo deliberately contains no
-  deployment code.

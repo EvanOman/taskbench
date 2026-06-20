@@ -1,4 +1,4 @@
-"""Unit tests for `clickup.cli.task_filters.parse_sort`.
+"""Unit tests for `taskbench.cli.task_filters.parse_sort`.
 
 The integration tests in `tests/integration/test_task_commands.py` exercise
 the full Typer pipeline. These unit tests pin the parser's contract
@@ -8,14 +8,14 @@ directly so edge cases are cheap to add and fast to run.
 import pytest
 import typer
 
-from clickup.cli.shared import resolve_list_ids, split_csv
-from clickup.cli.task_filters import (
+from taskbench.cli.shared import resolve_list_ids, split_csv
+from taskbench.cli.task_filters import (
     annotate_source_list,
     epoch_ms,
     parse_sort,
     set_exclusive_date_filter,
 )
-from clickup.core import Config
+from taskbench.core import Config
 
 
 class TestParseSortAcceptedForms:

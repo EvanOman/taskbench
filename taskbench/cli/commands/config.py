@@ -206,9 +206,9 @@ def config_alias(
 
     Examples:
 
-        clickup config alias                              # list all
-        clickup config alias omegapoint 901315992466      # add
-        clickup config alias --remove omegapoint          # remove
+        taskbench config alias                              # list all
+        taskbench config alias omegapoint 901315992466      # add
+        taskbench config alias --remove omegapoint          # remove
 
     Tip: set `default_list_id` to skip --list-id on every task command.
     """
@@ -297,7 +297,7 @@ def validate_auth() -> None:
         if provider_requires_credentials(config) and not config.has_credentials():
             render_error(
                 "❌ No API credentials configured",
-                hint="Set CLICKUP_API_KEY in your environment (or .env), or run 'clickup config set-token <token>'.",
+                hint="Set CLICKUP_API_KEY in your environment (or .env), or run 'taskbench config set-token <token>'.",
             )
             raise typer.Exit(1)
 
@@ -331,7 +331,7 @@ def whoami() -> None:
         if provider_requires_credentials(config) and not config.has_credentials():
             render_error(
                 "No API credentials configured.",
-                hint="Set CLICKUP_API_KEY or run 'clickup setup run'.",
+                hint="Set CLICKUP_API_KEY or run 'taskbench setup run'.",
             )
             raise typer.Exit(1)
 

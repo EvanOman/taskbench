@@ -1,4 +1,4 @@
-"""Tests for `clickup setup run` — non-interactive and interactive flows.
+"""Tests for `taskbench setup run` — non-interactive and interactive flows.
 
 Consolidates tests from the original test_setup_wizard.py, plus setup tests
 formerly in test_final_coverage.py and test_more_coverage.py.
@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 from typer.testing import CliRunner
 
-from clickup.cli.main import app
+from taskbench.cli.main import app
 
 from .conftest import make_mock_ctx, named_mock
 
@@ -51,7 +51,7 @@ def _ctx(client):
 # ---------- token handling ----------------------------------------------------
 
 
-@patch("clickup.cli.commands.setup.ClickUpClient")
+@patch("taskbench.cli.commands.setup.ClickUpClient")
 def test_setup_non_interactive_no_token_refuses(mock_client_cls):
     """--non-interactive without a token (and no env) errors out."""
     result = runner.invoke(app, ["setup", "run", "--non-interactive"])
@@ -59,7 +59,7 @@ def test_setup_non_interactive_no_token_refuses(mock_client_cls):
     assert "No API token configured" in result.stderr
 
 
-@patch("clickup.cli.commands.setup.ClickUpClient")
+@patch("taskbench.cli.commands.setup.ClickUpClient")
 def test_setup_with_token_and_single_workspace_auto_selects(mock_client_cls):
     """All flags + single team/space/list = no prompts, success."""
     team = _named(id="T1", name="Acme")
@@ -74,7 +74,7 @@ def test_setup_with_token_and_single_workspace_auto_selects(mock_client_cls):
     assert "Auto-selected space" in result.output
 
 
-@patch("clickup.cli.commands.setup.ClickUpClient")
+@patch("taskbench.cli.commands.setup.ClickUpClient")
 def test_setup_with_all_flags_no_prompts(mock_client_cls):
     """All ID flags supplied -> exact selection, no prompts."""
     teams = [_named(id="T1", name="A"), _named(id="T2", name="B")]
@@ -109,7 +109,7 @@ def test_setup_with_all_flags_no_prompts(mock_client_cls):
     assert "via --list-id" in result.output
 
 
-@patch("clickup.cli.commands.setup.ClickUpClient")
+@patch("taskbench.cli.commands.setup.ClickUpClient")
 def test_setup_invalid_team_id_errors(mock_client_cls):
     """--team-id that doesn't match any team exits 2."""
     teams = [_named(id="T1", name="Real")]
@@ -124,7 +124,7 @@ def test_setup_invalid_team_id_errors(mock_client_cls):
     assert "not found" in result.stderr
 
 
-@patch("clickup.cli.commands.setup.ClickUpClient")
+@patch("taskbench.cli.commands.setup.ClickUpClient")
 def test_setup_invalid_space_id_errors(mock_client_cls):
     """--space-id that doesn't match any space exits 2."""
     team = _named(id="T1", name="Acme")
@@ -140,7 +140,7 @@ def test_setup_invalid_space_id_errors(mock_client_cls):
     assert "not found" in result.stderr
 
 
-@patch("clickup.cli.commands.setup.ClickUpClient")
+@patch("taskbench.cli.commands.setup.ClickUpClient")
 def test_setup_invalid_list_id_errors(mock_client_cls):
     """--list-id that doesn't match exits 2."""
     team = _named(id="T1", name="Acme")
@@ -160,7 +160,7 @@ def test_setup_invalid_list_id_errors(mock_client_cls):
 # ---------- ambiguous selection without flags --------------------------------
 
 
-@patch("clickup.cli.commands.setup.ClickUpClient")
+@patch("taskbench.cli.commands.setup.ClickUpClient")
 def test_setup_non_interactive_multiple_teams_refuses(mock_client_cls):
     """Two teams + --non-interactive without --team-id errors with hint."""
     teams = [_named(id="T1", name="A"), _named(id="T2", name="B")]
@@ -172,7 +172,7 @@ def test_setup_non_interactive_multiple_teams_refuses(mock_client_cls):
     assert "--team-id" in result.stderr
 
 
-@patch("clickup.cli.commands.setup.ClickUpClient")
+@patch("taskbench.cli.commands.setup.ClickUpClient")
 def test_setup_non_interactive_multiple_spaces_refuses(mock_client_cls):
     """Multiple spaces + --non-interactive without --space-id errors."""
     team = _named(id="T1", name="A")
@@ -191,7 +191,7 @@ def test_setup_non_interactive_multiple_spaces_refuses(mock_client_cls):
 # ---------- empty workspaces / spaces ----------------------------------------
 
 
-@patch("clickup.cli.commands.setup.ClickUpClient")
+@patch("taskbench.cli.commands.setup.ClickUpClient")
 def test_setup_no_workspaces_errors(mock_client_cls):
     """No workspaces in account exits 1."""
     client = _mock_client(teams=[])
@@ -202,7 +202,7 @@ def test_setup_no_workspaces_errors(mock_client_cls):
     assert "No workspaces" in result.output
 
 
-@patch("clickup.cli.commands.setup.ClickUpClient")
+@patch("taskbench.cli.commands.setup.ClickUpClient")
 def test_setup_no_spaces_errors(mock_client_cls):
     """No spaces in workspace exits 1."""
     team = _named(id="T1", name="A")
@@ -214,7 +214,7 @@ def test_setup_no_spaces_errors(mock_client_cls):
     assert "No spaces" in result.output
 
 
-@patch("clickup.cli.commands.setup.ClickUpClient")
+@patch("taskbench.cli.commands.setup.ClickUpClient")
 def test_setup_no_lists_warns_but_succeeds(mock_client_cls):
     """No lists in space is a warning, not a hard error."""
     team = _named(id="T1", name="A")
@@ -233,8 +233,8 @@ def test_setup_no_lists_warns_but_succeeds(mock_client_cls):
 # =============================================================================
 
 
-@patch("clickup.cli.commands.setup.typer.prompt")
-@patch("clickup.cli.commands.setup.ClickUpClient")
+@patch("taskbench.cli.commands.setup.typer.prompt")
+@patch("taskbench.cli.commands.setup.ClickUpClient")
 def test_setup_interactive_token_prompt(mock_client_cls, mock_prompt):
     """User enters a valid token at the prompt."""
     mock_prompt.return_value = "pk_entered"
@@ -248,14 +248,14 @@ def test_setup_interactive_token_prompt(mock_client_cls, mock_prompt):
     mock_client_cls.return_value = make_mock_ctx(mock_client)
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
+        with patch("taskbench.core.config.Path.home", return_value=Path(tmpdir)):
             result = runner.invoke(app, ["setup", "run"])
             assert result.exit_code == 0
             assert mock_prompt.called
 
 
-@patch("clickup.cli.commands.setup.typer.prompt")
-@patch("clickup.cli.commands.setup.ClickUpClient")
+@patch("taskbench.cli.commands.setup.typer.prompt")
+@patch("taskbench.cli.commands.setup.ClickUpClient")
 def test_setup_interactive_pick_workspace_menu(mock_client_cls, mock_prompt):
     """Two workspaces -> _pick_from_menu prompts for selection."""
     mock_prompt.return_value = "1"
@@ -275,8 +275,8 @@ def test_setup_interactive_pick_workspace_menu(mock_client_cls, mock_prompt):
     assert "A" in result.output
 
 
-@patch("clickup.cli.commands.setup.typer.confirm")
-@patch("clickup.cli.commands.setup.ClickUpClient")
+@patch("taskbench.cli.commands.setup.typer.confirm")
+@patch("taskbench.cli.commands.setup.ClickUpClient")
 def test_setup_interactive_list_use_suggested(mock_client_cls, mock_confirm):
     """confirm=Yes accepts the suggested list."""
     mock_confirm.return_value = True
@@ -297,9 +297,9 @@ def test_setup_interactive_list_use_suggested(mock_client_cls, mock_confirm):
     assert "High" in result.output
 
 
-@patch("clickup.cli.commands.setup.typer.prompt")
-@patch("clickup.cli.commands.setup.typer.confirm")
-@patch("clickup.cli.commands.setup.ClickUpClient")
+@patch("taskbench.cli.commands.setup.typer.prompt")
+@patch("taskbench.cli.commands.setup.typer.confirm")
+@patch("taskbench.cli.commands.setup.ClickUpClient")
 def test_setup_interactive_list_pick_alternative(mock_client_cls, mock_confirm, mock_prompt):
     """confirm=No, then user enters a list number."""
     mock_confirm.return_value = False
@@ -320,7 +320,7 @@ def test_setup_interactive_list_pick_alternative(mock_client_cls, mock_confirm, 
     assert result.exit_code == 0
 
 
-@patch("clickup.cli.commands.setup.ClickUpClient")
+@patch("taskbench.cli.commands.setup.ClickUpClient")
 def test_setup_token_validation_then_smoke_test(mock_client_cls):
     """End-to-end happy path: token works, defaults set, smoke test fetches tasks."""
     mock_client = AsyncMock()
@@ -348,7 +348,7 @@ def test_setup_token_validation_then_smoke_test(mock_client_cls):
 # =============================================================================
 
 
-@patch("clickup.cli.commands.setup.ClickUpClient")
+@patch("taskbench.cli.commands.setup.ClickUpClient")
 def test_setup_token_validation_fails_in_non_interactive(mock_client_cls):
     """Bad --token in --non-interactive mode errors."""
     mock_client = AsyncMock()

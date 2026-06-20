@@ -1,4 +1,4 @@
-"""Tests for top-level CLI entry points in clickup/cli/main.py.
+"""Tests for top-level CLI entry points in taskbench/cli/main.py.
 
 Consolidates tests from test_main_coverage.py and tests/unit/test_main_error_envelope.py.
 Covers: status, version, format callback, and the Typer/Click error JSON envelope.
@@ -15,9 +15,9 @@ import click
 import pytest
 from typer.testing import CliRunner
 
-from clickup.cli.main import _emit_click_error_envelope, _format_hint, _wants_json_mode, app, main
-from clickup.core.models import List as ClickUpList
-from clickup.core.models import Space, Team
+from taskbench.cli.main import _emit_click_error_envelope, _format_hint, _wants_json_mode, app, main
+from taskbench.core.models import List as ClickUpList
+from taskbench.core.models import Space, Team
 
 runner = CliRunner()
 
@@ -32,19 +32,19 @@ def test_version():
     assert result.exit_code == 0
     data = json.loads(result.stdout)
     assert "version" in data
-    assert data["name"] == "ClickUp Toolkit CLI"
+    assert data["name"] == "Taskbench"
 
 
 def test_status_no_token():
     """Status without a token reports it cleanly."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
+        with patch("taskbench.core.config.Path.home", return_value=Path(tmpdir)):
             result = runner.invoke(app, ["--format", "table", "status"])
             assert result.exit_code == 0
             assert "No API token" in result.output
 
 
-@patch("clickup.cli.main.get_provider")
+@patch("taskbench.cli.main.get_provider")
 def test_status_with_valid_token(mock_client_cls):
     """Status with valid token shows user info."""
     mock_client = AsyncMock()
@@ -55,14 +55,14 @@ def test_status_with_valid_token(mock_client_cls):
     mock_client_cls.return_value = cm
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
+        with patch("taskbench.core.config.Path.home", return_value=Path(tmpdir)):
             runner.invoke(app, ["config", "set-token", "pk_test"])
             result = runner.invoke(app, ["--format", "table", "status"])
             assert result.exit_code == 0
             assert "evan" in result.output
 
 
-@patch("clickup.cli.main.get_provider")
+@patch("taskbench.cli.main.get_provider")
 def test_status_with_full_defaults(mock_client_cls):
     """Status resolves and displays default team / space / list names."""
     mock_client = AsyncMock()
@@ -75,7 +75,7 @@ def test_status_with_full_defaults(mock_client_cls):
     mock_client_cls.return_value = cm
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
+        with patch("taskbench.core.config.Path.home", return_value=Path(tmpdir)):
             runner.invoke(app, ["config", "set-token", "pk_test"])
             runner.invoke(app, ["config", "set", "default_team_id", "T1"])
             runner.invoke(app, ["config", "set", "default_space_id", "S1"])
@@ -88,7 +88,7 @@ def test_status_with_full_defaults(mock_client_cls):
             assert "Sprint" in result.output
 
 
-@patch("clickup.cli.main.get_provider")
+@patch("taskbench.cli.main.get_provider")
 def test_status_json(mock_client_cls):
     """Status emits parseable JSON in --format json mode."""
     mock_client = AsyncMock()
@@ -99,7 +99,7 @@ def test_status_json(mock_client_cls):
     mock_client_cls.return_value = cm
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
+        with patch("taskbench.core.config.Path.home", return_value=Path(tmpdir)):
             runner.invoke(app, ["config", "set-token", "pk_test"])
             result = runner.invoke(app, ["--format", "json", "status"])
             assert result.exit_code == 0
@@ -108,7 +108,7 @@ def test_status_json(mock_client_cls):
             assert "auth_valid" in data
 
 
-@patch("clickup.cli.main.get_provider")
+@patch("taskbench.cli.main.get_provider")
 def test_status_invalid_token(mock_client_cls):
     """Status with an invalid token reports the failure."""
     mock_client = AsyncMock()
@@ -118,14 +118,14 @@ def test_status_invalid_token(mock_client_cls):
     mock_client_cls.return_value = cm
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
+        with patch("taskbench.core.config.Path.home", return_value=Path(tmpdir)):
             runner.invoke(app, ["config", "set-token", "pk_bogus"])
             result = runner.invoke(app, ["--format", "table", "status"])
             assert result.exit_code == 0
             assert "bad token" in result.output
 
 
-@patch("clickup.cli.main.get_provider")
+@patch("taskbench.cli.main.get_provider")
 def test_status_auto_detects_single_workspace(mock_client_cls):
     """Status auto-detects implicit_team if exactly one workspace exists."""
     mock_client = AsyncMock()
@@ -136,7 +136,7 @@ def test_status_auto_detects_single_workspace(mock_client_cls):
     mock_client_cls.return_value = cm
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
+        with patch("taskbench.core.config.Path.home", return_value=Path(tmpdir)):
             runner.invoke(app, ["config", "set-token", "pk_test"])
             result = runner.invoke(app, ["--format", "table", "status"])
             assert result.exit_code == 0
@@ -144,7 +144,7 @@ def test_status_auto_detects_single_workspace(mock_client_cls):
             assert "auto-detected" in result.output
 
 
-@patch("clickup.cli.main.get_provider")
+@patch("taskbench.cli.main.get_provider")
 def test_status_partial_defaults(mock_client_cls):
     """Status hints when some defaults are missing."""
     mock_client = AsyncMock()
@@ -156,7 +156,7 @@ def test_status_partial_defaults(mock_client_cls):
     mock_client_cls.return_value = cm
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
+        with patch("taskbench.core.config.Path.home", return_value=Path(tmpdir)):
             runner.invoke(app, ["config", "set-token", "pk_test"])
             runner.invoke(app, ["config", "set", "default_team_id", "T1"])
             result = runner.invoke(app, ["--format", "table", "status"])
@@ -175,7 +175,7 @@ def test_version_json_shape():
     result = runner.invoke(app, ["version"])
     assert result.exit_code == 0
     data = json.loads(result.stdout)
-    assert data["name"] == "ClickUp Toolkit CLI"
+    assert data["name"] == "Taskbench"
     assert isinstance(data["version"], str)
 
 
@@ -183,13 +183,13 @@ def test_version_table_mode():
     """version --format table still emits human-readable text."""
     result = runner.invoke(app, ["--format", "table", "version"])
     assert result.exit_code == 0
-    assert "ClickUp Toolkit CLI" in result.output
+    assert "Taskbench" in result.output
 
 
 def test_status_json_no_rich_highlighting():
     """status JSON mode should not contain Rich markup/highlighting."""
     with tempfile.TemporaryDirectory() as tmpdir:
-        with patch("clickup.core.config.Path.home", return_value=Path(tmpdir)):
+        with patch("taskbench.core.config.Path.home", return_value=Path(tmpdir)):
             result = runner.invoke(app, ["--format", "json", "status"])
             assert result.exit_code == 0
             data = json.loads(result.stdout)
@@ -243,22 +243,23 @@ def test_emit_click_error_envelope_shape(capsys: pytest.CaptureFixture[str]) -> 
 
 def test_emit_click_error_envelope_with_context(capsys: pytest.CaptureFixture[str]) -> None:
     cmd = click.Command(name="list")
-    ctx = click.Context(cmd, info_name="list", parent=click.Context(click.Command(name="clickup"), info_name="clickup"))
+    parent = click.Context(click.Command(name="taskbench"), info_name="taskbench")
+    ctx = click.Context(cmd, info_name="list", parent=parent)
     exc = click.exceptions.BadParameter("not a valid integer", ctx=ctx, param_hint="'--limit'")
     _emit_click_error_envelope(exc)
     captured = capsys.readouterr()
     payload = json.loads(captured.err)
     assert payload["error"].startswith("Invalid value for '--limit'")
     assert payload["type"] == "BadParameter"
-    assert payload["command"] == "clickup list"
+    assert payload["command"] == "taskbench list"
 
 
 def test_main_emits_json_envelope_for_unknown_subcommand(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """End-to-end: `clickup frobnicate` should exit 2 with a JSON error on stderr."""
-    monkeypatch.setattr("sys.argv", ["clickup", "frobnicate"])
+    """End-to-end: `taskbench frobnicate` should exit 2 with a JSON error on stderr."""
+    monkeypatch.setattr("sys.argv", ["taskbench", "frobnicate"])
     with pytest.raises(SystemExit) as exit_info:
         main()
     assert exit_info.value.code == 2
@@ -273,8 +274,8 @@ def test_main_emits_json_envelope_for_bad_type_coercion(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """`clickup task list --list-id L --limit abc` -> JSON envelope, exit 2."""
-    monkeypatch.setattr("sys.argv", ["clickup", "task", "list", "--list-id", "L", "--limit", "abc"])
+    """`taskbench task list --list-id L --limit abc` -> JSON envelope, exit 2."""
+    monkeypatch.setattr("sys.argv", ["taskbench", "task", "list", "--list-id", "L", "--limit", "abc"])
     with pytest.raises(SystemExit) as exit_info:
         main()
     assert exit_info.value.code == 2
@@ -289,7 +290,7 @@ def test_main_falls_back_to_rich_prose_for_table_mode(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """`--format table` opts out of the JSON envelope; humans get the usual Click output."""
-    monkeypatch.setattr("sys.argv", ["clickup", "--format", "table", "frobnicate"])
+    monkeypatch.setattr("sys.argv", ["taskbench", "--format", "table", "frobnicate"])
     with pytest.raises(SystemExit) as exit_info:
         main()
     assert exit_info.value.code == 2
@@ -301,7 +302,7 @@ def test_main_falls_back_to_rich_prose_for_table_mode(
 @pytest.fixture
 def json_provider_env(tmp_path, monkeypatch: pytest.MonkeyPatch):
     """Point the CLI at a seeded JSON store so main() can run end-to-end."""
-    from clickup.core.json_provider import write_seed_store
+    from taskbench.core.json_provider import write_seed_store
 
     store = tmp_path / "store.json"
     write_seed_store(store)
@@ -316,7 +317,7 @@ def test_main_propagates_app_level_error_exit_code(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    monkeypatch.setattr("sys.argv", ["clickup", "task", "get", "mock_9999"])
+    monkeypatch.setattr("sys.argv", ["taskbench", "task", "get", "mock_9999"])
     with pytest.raises(SystemExit) as exit_info:
         main()
     assert exit_info.value.code == 1
@@ -330,7 +331,7 @@ def test_main_propagates_usage_error_exit_code(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    monkeypatch.setattr("sys.argv", ["clickup", "task", "update", "mock_1001", "--priority", "99"])
+    monkeypatch.setattr("sys.argv", ["taskbench", "task", "update", "mock_1001", "--priority", "99"])
     with pytest.raises(SystemExit) as exit_info:
         main()
     assert exit_info.value.code == 2
@@ -343,7 +344,7 @@ def test_main_success_path_exits_zero(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    monkeypatch.setattr("sys.argv", ["clickup", "task", "list", "--brief"])
+    monkeypatch.setattr("sys.argv", ["taskbench", "task", "list", "--brief"])
     main()
     captured = capsys.readouterr()
     data = json.loads(captured.out)
@@ -355,7 +356,7 @@ def test_main_json_mode_suppresses_info_on_stderr(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    monkeypatch.setattr("sys.argv", ["clickup", "task", "list", "--brief"])
+    monkeypatch.setattr("sys.argv", ["taskbench", "task", "list", "--brief"])
     main()
     captured = capsys.readouterr()
     data = json.loads(captured.out)
@@ -388,20 +389,20 @@ def test_main_format_after_subcommand_now_works(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """``clickup version --format json`` (trailing global flag) is hoisted and succeeds."""
-    monkeypatch.setattr("sys.argv", ["clickup", "version", "--format", "json"])
+    """``taskbench version --format json`` (trailing global flag) is hoisted and succeeds."""
+    monkeypatch.setattr("sys.argv", ["taskbench", "version", "--format", "json"])
     main()
     captured = capsys.readouterr()
     payload = json.loads(captured.out)
-    assert payload["name"] == "ClickUp Toolkit CLI"
+    assert payload["name"] == "Taskbench"
 
 
 def test_main_format_after_subcommand_table_mode_hint(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """``clickup --format table task search --format table`` shows hint on stderr."""
-    argv = ["clickup", "--format", "table", "task", "search", "--query", "x", "--format", "table"]
+    """``taskbench --format table task search --format table`` shows hint on stderr."""
+    argv = ["taskbench", "--format", "table", "task", "search", "--query", "x", "--format", "table"]
     monkeypatch.setattr("sys.argv", argv)
     with pytest.raises(SystemExit) as exit_info:
         main()
@@ -416,7 +417,7 @@ def test_main_unknown_option_no_format_hint(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     """An unknown option that isn't --format gets no hint."""
-    monkeypatch.setattr("sys.argv", ["clickup", "version", "--bogus"])
+    monkeypatch.setattr("sys.argv", ["taskbench", "version", "--bogus"])
     with pytest.raises(SystemExit) as exit_info:
         main()
     assert exit_info.value.code == 2
@@ -429,7 +430,7 @@ class TestHoistGlobalFormat:
     """--format is accepted in any position (hoisted to the root parser)."""
 
     def test_trailing_format_pair_hoisted(self):
-        from clickup.cli.main import _hoist_global_format
+        from taskbench.cli.main import _hoist_global_format
 
         assert _hoist_global_format(["task", "list", "--format", "table"]) == [
             "--format",
@@ -439,24 +440,24 @@ class TestHoistGlobalFormat:
         ]
 
     def test_trailing_format_equals_hoisted(self):
-        from clickup.cli.main import _hoist_global_format
+        from taskbench.cli.main import _hoist_global_format
 
         assert _hoist_global_format(["task", "list", "--format=json"]) == ["--format=json", "task", "list"]
 
     def test_leading_format_untouched(self):
-        from clickup.cli.main import _hoist_global_format
+        from taskbench.cli.main import _hoist_global_format
 
         argv = ["--format", "json", "task", "list"]
         assert _hoist_global_format(argv) == argv
 
     def test_export_tasks_format_untouched(self):
-        from clickup.cli.main import _hoist_global_format
+        from taskbench.cli.main import _hoist_global_format
 
         argv = ["bulk", "export-tasks", "--list-id", "1", "--format", "csv"]
         assert _hoist_global_format(argv) == argv
 
     def test_middle_flags_preserved(self):
-        from clickup.cli.main import _hoist_global_format
+        from taskbench.cli.main import _hoist_global_format
 
         assert _hoist_global_format(["task", "list", "--list-id", "5", "--format", "table", "--brief"]) == [
             "--format",
@@ -469,7 +470,7 @@ class TestHoistGlobalFormat:
         ]
 
     def test_no_format_untouched(self):
-        from clickup.cli.main import _hoist_global_format
+        from taskbench.cli.main import _hoist_global_format
 
         argv = ["task", "list", "--brief"]
         assert _hoist_global_format(argv) == argv

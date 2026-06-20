@@ -44,7 +44,7 @@ from ..task_filters import (
 from ..utils import run_async
 
 app = typer.Typer(
-    help="Task management. Includes a 'comments' subgroup: clickup task comments list/add <task-id>.",
+    help="Task management. Includes a 'comments' subgroup: taskbench task comments list/add <task-id>.",
 )
 
 # Subgroup for comments
@@ -60,7 +60,7 @@ def list_tasks(
         "--all-lists",
         help=(
             "Query every list configured in the default_lists aliases — NOT every list in the "
-            "workspace. Run 'clickup config get default_lists' to see what's configured. "
+            "workspace. Run 'taskbench config get default_lists' to see what's configured. "
             "For a workspace-wide query use 'task search' or 'task mine'."
         ),
     ),
@@ -115,7 +115,7 @@ def list_tasks(
         if not list_ids_to_use:
             usage_error(
                 "Error: No list ID provided and no default list configured.",
-                hint="Use --list-id or set a default with 'clickup config set default_list_id <id>'",
+                hint="Use --list-id or set a default with 'taskbench config set default_list_id <id>'",
             )
 
         with handle_clickup_errors():
@@ -596,10 +596,10 @@ def change_status(
 ) -> None:
     """Change task status.
 
-    Positional form: clickup task status TASK_ID STATUS
-    Flag form (back-compat): clickup task status --task-id TASK_ID --status STATUS
+    Positional form: taskbench task status TASK_ID STATUS
+    Flag form (back-compat): taskbench task status --task-id TASK_ID --status STATUS
 
-    See valid status values for a list with: clickup task statuses --list-id <id>
+    See valid status values for a list with: taskbench task statuses --list-id <id>
 
     Mixing positional + flag for the same parameter is rejected (exit 2) so
     agents don't silently get one value when they thought they passed two.
@@ -617,9 +617,9 @@ def change_status(
     status = status_arg or status_flag
 
     if not task_ids:
-        usage_error("Error: Task ID is required, or pass --task-ids. Usage: clickup task status TASK_ID STATUS")
+        usage_error("Error: Task ID is required, or pass --task-ids. Usage: taskbench task status TASK_ID STATUS")
     if not status:
-        usage_error("Error: Status is required. Usage: clickup task status TASK_ID STATUS")
+        usage_error("Error: Status is required. Usage: taskbench task status TASK_ID STATUS")
 
     # Type-narrow for the type checker; the _usage_error calls above raise on None.
     assert status is not None
@@ -689,8 +689,8 @@ def delete_task(
 ) -> None:
     """Delete one or more tasks.
 
-    Positional form: clickup task delete ID1 ID2 ID3 --force
-    Flag form (back-compat): clickup task delete --task-ids ID1,ID2 --force
+    Positional form: taskbench task delete ID1 ID2 ID3 --force
+    Flag form (back-compat): taskbench task delete --task-ids ID1,ID2 --force
     """
 
     async def _delete_task() -> None:

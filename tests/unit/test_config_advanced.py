@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from clickup.core.config import Config
+from taskbench.core.config import Config
 
 
 @pytest.fixture

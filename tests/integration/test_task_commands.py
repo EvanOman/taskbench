@@ -13,11 +13,11 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from typer.testing import CliRunner
 
-from clickup.cli.main import app
-from clickup.core import Config
-from clickup.core.exceptions import ClickUpError
-from clickup.core.models import Comment, PriorityInfo, StatusInfo, Task, Team, User
-from clickup.core.models import List as ClickUpList
+from taskbench.cli.main import app
+from taskbench.core import Config
+from taskbench.core.exceptions import ClickUpError
+from taskbench.core.models import Comment, PriorityInfo, StatusInfo, Task, Team, User
+from taskbench.core.models import List as ClickUpList
 
 from .conftest import _strip_ansi, make_mock_ctx
 
@@ -87,7 +87,7 @@ def sample_task_detail():
     return task
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_list(mock_get_client, sample_tasks):
     """Test listing tasks in a list."""
     mock_client = AsyncMock()
@@ -110,7 +110,7 @@ def test_task_list(mock_get_client, sample_tasks):
     assert "in progress" in result.stdout
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_get(mock_get_client, sample_task_detail):
     """Test getting task details."""
     mock_client = AsyncMock()
@@ -131,7 +131,7 @@ def test_task_get(mock_get_client, sample_task_detail):
     assert "high" in result.stdout
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_create(mock_get_client):
     """Test creating a new task."""
     mock_client = AsyncMock()
@@ -157,7 +157,7 @@ def test_task_create(mock_get_client):
     assert data["name"] == "New Task"
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_update(mock_get_client):
     """Test updating an existing task."""
     mock_client = AsyncMock()
@@ -183,7 +183,7 @@ def test_task_update(mock_get_client):
     assert data["name"] == "Updated Task"
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_update_task_ids_batch(mock_get_client):
     """`task update --task-ids` updates an explicit computed ID set."""
     mock_client = AsyncMock()
@@ -211,7 +211,7 @@ def test_task_update_task_ids_batch(mock_get_client):
     assert mock_client.update_task.await_args_list[1].kwargs == {"priority": 2}
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_delete(mock_get_client):
     """Test deleting a task."""
     mock_client = AsyncMock()
@@ -238,7 +238,7 @@ def test_task_delete_without_flag_refuses():
     assert "Refusing to delete" in result.stderr
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_delete_with_yes(mock_get_client):
     """--yes is an alias for --force on task delete."""
     mock_client = AsyncMock()
@@ -273,7 +273,7 @@ def _status_mock_client():
     return mock_client, create
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_status_change_flag_form(mock_get_client):
     """Back-compat: --task-id / --status flag form still works."""
     mock_client, factory = _status_mock_client()
@@ -288,7 +288,7 @@ def test_task_status_change_flag_form(mock_get_client):
     mock_client.update_task.assert_awaited_once_with("task123", status="in progress")
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_status_change_positional(mock_get_client):
     """`task status TASK_ID STATUS` positional form works."""
     mock_client, factory = _status_mock_client()
@@ -303,7 +303,7 @@ def test_task_status_change_positional(mock_get_client):
     mock_client.update_task.assert_awaited_once_with("task123", status="in progress")
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_status_task_ids_batch(mock_get_client):
     """`task status --task-ids` updates a specific set of tasks in one invocation."""
     mock_client = AsyncMock()
@@ -335,7 +335,7 @@ def test_task_status_missing_args_exits_2():
     result = runner.invoke(app, ["task", "status"])
     assert result.exit_code == 2
     assert "Task ID is required" in result.stderr
-    assert "Usage: clickup task status TASK_ID STATUS" in result.stderr
+    assert "Usage: taskbench task status TASK_ID STATUS" in result.stderr
 
 
 def test_task_status_conflict_positional_and_flag_exits_2():
@@ -348,7 +348,7 @@ def test_task_status_conflict_positional_and_flag_exits_2():
     assert "either as a positional argument OR via --task-id" in result.stderr
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_done_short_verb(mock_get_client):
     """`task done <id>` sets status to 'complete'."""
     mock_client, factory = _status_mock_client()
@@ -360,7 +360,7 @@ def test_task_done_short_verb(mock_get_client):
     mock_client.update_task.assert_awaited_once_with("task123", status="complete")
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_done_override_status(mock_get_client):
     """`task done <id> --status closed` honors the override."""
     mock_client, factory = _status_mock_client()
@@ -372,7 +372,7 @@ def test_task_done_override_status(mock_get_client):
     mock_client.update_task.assert_awaited_once_with("task123", status="closed")
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_close_short_verb(mock_get_client):
     """`task close <id>` is an alias for `task done`."""
     mock_client, factory = _status_mock_client()
@@ -384,7 +384,7 @@ def test_task_close_short_verb(mock_get_client):
     mock_client.update_task.assert_awaited_once_with("task123", status="complete")
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_start_short_verb(mock_get_client):
     """`task start <id>` sets status to 'in progress'."""
     mock_client, factory = _status_mock_client()
@@ -396,7 +396,7 @@ def test_task_start_short_verb(mock_get_client):
     mock_client.update_task.assert_awaited_once_with("task123", status="in progress")
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_park_short_verb(mock_get_client):
     """`task park <id>` sets status to 'on-deck'."""
     mock_client, factory = _status_mock_client()
@@ -408,7 +408,7 @@ def test_task_park_short_verb(mock_get_client):
     mock_client.update_task.assert_awaited_once_with("task123", status="on-deck")
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_list_with_filters(mock_get_client, sample_tasks):
     """Test listing tasks with filters."""
     mock_client = AsyncMock()
@@ -441,7 +441,7 @@ def test_task_list_with_filters(mock_get_client, sample_tasks):
     assert "Test Task" in result.stdout
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_list_multi_status_filter(mock_get_client, sample_tasks):
     """Comma-separated --status becomes the API statuses array."""
     mock_client = AsyncMock()
@@ -460,7 +460,7 @@ def test_task_list_multi_status_filter(mock_get_client, sample_tasks):
     mock_client.get_tasks.assert_awaited_once_with("list123", statuses=["in progress", "on-deck"])
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_list_date_filters_use_clickup_params(mock_get_client, sample_tasks):
     """Date flags map to ClickUp's epoch-ms query parameters."""
     mock_client = AsyncMock()
@@ -495,7 +495,7 @@ def test_task_list_date_filters_use_clickup_params(mock_get_client, sample_tasks
     )
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_list_multiple_lists_fans_out_and_merges(mock_get_client, sample_tasks):
     """Comma-separated --list-id queries each list and returns one merged collection."""
     mock_client = AsyncMock()
@@ -518,7 +518,7 @@ def test_task_list_multiple_lists_fans_out_and_merges(mock_get_client, sample_ta
     assert [call.args[0] for call in mock_client.get_tasks.await_args_list] == ["listA", "listB"]
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_list_all_lists_uses_configured_default_lists(mock_get_client, sample_tasks, monkeypatch, tmp_path):
     """--all-lists queries each configured default_lists value."""
     monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
@@ -544,7 +544,7 @@ def test_task_list_all_lists_uses_configured_default_lists(mock_get_client, samp
     assert [call.args[0] for call in mock_client.get_tasks.await_args_list] == ["listA", "listB"]
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_list_all_lists_sorts_globally_not_per_list(mock_get_client, sample_tasks, monkeypatch, tmp_path):
     """--all-lists + --sort merges and sorts globally (issue #29 P0 #3).
 
@@ -578,7 +578,7 @@ def test_task_list_all_lists_sorts_globally_not_per_list(mock_get_client, sample
     assert [task["id"] for task in data["data"]] == ["task2", "task3", "task1"]
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_list_sort_unknown_field_is_usage_error(mock_get_client, sample_tasks):
     """--sort fartfield is rejected (issue #29 P0 #4 / Agent 15)."""
     _sort_list_mock(mock_get_client, sample_tasks)
@@ -587,7 +587,7 @@ def test_task_list_sort_unknown_field_is_usage_error(mock_get_client, sample_tas
     assert "invalid --sort field" in result.stderr
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_statuses_json(mock_get_client):
     """`task statuses` emits allowed list statuses in JSON mode."""
     mock_client = AsyncMock()
@@ -654,7 +654,7 @@ def _task_ids_in_order(stdout: str, all_ids: list[str]) -> list[str]:
     return [tid for _, tid in sorted(positions)]
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_list_sort_plain_field_no_reverse(mock_get_client, sample_tasks):
     """`--sort updated` sorts the merged result ascending by date_updated."""
     _sort_list_mock(mock_get_client, sample_tasks)
@@ -663,7 +663,7 @@ def test_task_list_sort_plain_field_no_reverse(mock_get_client, sample_tasks):
     assert _task_ids_in_order(result.stdout, ["task1", "task2", "task3"]) == ["task1", "task2", "task3"]
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_list_sort_plain_field_with_reverse(mock_get_client, sample_tasks):
     """`--sort updated --reverse` sorts descending."""
     _sort_list_mock(mock_get_client, sample_tasks)
@@ -674,7 +674,7 @@ def test_task_list_sort_plain_field_with_reverse(mock_get_client, sample_tasks):
     assert _task_ids_in_order(result.stdout, ["task1", "task2", "task3"]) == ["task3", "task2", "task1"]
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_list_sort_colon_desc(mock_get_client, sample_tasks):
     """`--sort updated:desc` sorts descending."""
     _sort_list_mock(mock_get_client, sample_tasks)
@@ -683,7 +683,7 @@ def test_task_list_sort_colon_desc(mock_get_client, sample_tasks):
     assert _task_ids_in_order(result.stdout, ["task1", "task2", "task3"]) == ["task3", "task2", "task1"]
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_list_sort_colon_asc(mock_get_client, sample_tasks):
     """`--sort updated:asc` sorts ascending."""
     _sort_list_mock(mock_get_client, sample_tasks)
@@ -692,7 +692,7 @@ def test_task_list_sort_colon_asc(mock_get_client, sample_tasks):
     assert _task_ids_in_order(result.stdout, ["task1", "task2", "task3"]) == ["task1", "task2", "task3"]
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_list_sort_minus_prefix(mock_get_client, sample_tasks):
     """`--sort -updated` sorts descending (git/jq style)."""
     _sort_list_mock(mock_get_client, sample_tasks)
@@ -701,7 +701,7 @@ def test_task_list_sort_minus_prefix(mock_get_client, sample_tasks):
     assert _task_ids_in_order(result.stdout, ["task1", "task2", "task3"]) == ["task3", "task2", "task1"]
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_list_sort_plus_prefix(mock_get_client, sample_tasks):
     """`--sort +updated` sorts ascending."""
     _sort_list_mock(mock_get_client, sample_tasks)
@@ -770,7 +770,7 @@ def test_task_update_empty_name_is_usage_error():
     assert "empty" in result.stderr.lower()
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_list_empty(mock_get_client):
     """Test listing tasks when none exist."""
     mock_client = AsyncMock()
@@ -794,7 +794,7 @@ def test_task_list_empty(mock_get_client):
     assert "No tasks found" not in result.stdout
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_get_not_found(mock_get_client):
     """Test getting non-existent task."""
     mock_client = AsyncMock()
@@ -823,7 +823,7 @@ def test_task_help():
     assert "delete" in result.stdout
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_create_with_all_options(mock_get_client):
     """Test creating task with all available options."""
     mock_client = AsyncMock()
@@ -864,7 +864,7 @@ def test_task_create_with_all_options(mock_get_client):
     assert data["name"] == "Feature Task"
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_search(mock_get_client, sample_tasks):
     """Test searching tasks."""
     mock_client = AsyncMock()
@@ -886,7 +886,7 @@ def test_task_search(mock_get_client, sample_tasks):
     assert "Test Task" in result.stdout
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_export_json(mock_get_client, sample_tasks):
     """Test exporting tasks to JSON."""
     mock_client = AsyncMock()
@@ -912,7 +912,7 @@ def test_task_export_json(mock_get_client, sample_tasks):
         assert data["format"] == "json"
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_error_handling(mock_get_client):
     """Test task command error handling."""
     mock_client = AsyncMock()
@@ -930,7 +930,7 @@ def test_task_error_handling(mock_get_client):
     assert result.exit_code != 0
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_create_empty_description_is_sent(mock_get_client):
     """--description '' must reach the provider, not be silently dropped."""
     mock_client = AsyncMock()
@@ -953,7 +953,7 @@ def test_task_create_empty_description_is_sent(mock_get_client):
     assert kwargs["description"] == ""
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_create_omitted_fields_not_sent(mock_get_client):
     """Fields not passed on the command line must not appear in the payload."""
     mock_client = AsyncMock()
@@ -982,7 +982,7 @@ def test_task_create_omitted_fields_not_sent(mock_get_client):
 # --- task delete --task-ids batch tests ---
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_delete_task_ids_batch(mock_get_client):
     """`task delete --task-ids` deletes multiple tasks in one invocation."""
     mock_client = AsyncMock()
@@ -1005,7 +1005,7 @@ def test_task_delete_task_ids_batch(mock_get_client):
     assert mock_client.delete_task.await_count == 3
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_delete_single_positional_still_works(mock_get_client):
     """Single positional task_id still works for backward compat."""
     mock_client = AsyncMock()
@@ -1039,7 +1039,7 @@ def test_task_delete_neither_positional_nor_task_ids_exits_2():
     assert "Task ID or --task-ids is required" in result.stderr
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_delete_variadic_positional(mock_get_client):
     """Multiple positional IDs produce a collection envelope."""
     mock_client = AsyncMock()
@@ -1069,10 +1069,10 @@ def test_task_delete_batch_without_force_exits_2():
     assert "Refusing to delete" in result.stderr
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_delete_partial_failure_reflects_in_output(mock_get_client):
     """When some deletions fail, output shows deleted=false and exit code is 1."""
-    from clickup.core import ClickUpError
+    from taskbench.core import ClickUpError
 
     mock_client = AsyncMock()
     mock_client.delete_task.side_effect = [
@@ -1102,7 +1102,7 @@ def test_task_delete_partial_failure_reflects_in_output(mock_get_client):
 # --- task export --output-format tests ---
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_export_output_format_csv(mock_get_client, sample_tasks):
     """`task export --output-format csv` writes CSV."""
     mock_client = AsyncMock()
@@ -1134,7 +1134,7 @@ def test_task_export_old_format_flag_rejected():
 # --- bulk export-tasks --output-format + --format back-compat ---
 
 
-@patch("clickup.cli.commands.bulk.get_client")
+@patch("taskbench.cli.commands.bulk.get_client")
 def test_bulk_export_output_format_flag(mock_get_client):
     """`bulk export-tasks --output-format csv` works."""
     mock_client = AsyncMock()
@@ -1157,7 +1157,7 @@ def test_bulk_export_output_format_flag(mock_get_client):
         assert data["format"] == "csv"
 
 
-@patch("clickup.cli.commands.bulk.get_client")
+@patch("taskbench.cli.commands.bulk.get_client")
 def test_bulk_export_format_back_compat(mock_get_client):
     """`bulk export-tasks --format csv` still works (deprecated alias)."""
     mock_client = AsyncMock()
@@ -1183,7 +1183,7 @@ def test_bulk_export_format_back_compat(mock_get_client):
 # =============================================================================
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_create_minimal(mock_get_client):
     mock_client = AsyncMock()
     mock_client.create_task.return_value = Task(id="t1", name="New", url="https://x")
@@ -1196,7 +1196,7 @@ def test_task_create_minimal(mock_get_client):
     assert data["name"] == "New"
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_create_all_fields(mock_get_client):
     mock_client = AsyncMock()
     mock_client.create_task.return_value = Task(id="t1", name="Full")
@@ -1236,7 +1236,7 @@ def test_task_create_no_list_errors():
     assert "list" in result.output.lower()
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_create_api_error(mock_get_client):
     mock_client = AsyncMock()
     mock_client.create_task.side_effect = ClickUpError("rate limited")
@@ -1250,7 +1250,7 @@ def test_task_create_api_error(mock_get_client):
 # --- update from test_task_coverage.py ---
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_update_name_and_description(mock_get_client):
     mock_client = AsyncMock()
     mock_client.update_task.return_value = Task(id="t1", name="Renamed")
@@ -1263,7 +1263,7 @@ def test_task_update_name_and_description(mock_get_client):
     assert data["name"] == "Renamed"
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_update_clear_description_with_empty_string(mock_get_client):
     """`--description ''` should clear the field — the modify-if-passed contract."""
     mock_client = AsyncMock()
@@ -1276,7 +1276,7 @@ def test_task_update_clear_description_with_empty_string(mock_get_client):
     assert call_kwargs["description"] == ""
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_update_no_fields_warns(mock_get_client):
     mock_client = AsyncMock()
     mock_get_client.return_value = make_mock_ctx(mock_client)
@@ -1286,7 +1286,7 @@ def test_task_update_no_fields_warns(mock_get_client):
     assert "No updates specified" in result.stderr
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_update_archived(mock_get_client):
     mock_client = AsyncMock()
     mock_client.update_task.return_value = Task(id="t1", name="X")
@@ -1300,7 +1300,7 @@ def test_task_update_archived(mock_get_client):
 # --- status from test_task_coverage.py ---
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_status_change(mock_get_client):
     mock_client = AsyncMock()
     mock_client.update_task.return_value = Task(id="t1", name="X")
@@ -1328,7 +1328,7 @@ def test_task_status_missing_status_errors():
 # --- search from test_task_coverage.py ---
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_search_finds_results(mock_get_client):
     mock_client = AsyncMock()
     mock_client.search_tasks.return_value = [Task(id="t1", name="Match")]
@@ -1339,7 +1339,7 @@ def test_task_search_finds_results(mock_get_client):
     assert "Match" in result.output
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_search_empty(mock_get_client):
     mock_client = AsyncMock()
     mock_client.search_tasks.return_value = []
@@ -1350,7 +1350,7 @@ def test_task_search_empty(mock_get_client):
     assert "No tasks found" not in result.stdout  # info-level notice suppressed in JSON mode
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_search_bare_enumerates_all(mock_get_client):
     """Omitting --query is valid: workspace-wide enumeration (empty query returns all)."""
     mock_client = AsyncMock()
@@ -1363,7 +1363,7 @@ def test_task_search_bare_enumerates_all(mock_get_client):
     mock_client.search_tasks.assert_awaited_once_with("W1", "")
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_search_no_workspace_errors(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_teams.return_value = []
@@ -1376,7 +1376,7 @@ def test_task_search_no_workspace_errors(mock_get_client):
 # --- export from test_task_coverage.py ---
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_export_json_cov(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_tasks.return_value = [Task(id="t1", name="One")]
@@ -1394,7 +1394,7 @@ def test_task_export_json_cov(mock_get_client):
     assert data[0]["name"] == "One"
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_export_csv_cov(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_tasks.return_value = [Task(id="t1", name="One")]
@@ -1415,7 +1415,7 @@ def test_task_export_csv_cov(mock_get_client):
     assert "One" in content
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_export_unsupported_format_errors(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_tasks.return_value = []
@@ -1438,7 +1438,7 @@ def test_task_export_no_list_errors():
 # --- mine from test_task_coverage.py ---
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_mine_with_explicit_workspace(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_user.return_value = User(id=42, username="evan", email="e@x.com")
@@ -1450,7 +1450,7 @@ def test_task_mine_with_explicit_workspace(mock_get_client):
     assert "Mine" in result.output
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_mine_auto_detects_single_workspace(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_user.return_value = User(id=42, username="evan", email="e@x.com")
@@ -1463,7 +1463,7 @@ def test_task_mine_auto_detects_single_workspace(mock_get_client):
     assert "No tasks assigned" not in result.stdout  # info-level notice suppressed in JSON mode
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_mine_no_workspaces_errors(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_user.return_value = User(id=42, username="evan", email="e@x.com")
@@ -1474,7 +1474,7 @@ def test_task_mine_no_workspaces_errors(mock_get_client):
     assert result.exit_code == 1
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_mine_multiple_workspaces_errors(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_user.return_value = User(id=42, username="evan", email="e@x.com")
@@ -1491,7 +1491,7 @@ def test_task_mine_multiple_workspaces_errors(mock_get_client):
 # --- comments from test_task_coverage.py ---
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_comments_list(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_task_comments.return_value = [
@@ -1510,7 +1510,7 @@ def test_task_comments_list(mock_get_client):
     assert "hi" in result.output
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_comments_list_empty(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_task_comments.return_value = []
@@ -1521,7 +1521,7 @@ def test_task_comments_list_empty(mock_get_client):
     assert "No comments" not in result.stdout  # info-level notice suppressed in JSON mode
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_comments_add(mock_get_client):
     mock_client = AsyncMock()
     mock_client.create_comment.return_value = Mock(id="c1")
@@ -1536,7 +1536,7 @@ def test_task_comments_add(mock_get_client):
 # --- task error paths from test_final_coverage.py ---
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_get_api_error(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_task.side_effect = ClickUpError("not found")
@@ -1547,7 +1547,7 @@ def test_task_get_api_error(mock_get_client):
     assert "not found" in result.stderr
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_list_api_error(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_tasks.side_effect = ClickUpError("rate limit")
@@ -1557,7 +1557,7 @@ def test_task_list_api_error(mock_get_client):
     assert result.exit_code == 1
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_list_with_filters_cov(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_tasks.return_value = [Task(id="t1", name="X")]
@@ -1588,7 +1588,7 @@ def test_task_list_with_filters_cov(mock_get_client):
 # =============================================================================
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_create_brief_omits_description(mock_get_client):
     """--brief on create returns the stripped projection (no description)."""
     mock_client = AsyncMock()
@@ -1605,7 +1605,7 @@ def test_task_create_brief_omits_description(mock_get_client):
     assert "description" not in data
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_update_brief_omits_description(mock_get_client):
     """--brief on update returns the stripped projection (no description)."""
     mock_client = AsyncMock()
@@ -1620,7 +1620,7 @@ def test_task_update_brief_omits_description(mock_get_client):
     assert "description" not in data
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_task_status_brief_omits_description(mock_get_client):
     """--brief on status returns the stripped projection (no description)."""
     mock_client = AsyncMock()
@@ -1646,7 +1646,7 @@ def _make_task_b49(id: str, name: str, **overrides) -> Task:
     return Task(**kwargs)
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_batch_create_three_tasks_collection_envelope(mock_get_client):
     """3 names -> 3 tasks in order, collection envelope, flags applied to all."""
     mock_client = AsyncMock()
@@ -1685,7 +1685,7 @@ def test_batch_create_three_tasks_collection_envelope(mock_get_client):
         assert call.kwargs["priority"] == 2
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_single_create_unchanged_shape(mock_get_client):
     """Single name produces a singleton task object, NOT a collection envelope."""
     mock_client = AsyncMock()
@@ -1703,7 +1703,7 @@ def test_single_create_unchanged_shape(mock_get_client):
     assert "count" not in data
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_batch_create_partial_failure_exit_1(mock_get_client):
     """When some creates fail: successes rendered, failures warned, exit 1."""
     mock_client = AsyncMock()
@@ -1728,7 +1728,7 @@ def test_batch_create_partial_failure_exit_1(mock_get_client):
     assert "Failed to create task 'Bad'" in result.stderr
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_batch_create_brief(mock_get_client):
     """--brief works for batch creates."""
     mock_client = AsyncMock()
@@ -1762,7 +1762,7 @@ def test_batch_create_validates_each_name():
 # =============================================================================
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_zero_result_hint_filtered_empty_table_mode(mock_get_client):
     """Filtered-empty emits info message with pre-filter count in table mode."""
     mock_client = AsyncMock()
@@ -1783,7 +1783,7 @@ def test_zero_result_hint_filtered_empty_table_mode(mock_get_client):
     assert "5 tasks total" in combined
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_zero_result_hint_json_mode_suppressed(mock_get_client):
     """In JSON mode, info-level hint is suppressed; only envelope on stdout."""
     mock_client = AsyncMock()
@@ -1804,7 +1804,7 @@ def test_zero_result_hint_json_mode_suppressed(mock_get_client):
     assert "0 tasks matched" not in result.stdout
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_zero_result_no_hint_when_unfiltered(mock_get_client):
     """Unfiltered empty list emits 'No tasks found' — no hint about filters."""
     mock_client = AsyncMock()
@@ -1821,7 +1821,7 @@ def test_zero_result_no_hint_when_unfiltered(mock_get_client):
     assert "0 tasks matched the active filters" not in combined
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_zero_result_hint_task_search_with_filters(mock_get_client):
     """task search emits zero-result hint when filters are active."""
     mock_client = AsyncMock()
@@ -1840,7 +1840,7 @@ def test_zero_result_hint_task_search_with_filters(mock_get_client):
     assert "0 tasks matched the active filters" in combined
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_zero_result_hint_task_mine_with_filters(mock_get_client):
     """task mine emits zero-result hint when filters are active."""
     mock_client = AsyncMock()
@@ -1873,7 +1873,7 @@ def test_zero_result_hint_task_mine_with_filters(mock_get_client):
 # =============================================================================
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_name_only_filters_by_task_name(mock_get_client):
     """--name-only keeps only tasks whose name contains the query (case-insensitive)."""
     mock_client = AsyncMock()
@@ -1898,7 +1898,7 @@ def test_name_only_filters_by_task_name(mock_get_client):
     assert "Fix login bug" not in names
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_name_only_case_insensitive(mock_get_client):
     """--name-only matching is case-insensitive."""
     mock_client = AsyncMock()
@@ -1919,7 +1919,7 @@ def test_name_only_case_insensitive(mock_get_client):
     assert data["count"] == 2
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_name_only_with_limit(mock_get_client):
     """--name-only + --limit: count reflects the filtered (then truncated) set."""
     mock_client = AsyncMock()
@@ -1941,7 +1941,7 @@ def test_name_only_with_limit(mock_get_client):
 # =============================================================================
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_create_due_date_accepts_yyyy_mm_dd(mock_get_client):
     """task create --due-date 2026-07-01 sends epoch ms to the provider."""
     mock_client = AsyncMock()
@@ -1959,7 +1959,7 @@ def test_create_due_date_accepts_yyyy_mm_dd(mock_get_client):
     assert due_val == str(1782864000000)
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_create_due_date_accepts_relative(mock_get_client):
     """task create --due-date 7d sends an epoch-ms in the recent past."""
     mock_client = AsyncMock()
@@ -1977,7 +1977,7 @@ def test_create_due_date_accepts_relative(mock_get_client):
     assert due_val > 0
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_update_due_date_accepts_yyyy_mm_dd(mock_get_client):
     """task update --due-date 2026-07-01 sends epoch ms to the provider."""
     mock_client = AsyncMock()
@@ -1995,7 +1995,7 @@ def test_update_due_date_accepts_yyyy_mm_dd(mock_get_client):
     assert due_val == str(1782864000000)
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_update_due_date_accepts_relative(mock_get_client):
     """task update --due-date 7d sends epoch ms."""
     mock_client = AsyncMock()
@@ -2013,7 +2013,7 @@ def test_update_due_date_accepts_relative(mock_get_client):
     assert due_val > 0
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_update_due_date_accepts_epoch_ms(mock_get_client):
     """task update --due-date <epoch-ms> passes through unchanged."""
     mock_client = AsyncMock()
@@ -2030,7 +2030,7 @@ def test_update_due_date_accepts_epoch_ms(mock_get_client):
     assert call_kwargs["due_date"] == "1782691200000"
 
 
-@patch("clickup.cli.commands.task.get_client")
+@patch("taskbench.cli.commands.task.get_client")
 def test_create_due_date_accepts_epoch_ms(mock_get_client):
     """task create --due-date <epoch-ms> passes through unchanged."""
     mock_client = AsyncMock()
@@ -2057,7 +2057,7 @@ def _make_task_p63(task_id: str, name: str = "T") -> Task:
 
 
 class TestIdsOnlyCreate:
-    @patch("clickup.cli.commands.task.get_client")
+    @patch("taskbench.cli.commands.task.get_client")
     def test_single_create(self, mock_get_client: AsyncMock) -> None:
         mock_client = AsyncMock()
         mock_client.create_task.return_value = _make_task_p63("abc123", "New")
@@ -2067,7 +2067,7 @@ class TestIdsOnlyCreate:
         assert result.exit_code == 0
         assert result.stdout.strip() == "abc123"
 
-    @patch("clickup.cli.commands.task.get_client")
+    @patch("taskbench.cli.commands.task.get_client")
     def test_batch_create(self, mock_get_client: AsyncMock) -> None:
         mock_client = AsyncMock()
         mock_client.create_task.side_effect = [
@@ -2081,7 +2081,7 @@ class TestIdsOnlyCreate:
         lines = result.stdout.strip().splitlines()
         assert lines == ["id1", "id2"]
 
-    @patch("clickup.cli.commands.task.get_client")
+    @patch("taskbench.cli.commands.task.get_client")
     def test_ids_only_json_mode(self, mock_get_client: AsyncMock) -> None:
         """--ids-only prints plain IDs regardless of --format json."""
         mock_client = AsyncMock()
@@ -2099,7 +2099,7 @@ class TestIdsOnlyCreate:
 
 
 class TestIdsOnlyDone:
-    @patch("clickup.cli.commands.task.get_client")
+    @patch("taskbench.cli.commands.task.get_client")
     def test_single_done(self, mock_get_client: AsyncMock) -> None:
         mock_client = AsyncMock()
         mock_client.update_task.return_value = _make_task_p63("d1", "Done")
@@ -2109,7 +2109,7 @@ class TestIdsOnlyDone:
         assert result.exit_code == 0
         assert result.stdout.strip() == "d1"
 
-    @patch("clickup.cli.commands.task.get_client")
+    @patch("taskbench.cli.commands.task.get_client")
     def test_batch_done(self, mock_get_client: AsyncMock) -> None:
         mock_client = AsyncMock()
         mock_client.update_task.side_effect = [
@@ -2129,7 +2129,7 @@ class TestIdsOnlyDone:
 
 
 class TestIdsOnlyClose:
-    @patch("clickup.cli.commands.task.get_client")
+    @patch("taskbench.cli.commands.task.get_client")
     def test_close_ids_only(self, mock_get_client: AsyncMock) -> None:
         mock_client = AsyncMock()
         mock_client.update_task.return_value = _make_task_p63("c1")
@@ -2141,7 +2141,7 @@ class TestIdsOnlyClose:
 
 
 class TestIdsOnlyStart:
-    @patch("clickup.cli.commands.task.get_client")
+    @patch("taskbench.cli.commands.task.get_client")
     def test_start_ids_only(self, mock_get_client: AsyncMock) -> None:
         mock_client = AsyncMock()
         mock_client.update_task.return_value = _make_task_p63("s1")
@@ -2153,7 +2153,7 @@ class TestIdsOnlyStart:
 
 
 class TestIdsOnlyPark:
-    @patch("clickup.cli.commands.task.get_client")
+    @patch("taskbench.cli.commands.task.get_client")
     def test_park_ids_only(self, mock_get_client: AsyncMock) -> None:
         mock_client = AsyncMock()
         mock_client.update_task.return_value = _make_task_p63("p1")
@@ -2165,7 +2165,7 @@ class TestIdsOnlyPark:
 
 
 class TestIdsOnlyStatus:
-    @patch("clickup.cli.commands.task.get_client")
+    @patch("taskbench.cli.commands.task.get_client")
     def test_status_ids_only(self, mock_get_client: AsyncMock) -> None:
         mock_client = AsyncMock()
         mock_client.update_task.return_value = _make_task_p63("st1")
@@ -2182,7 +2182,7 @@ class TestIdsOnlyStatus:
 
 
 class TestIdsOnlyDelete:
-    @patch("clickup.cli.commands.task.get_client")
+    @patch("taskbench.cli.commands.task.get_client")
     def test_single_delete(self, mock_get_client: AsyncMock) -> None:
         mock_client = AsyncMock()
         mock_client.delete_task.return_value = True
@@ -2192,7 +2192,7 @@ class TestIdsOnlyDelete:
         assert result.exit_code == 0
         assert result.stdout.strip() == "del1"
 
-    @patch("clickup.cli.commands.task.get_client")
+    @patch("taskbench.cli.commands.task.get_client")
     def test_batch_delete(self, mock_get_client: AsyncMock) -> None:
         mock_client = AsyncMock()
         mock_client.delete_task.return_value = True
@@ -2209,7 +2209,7 @@ class TestIdsOnlyDelete:
 
 
 class TestTruncatedFlag:
-    @patch("clickup.cli.commands.task.get_client")
+    @patch("taskbench.cli.commands.task.get_client")
     def test_truncated_true_when_clipped(self, mock_get_client: AsyncMock) -> None:
         """When result count > limit, envelope has truncated: true."""
         mock_client = AsyncMock()
@@ -2222,7 +2222,7 @@ class TestTruncatedFlag:
         assert data["truncated"] is True
         assert data["count"] == 3
 
-    @patch("clickup.cli.commands.task.get_client")
+    @patch("taskbench.cli.commands.task.get_client")
     def test_no_truncated_when_not_clipped(self, mock_get_client: AsyncMock) -> None:
         """When result count <= limit, truncated key is absent."""
         mock_client = AsyncMock()
@@ -2235,7 +2235,7 @@ class TestTruncatedFlag:
         assert "truncated" not in data
         assert data["count"] == 3
 
-    @patch("clickup.cli.commands.task.get_client")
+    @patch("taskbench.cli.commands.task.get_client")
     def test_truncated_on_search(self, mock_get_client: AsyncMock) -> None:
         """task search also emits truncated when clipped."""
         mock_client = AsyncMock()
@@ -2248,7 +2248,7 @@ class TestTruncatedFlag:
         assert data["truncated"] is True
         assert data["count"] == 5
 
-    @patch("clickup.cli.commands.task.get_client")
+    @patch("taskbench.cli.commands.task.get_client")
     def test_truncated_on_mine(self, mock_get_client: AsyncMock) -> None:
         """task mine also emits truncated when clipped."""
         mock_client = AsyncMock()
@@ -2346,7 +2346,7 @@ class TestHelpText:
         result = runner.invoke(app, ["task", "--help"])
         assert result.exit_code == 0
         assert "comments" in _plain_help(result).lower()
-        assert "clickup task comments" in _plain_help(result)
+        assert "taskbench task comments" in _plain_help(result)
 
 
 # =============================================================================

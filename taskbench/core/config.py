@@ -1,8 +1,9 @@
-"""Configuration management for ClickUp Toolkit."""
+"""Configuration management for Taskbench."""
 
 import builtins
 import json
 import os
+import shutil
 import sys
 from pathlib import Path
 from typing import Any
@@ -10,18 +11,44 @@ from typing import Any
 from dotenv import load_dotenv
 from pydantic import BaseModel
 
+# ── Deprecation guard ────────────────────────────────────────────────────
+# Once-per-process set of env-var names for which a deprecation warning
+# has already been printed to stderr.
+_deprecation_emitted: set[str] = set()
+
+
+def _env_with_deprecation(new_name: str, old_name: str) -> str | None:
+    """Look up *new_name* first; fall back to *old_name* with a one-time warning."""
+    value = os.environ.get(new_name)
+    if value is not None:
+        return value
+    value = os.environ.get(old_name)
+    if value is not None and old_name not in _deprecation_emitted:
+        _deprecation_emitted.add(old_name)
+        print(
+            f"DeprecationWarning: {old_name} is deprecated; use {new_name}. (This warning is shown once per process.)",
+            file=sys.stderr,
+        )
+    return value
+
 
 def _load_dotenv_files() -> None:
     """Load .env files from current directory and user config directory.
 
     Priority (later files override earlier):
-    1. ~/.config/clickup-toolkit/.env (user-level config)
-    2. .env in current working directory (project-level config)
+    1. ~/.config/taskbench/.env (user-level config, preferred)
+    2. ~/.config/clickup-toolkit/.env (legacy user-level config)
+    3. .env in current working directory (project-level config)
     """
-    # Load from user config directory first
-    user_config_env = Path.home() / ".config" / "clickup-toolkit" / ".env"
+    # Load from new user config directory first
+    user_config_env = Path.home() / ".config" / "taskbench" / ".env"
     if user_config_env.exists():
         load_dotenv(user_config_env)
+    else:
+        # Fall back to legacy location
+        legacy_env = Path.home() / ".config" / "clickup-toolkit" / ".env"
+        if legacy_env.exists():
+            load_dotenv(legacy_env)
 
     # Load from current directory (overrides user config)
     load_dotenv(override=True)
@@ -30,7 +57,7 @@ def _load_dotenv_files() -> None:
 _load_dotenv_files()
 
 
-# Known top-level configuration keys (union of ClickUpConfig model fields
+# Known top-level configuration keys (union of TaskbenchConfig model fields
 # and other recognised names).  Used for validation warnings and the
 # ``clean`` command.
 KNOWN_CONFIG_KEYS: set[str] = {
@@ -93,8 +120,8 @@ _DEFAULT_KEYS: set[str] = {
 }
 
 
-class ClickUpConfig(BaseModel):
-    """ClickUp configuration model."""
+class TaskbenchConfig(BaseModel):
+    """Taskbench configuration model."""
 
     api_token: str | None = None
     client_id: str | None = None
@@ -117,8 +144,28 @@ class ClickUpConfig(BaseModel):
     model_config = {"extra": "allow"}
 
 
+# Backward-compat alias so existing code referencing the old name still works.
+ClickUpConfig = TaskbenchConfig
+
+
+def _migrate_config_dir() -> None:
+    """Copy config.json and .env from ~/.config/clickup-toolkit/ to ~/.config/taskbench/ if needed."""
+    old_dir = Path.home() / ".config" / "clickup-toolkit"
+    new_dir = Path.home() / ".config" / "taskbench"
+    if old_dir.exists() and not new_dir.exists():
+        new_dir.mkdir(parents=True, exist_ok=True)
+        for name in ("config.json", ".env"):
+            old_file = old_dir / name
+            if old_file.exists():
+                shutil.copy2(old_file, new_dir / name)
+        print(
+            "Migrated config from ~/.config/clickup-toolkit/ to ~/.config/taskbench/ (old kept)",
+            file=sys.stderr,
+        )
+
+
 class Config:
-    """Configuration manager for ClickUp Toolkit."""
+    """Configuration manager for Taskbench."""
 
     def __init__(self, config_path: Path | str | None = None):
         """Initialize configuration manager.
@@ -128,15 +175,16 @@ class Config:
 
         When *config_path* is ``None``, resolution order is:
 
-        1. ``CLICKUP_CONFIG_PATH`` env var (absolute path to the JSON file).
-        2. ``~/.config/clickup-toolkit/config.json`` (default).
+        1. ``TASKBENCH_CONFIG_PATH`` env var (preferred).
+        2. ``CLICKUP_CONFIG_PATH`` env var (deprecated; emits warning).
+        3. ``~/.config/taskbench/config.json`` (default).
 
-        Setting ``CLICKUP_CONFIG_PATH`` is the recommended way for tests,
+        Setting ``TASKBENCH_CONFIG_PATH`` is the recommended way for tests,
         eval harnesses, and CI to isolate config writes from the real user
         config.
         """
         if config_path is None:
-            env_config = os.environ.get("CLICKUP_CONFIG_PATH")
+            env_config = _env_with_deprecation("TASKBENCH_CONFIG_PATH", "CLICKUP_CONFIG_PATH")
             if env_config:
                 self.config_path = Path(env_config)
             else:
@@ -155,7 +203,8 @@ class Config:
 
     def _get_default_config_path(self) -> Path:
         """Get default configuration file path."""
-        config_dir = Path.home() / ".config" / "clickup-toolkit"
+        _migrate_config_dir()
+        config_dir = Path.home() / ".config" / "taskbench"
         config_dir.mkdir(parents=True, exist_ok=True)
         return config_dir / "config.json"
 
@@ -163,18 +212,18 @@ class Config:
         """Get configuration file path as string (for test compatibility)."""
         return str(self._get_default_config_path())
 
-    def _load_config(self) -> ClickUpConfig:
+    def _load_config(self) -> TaskbenchConfig:
         """Load configuration from file."""
         if self.config_path.exists():
             try:
                 with open(self.config_path) as f:
                     data = json.load(f)
-                return ClickUpConfig(**data)
+                return TaskbenchConfig(**data)
             except (json.JSONDecodeError, Exception):
                 pass
 
         # Load from environment variables
-        return ClickUpConfig(
+        return TaskbenchConfig(
             api_token=os.getenv("CLICKUP_API_TOKEN") or os.getenv("CLICKUP_API_KEY"),
             client_id=os.getenv("CLICKUP_CLIENT_ID"),
             client_secret=os.getenv("CLICKUP_CLIENT_SECRET"),
@@ -232,7 +281,7 @@ class Config:
         if not is_known_key(key):
             print(
                 f"Warning: '{key}' is not a recognised config key. "
-                "It will be stored but may be removed by 'clickup config clean'.",
+                "It will be stored but may be removed by 'taskbench config clean'.",
                 file=sys.stderr,
             )
 
@@ -252,7 +301,7 @@ class Config:
             current[parts[-1]] = value
 
             # Recreate config with new data
-            self._config = ClickUpConfig(**config_dict)
+            self._config = TaskbenchConfig(**config_dict)
             self.save_config()
             return
 
@@ -264,7 +313,7 @@ class Config:
     # ------------------------------------------------------------------
 
     def resolve_list_id(self, value: str | None) -> str | None:
-        """Resolve a --list-id value to a numeric ClickUp list ID.
+        """Resolve a --list-id value to a numeric list ID.
 
         Resolution order:
         1. If value is None -> return self.get('default_list_id')
@@ -303,7 +352,7 @@ class Config:
         data = self._config.model_dump(exclude_none=True)
         for k in keys:
             data.pop(k, None)
-        self._config = ClickUpConfig(**data)
+        self._config = TaskbenchConfig(**data)
         self.save_config()
 
     def get_client_id(self) -> str | None:
@@ -376,7 +425,7 @@ class Config:
 
         raise ValueError(
             "ClickUp API token not configured. "
-            "Set CLICKUP_API_KEY environment variable or use 'clickup config set-token'."
+            "Set CLICKUP_API_KEY environment variable or use 'taskbench config set-token'."
         )
 
     def has_credentials(self) -> bool:
@@ -384,6 +433,6 @@ class Config:
         return bool(self.get_api_token())
 
     @property
-    def config(self) -> ClickUpConfig:
+    def config(self) -> TaskbenchConfig:
         """Get the current configuration."""
         return self._config

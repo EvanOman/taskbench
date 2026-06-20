@@ -102,8 +102,8 @@ def get_list(
 ) -> None:
     """Get detailed information about a specific list.
 
-    Positional form: clickup list get LIST_ID (matches `task get TASK_ID`).
-    Flag form (back-compat): clickup list get --list-id LIST_ID
+    Positional form: taskbench list get LIST_ID (matches `task get TASK_ID`).
+    Flag form (back-compat): taskbench list get --list-id LIST_ID
     """
     if list_id_arg is not None and list_id is not None:
         render_error("Error: pass LIST_ID either as a positional argument OR via --list-id, not both.")

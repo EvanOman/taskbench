@@ -7,7 +7,7 @@ resolution-markers = [
 ]
 
 [options]
-exclude-newer = "2026-06-05T09:23:02.610244163Z"
+exclude-newer = "2026-06-13T21:30:48.833923708Z"
 exclude-newer-span = "P7D"
 
 [[package]]
@@ -134,52 +134,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/9b/98/518d8e5081007684232226f475082b30087d0f585e8457db087298259f49/click-8.4.1.tar.gz", hash = "sha256:918b5633eddf6b41c32d4f454bf0de810065c74e3f7dbf8ee5452f8be88d3e96", size = 353007, upload-time = "2026-05-22T04:08:37.769Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c7/0d/67e5b4109ea4a837e80daa87c2c696711955e40449a97e8926672534def2/click-8.4.1-py3-none-any.whl", hash = "sha256:482be17c6991b8c19c5429a1e995d9b0efdbb63172824c41f99965dc0ade8ec2", size = 116639, upload-time = "2026-05-22T04:08:35.26Z" },
-]
-
-[[package]]
-name = "clickup-toolkit"
-version = "0.5.3"
-source = { editable = "." }
-dependencies = [
-    { name = "click" },
-    { name = "httpx" },
-    { name = "plankapy", version = "2.2.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.13'" },
-    { name = "plankapy", version = "2.4.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.13'" },
-    { name = "pydantic" },
-    { name = "python-dotenv" },
-    { name = "rich" },
-    { name = "typer" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "genbadge", extra = ["coverage"] },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "ruff" },
-    { name = "ty" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "click", specifier = ">=8.0.0" },
-    { name = "httpx", specifier = ">=0.27.0" },
-    { name = "plankapy", specifier = ">=2.2.2" },
-    { name = "pydantic", specifier = ">=2.0.0" },
-    { name = "python-dotenv", specifier = ">=1.0.0" },
-    { name = "rich", specifier = ">=13.0.0" },
-    { name = "typer", specifier = ">=0.26.0" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "genbadge", extras = ["coverage"], specifier = ">=1.1.3" },
-    { name = "pytest", specifier = ">=8.4.1" },
-    { name = "pytest-asyncio", specifier = ">=1.0.0" },
-    { name = "pytest-cov", specifier = ">=6.2.1" },
-    { name = "ruff", specifier = ">=0.12.3" },
-    { name = "ty", specifier = ">=0.0.8" },
 ]
 
 [[package]]
@@ -417,33 +371,6 @@ wheels = [
 ]
 
 [[package]]
-name = "plankapy"
-version = "2.2.2"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version < '3.13'",
-]
-sdist = { url = "https://files.pythonhosted.org/packages/9b/57/29987afb2f9862b627a38648ee899e754b05de998cec386e1ca467f6efbd/plankapy-2.2.2.tar.gz", hash = "sha256:bd832f97f9e63e651946b4d1410ceb96c7cee1732cdddfe796ed60bf6404b6f3", size = 46442, upload-time = "2025-05-13T02:05:40.261Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/25/bd/e99f0185fe426186e57cdfee3e84ca863aec91e40b6209bff55045a42537/plankapy-2.2.2-py3-none-any.whl", hash = "sha256:bb8493ebf3c416e296dae3147ded72ea6cb772a419946015f864815c6345ebc4", size = 44780, upload-time = "2025-05-13T02:05:38.46Z" },
-]
-
-[[package]]
-name = "plankapy"
-version = "2.4.0"
-source = { registry = "https://pypi.org/simple" }
-resolution-markers = [
-    "python_full_version >= '3.13'",
-]
-dependencies = [
-    { name = "httpx", marker = "python_full_version >= '3.13'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/09/4a/943cf46ae6085fed070182ed3a4605b22862a38d636d7a948c76542e07f6/plankapy-2.4.0.tar.gz", hash = "sha256:5c918801b9cc5d307aae4b349c8ee38f33737db273cdba3dabfef21cceace3b1", size = 117880, upload-time = "2026-03-23T12:40:10.772Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/82/1a/ac7215a640b5704d0d801056e5ccd0d24a668070035770f9ac2a5295942a/plankapy-2.4.0-py3-none-any.whl", hash = "sha256:fd49973152a3aa543035340bdd53487cf64c108b3bc5580a9c123a492a63264d", size = 142631, upload-time = "2026-03-23T12:40:09.443Z" },
-]
-
-[[package]]
 name = "pluggy"
 version = "1.6.0"
 source = { registry = "https://pypi.org/simple" }
@@ -647,6 +574,49 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/a2/87/a6771e1546d97e7e041b6ae58d80074f81b7d5121207425c964ddf5cfdbd/sniffio-1.3.1.tar.gz", hash = "sha256:f4324edc670a0f49750a81b895f35c3adb843cca46f0530f79fc1babb23789dc", size = 20372, upload-time = "2024-02-25T23:20:04.057Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e9/44/75a9c9421471a6c4805dbf2356f7c181a29c1879239abab1ea2cc8f38b40/sniffio-1.3.1-py3-none-any.whl", hash = "sha256:2f6da418d1f1e0fddd844478f41680e794e6051915791a034ff65e5f100525a2", size = 10235, upload-time = "2024-02-25T23:20:01.196Z" },
+]
+
+[[package]]
+name = "taskbench"
+version = "1.0.0"
+source = { editable = "." }
+dependencies = [
+    { name = "click" },
+    { name = "httpx" },
+    { name = "pydantic" },
+    { name = "python-dotenv" },
+    { name = "rich" },
+    { name = "typer" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "genbadge", extra = ["coverage"] },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "ruff" },
+    { name = "ty" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "click", specifier = ">=8.0.0" },
+    { name = "httpx", specifier = ">=0.27.0" },
+    { name = "pydantic", specifier = ">=2.0.0" },
+    { name = "python-dotenv", specifier = ">=1.0.0" },
+    { name = "rich", specifier = ">=13.0.0" },
+    { name = "typer", specifier = ">=0.26.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "genbadge", extras = ["coverage"], specifier = ">=1.1.3" },
+    { name = "pytest", specifier = ">=8.4.1" },
+    { name = "pytest-asyncio", specifier = ">=1.0.0" },
+    { name = "pytest-cov", specifier = ">=6.2.1" },
+    { name = "ruff", specifier = ">=0.12.3" },
+    { name = "ty", specifier = ">=0.0.8" },
 ]
 
 [[package]]

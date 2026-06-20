@@ -5,10 +5,10 @@ import json
 import pytest
 from typer.testing import CliRunner
 
-from clickup.cli.main import app
-from clickup.core import Config
-from clickup.core.exceptions import NotFoundError, ValidationError
-from clickup.core.json_provider import JsonProvider, write_seed_store
+from taskbench.cli.main import app
+from taskbench.core import Config
+from taskbench.core.exceptions import NotFoundError, ValidationError
+from taskbench.core.json_provider import JsonProvider, write_seed_store
 
 runner = CliRunner()
 

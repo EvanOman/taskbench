@@ -1,13 +1,13 @@
-"""Shared pytest fixtures for ClickUp toolkit tests."""
+"""Shared pytest fixtures for Taskbench tests."""
 
 import os
 from unittest.mock import AsyncMock
 
 import pytest
 
-from clickup.core import Config
-from clickup.core.client import ClickUpClient
-from clickup.core.models import Task, Team, User
+from taskbench.core import Config
+from taskbench.core.client import ClickUpClient
+from taskbench.core.models import Task, Team, User
 
 
 @pytest.fixture(autouse=True)
@@ -16,9 +16,9 @@ def isolate_clickup_env(
     request: pytest.FixtureRequest,
     tmp_path_factory: pytest.TempPathFactory,
 ):
-    """Isolate every test from the user's real ClickUp env vars and config file.
+    """Isolate every test from the user's real env vars and config file.
 
-    A bare `Config()` (no path argument) writes to ~/.config/clickup-toolkit/config.json
+    A bare `Config()` (no path argument) writes to ~/.config/taskbench/config.json
     in production. Several tests instantiate Config that way and call .set(...), which
     would persist to the real user config. We redirect _get_default_config_path here
     so those writes go to a per-test tmp path. Live-marked tests skip isolation so they
@@ -28,17 +28,18 @@ def isolate_clickup_env(
         yield
         return
 
-    original_keys = [key for key in os.environ if key.startswith("CLICKUP_")]
+    # Strip both TASKBENCH_* (new generic) and CLICKUP_* (backend-specific) env vars
+    original_keys = [key for key in os.environ if key.startswith(("CLICKUP_", "TASKBENCH_"))]
     for key in original_keys:
         monkeypatch.delenv(key, raising=False)
 
-    tmp_config = tmp_path_factory.mktemp("clickup-config") / "config.json"
+    tmp_config = tmp_path_factory.mktemp("taskbench-config") / "config.json"
     monkeypatch.setattr(Config, "_get_default_config_path", lambda self: tmp_config, raising=True)
     monkeypatch.setattr(Config, "_get_config_path", lambda self: str(tmp_config), raising=True)
 
     yield
 
-    for key in [key for key in os.environ if key.startswith("CLICKUP_")]:
+    for key in [key for key in os.environ if key.startswith(("CLICKUP_", "TASKBENCH_"))]:
         os.environ.pop(key, None)
 
 

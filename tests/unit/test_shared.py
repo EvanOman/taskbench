@@ -1,4 +1,4 @@
-"""Unit tests for clickup.cli.shared helpers."""
+"""Unit tests for taskbench.cli.shared helpers."""
 
 from __future__ import annotations
 
@@ -8,14 +8,14 @@ import json
 import pytest
 import typer
 
-from clickup.cli.shared import gather_bounded, get_client, handle_clickup_errors, require_list_id, resolve_list_id
-from clickup.core.exceptions import ClickUpError
+from taskbench.cli.shared import gather_bounded, get_client, handle_clickup_errors, require_list_id, resolve_list_id
+from taskbench.core.exceptions import ClickUpError
 
 
 class TestRequireListId:
     def test_returns_resolved_id(self, monkeypatch, tmp_path):
         monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
-        from clickup.core import Config
+        from taskbench.core import Config
 
         Config().set("default_list_id", "L42")
         assert require_list_id(None) == "L42"
@@ -37,7 +37,7 @@ class TestResolveListIdValidation:
         monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
         monkeypatch.setenv("CLICKUP_API_KEY", "pk_test_token")
         monkeypatch.delenv("CLICKUP_PROVIDER", raising=False)
-        from clickup.core import Config
+        from taskbench.core import Config
 
         config = Config()
         config.set("provider", "clickup")
@@ -52,7 +52,7 @@ class TestResolveListIdValidation:
         monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
         monkeypatch.setenv("CLICKUP_API_KEY", "pk_test_token")
         monkeypatch.delenv("CLICKUP_PROVIDER", raising=False)
-        from clickup.core import Config
+        from taskbench.core import Config
 
         config = Config()
         config.set("provider", "clickup")
@@ -64,7 +64,7 @@ class TestResolveListIdValidation:
         """A numeric ID should pass through without error."""
         monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
         monkeypatch.delenv("CLICKUP_PROVIDER", raising=False)
-        from clickup.core import Config
+        from taskbench.core import Config
 
         Config().set("provider", "clickup")
         assert resolve_list_id("999") == "999"
@@ -82,8 +82,8 @@ class TestResolveListIdValidation:
         monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
         monkeypatch.setenv("CLICKUP_API_KEY", "pk_test_token")
         monkeypatch.delenv("CLICKUP_PROVIDER", raising=False)
-        from clickup.cli.output import set_format
-        from clickup.core import Config
+        from taskbench.cli.output import set_format
+        from taskbench.core import Config
 
         set_format("json")
         config = Config()
@@ -104,8 +104,8 @@ class TestResolveListIdValidation:
         monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
         monkeypatch.setenv("CLICKUP_API_KEY", "pk_test_token")
         monkeypatch.delenv("CLICKUP_PROVIDER", raising=False)
-        from clickup.cli.output import set_format
-        from clickup.core import Config
+        from taskbench.cli.output import set_format
+        from taskbench.core import Config
 
         set_format("json")
         Config().set("provider", "clickup")
@@ -207,3 +207,16 @@ class TestGetClient:
         monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "config.json"))
         provider = await get_client()
         assert provider is not None
+
+
+class TestUnknownProviderError:
+    """get_client converts get_provider's ValueError into a clean exit-2."""
+
+    @pytest.mark.asyncio
+    async def test_unknown_provider_exits_2_with_envelope(self, monkeypatch, tmp_path):
+        monkeypatch.setenv("CLICKUP_API_KEY", "pk_x")
+        monkeypatch.setenv("TASKBENCH_PROVIDER", "planka")  # not installed
+        monkeypatch.setenv("CLICKUP_CONFIG_PATH", str(tmp_path / "c.json"))
+        with pytest.raises(typer.Exit) as exc:
+            await get_client()
+        assert exc.value.exit_code == 2

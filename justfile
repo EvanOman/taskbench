@@ -1,4 +1,4 @@
-# Justfile for ClickUp Tools development
+# Justfile for Taskbench development
 
 # Default recipe - show available commands
 default:
@@ -13,7 +13,7 @@ check:
     @echo "Running type checking..."
     uv run ty check
     @echo "Running tests..."
-    uv run pytest --cov=clickup --cov-report=xml --cov-report=term-missing
+    uv run pytest --cov=taskbench --cov-report=xml --cov-report=term-missing
 
 # Run all checks including live integration tests (requires CLICKUP_API_KEY)
 check-local:
@@ -24,7 +24,7 @@ check-local:
     @echo "Running type checking..."
     uv run ty check
     @echo "Running unit and integration tests..."
-    uv run pytest tests/unit tests/integration --cov=clickup --cov-report=term-missing
+    uv run pytest tests/unit tests/integration --cov=taskbench --cov-report=term-missing
     @echo "Running live integration tests..."
     uv run pytest tests/live -v --no-cov
 
@@ -43,7 +43,7 @@ fc-local: fix check-local
 
 # Run tests only (excludes live tests)
 test:
-    uv run pytest --cov=clickup --cov-report=xml --cov-report=term-missing
+    uv run pytest --cov=taskbench --cov-report=xml --cov-report=term-missing
 
 # Run live integration tests only (requires CLICKUP_API_KEY)
 test-live:
@@ -54,7 +54,7 @@ test-live:
 # Run all tests including live tests
 test-all:
     @echo "Running all tests..."
-    uv run pytest tests/unit tests/integration --cov=clickup --cov-report=term-missing
+    uv run pytest tests/unit tests/integration --cov=taskbench --cov-report=term-missing
     uv run pytest tests/live -v --no-cov
 
 # Install dependencies
@@ -84,7 +84,7 @@ build:
 
 # Run the CLI locally
 cli *ARGS:
-    uv run clickup {{ARGS}}
+    uv run taskbench {{ARGS}}
 
 # Type checking
 typecheck:

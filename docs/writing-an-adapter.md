@@ -1,12 +1,8 @@
 # Writing a new backend adapter
 
-How to add a backend as a native Python adapter. (If you'd rather not write
-Python in this repo, implement `spec/openapi.yaml` as an HTTP shim instead —
-see `spec/README.md`.)
-
-`clickup/core/planka_provider.py` is the reference implementation: a complete
-adapter for a backend whose concepts *don't* match the task hierarchy, showing
-every degradation pattern below.
+How to add a backend as a Python adapter, either in-tree or as an external
+package. (If you'd rather not write Python, implement `spec/openapi.yaml` as
+an HTTP shim instead — see `spec/README.md`.)
 
 ## Steps
 
@@ -34,17 +30,17 @@ cases.
 
 ### 2. Implement `TaskProvider`
 
-Create `clickup/core/foo_provider.py` with a class implementing every method
-of the protocol (`clickup/core/providers.py`). It's a `typing.Protocol` —
-no inheritance, just matching signatures. Rules:
+Create a class implementing every method of the protocol
+(`taskbench/core/providers.py`). It's a `typing.Protocol` — no inheritance,
+just matching signatures. Rules:
 
-- Return the pydantic models from `clickup/core/models.py`, never raw dicts.
-- IDs on the wire are **strings** (stringify your backend's ints; see
-  `_sid()` in the Planka adapter). User IDs stay integers.
-- Timestamps are **epoch-ms strings** (`_iso_to_ms()` shows the conversion).
+- Return the pydantic models from `taskbench/core/models.py`, never raw dicts.
+- IDs on the wire are **strings** (stringify your backend's ints). User IDs
+  stay integers.
+- Timestamps are **epoch-ms strings**.
 - Read connection config from env vars prefixed with your backend name
   (`FOO_URL`, `FOO_TOKEN`, ...), with sane localhost defaults.
-- Raise the typed exceptions from `clickup/core/exceptions.py`
+- Raise the typed exceptions from `taskbench/core/exceptions.py`
   (`NotFoundError`, `ValidationError`, `AuthenticationError`, ...) — `main.py`
   maps them onto exit codes and the stderr error envelope.
 
@@ -52,7 +48,7 @@ no inheritance, just matching signatures. Rules:
 
 For concepts your backend lacks:
 
-| Missing concept | Pattern (from PlankaProvider) |
+| Missing concept | Pattern |
 |---|---|
 | Multi-workspace | Synthesize one workspace from the logged-in user |
 | Folders | Return one synthetic placeholder per space, id `folder_<spaceId>`; reject `create_folder` with `ValidationError` |
@@ -63,14 +59,26 @@ Never silently return wrong data; agents act on it.
 
 ### 4. Register the adapter
 
-In `clickup/core/providers.py`:
+**Option A: External package (recommended for non-ClickUp backends)**
 
-- Add a branch to `get_provider()` (import inside the branch so the
-  dependency stays lazy).
-- Add the name to `provider_requires_credentials()` if it needs auth.
-- Extend the `ValueError` message listing valid provider names.
+Create a separate package with an entry point:
 
-If the backend needs an SDK, add it to `pyproject.toml` dependencies.
+```toml
+# In your adapter's pyproject.toml
+[project.entry-points."taskbench.providers"]
+foo = "taskbench_foo:FooProvider"
+```
+
+The factory function receives `(config: Config, console: Console | None)` and
+must return an object matching `TaskProvider`. Install the adapter package and
+`get_provider()` discovers it automatically via
+`entry_points(group="taskbench.providers")`.
+
+**Option B: In-tree adapter**
+
+Add a branch to `get_provider()` in `taskbench/core/providers.py` (import
+inside the branch so the dependency stays lazy). Update
+`provider_requires_credentials()` if the adapter needs ClickUp auth.
 
 ### 5. Test it
 
@@ -78,13 +86,12 @@ If the backend needs an SDK, add it to `pyproject.toml` dependencies.
 - Smoke-test the real thing end-to-end:
 
   ```bash
-  CLICKUP_PROVIDER=foo FOO_URL=... uv run clickup discover hierarchy
-  CLICKUP_PROVIDER=foo ... uv run clickup task create "test" --list-id <id>
+  TASKBENCH_PROVIDER=foo FOO_URL=... uv run taskbench discover hierarchy
+  TASKBENCH_PROVIDER=foo ... uv run taskbench task create "test" --list-id <id>
   ```
 
 - `just fc` must pass. If the adapter is an early prototype, you may exclude
-  it from coverage/ty in `pyproject.toml` (the Planka adapter is excluded) —
-  but say so in the PR.
+  it from coverage/ty in `pyproject.toml` — but say so in the PR.
 - For agent-facing changes, run the `cli-agent-eval` skill.
 
 ### 6. Update the contract surface
@@ -92,9 +99,3 @@ If the backend needs an SDK, add it to `pyproject.toml` dependencies.
 - New provider name + env vars → document in `docs/backends.md`.
 - If you had to *change* `TaskProvider` or the models, update
   `spec/openapi.yaml` in the same PR (the spec is derived from the protocol).
-
-## History note
-
-Three adapters were prototyped as a bake-off (Planka, Plane, Todoist — PRs
-#30/#31/#32). Planka won and is merged; the other two live on the
-`adapter/plane` and `adapter/todoist` branches as additional worked examples.

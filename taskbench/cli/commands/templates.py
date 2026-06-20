@@ -21,7 +21,7 @@ console = Console()
 
 def get_templates_dir() -> Path:
     """Get templates directory path."""
-    config_dir = Path.home() / ".config" / "clickup-toolkit"
+    config_dir = Path.home() / ".config" / "taskbench"
     templates_dir = config_dir / "templates"
     templates_dir.mkdir(parents=True, exist_ok=True)
     return templates_dir
@@ -197,7 +197,7 @@ As a {user_type}, I want {want} so that {benefit}.
 @app.command("list")
 def list_templates(
     include_custom: bool = typer.Option(
-        False, "--include-custom", help="Include custom templates from ~/.config/clickup/templates."
+        False, "--include-custom", help="Include custom templates from ~/.config/taskbench/templates."
     ),
 ) -> None:
     """List all available templates."""

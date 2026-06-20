@@ -1,4 +1,4 @@
-"""Direct tests for clickup/cli/output.py renderers.
+"""Direct tests for taskbench/cli/output.py renderers.
 
 Each renderer is exercised in both table and JSON modes; JSON output is parsed
 to confirm shape. These tests pin the output contract that agents depend on.
@@ -11,8 +11,8 @@ from io import StringIO
 
 import pytest
 
-from clickup.cli import output
-from clickup.cli.output import (
+from taskbench.cli import output
+from taskbench.cli.output import (
     _BRIEF_TASK_FIELDS,
     FormatChoice,
     format_timestamp,
@@ -38,7 +38,7 @@ from clickup.cli.output import (
     render_users,
     set_format,
 )
-from clickup.core.models import (
+from taskbench.core.models import (
     Assignee,
     Comment,
     Folder,
@@ -49,7 +49,7 @@ from clickup.core.models import (
     Team,
     User,
 )
-from clickup.core.models import (
+from taskbench.core.models import (
     List as ClickUpList,
 )
 
@@ -106,7 +106,7 @@ def _list(**kw):
 
 
 def _folder(**kw):
-    from clickup.core.models import SpaceRef
+    from taskbench.core.models import SpaceRef
 
     base = {
         "id": "F1",
@@ -497,7 +497,7 @@ def test_render_hierarchy_json(capsys, hierarchy_data):
 def test_render_hierarchy_empty(capture_console):
     render_hierarchy({"workspaces": []})
     # Should render the root tree node only
-    assert "ClickUp Hierarchy" in capture_console.getvalue()
+    assert "Workspace Hierarchy" in capture_console.getvalue()
 
 
 # ---------- render_kv ---------------------------------------------------------
@@ -638,21 +638,21 @@ def test_render_error_escapes_markup(capsys):
 def test_render_error_json_superset_shape(capsys):
     """The canonical envelope carries error/type/hint/command when provided."""
     set_format("json")
-    render_error("boom", hint="try --force", error_type="NotFoundError", command="clickup task get")
+    render_error("boom", hint="try --force", error_type="NotFoundError", command="taskbench task get")
     captured = capsys.readouterr()
     data = json.loads(captured.err)
     assert data == {
         "error": "boom",
         "type": "NotFoundError",
         "hint": "try --force",
-        "command": "clickup task get",
+        "command": "taskbench task get",
     }
     assert captured.out == ""
 
 
 def test_error_payload_omits_empty_fields():
     """Optional fields are absent (not null) when not provided."""
-    from clickup.cli.output import error_payload
+    from taskbench.cli.output import error_payload
 
     assert error_payload("x") == {"error": "x"}
     assert error_payload("x", error_type="T") == {"error": "x", "type": "T"}
@@ -780,7 +780,7 @@ class TestHierarchyTruncation:
         """In table mode, truncated hierarchy triggers a stderr warning."""
         from unittest.mock import AsyncMock, patch
 
-        from clickup.cli.commands.discover import show_hierarchy
+        from taskbench.cli.commands.discover import show_hierarchy
 
         mock_team = _team()
 
@@ -796,7 +796,7 @@ class TestHierarchyTruncation:
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
         mock_client.__aexit__ = AsyncMock(return_value=None)
 
-        with patch("clickup.cli.commands.discover.get_client", return_value=mock_client):
+        with patch("taskbench.cli.commands.discover.get_client", return_value=mock_client):
             show_hierarchy(workspace_id=None, team_id=None, max_depth=1)
 
         stderr = capsys.readouterr().err

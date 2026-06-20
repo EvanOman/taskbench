@@ -1,9 +1,9 @@
 ---
 name: cli-agent-eval
-description: Run a fanned-out swarm eval of the ClickUp CLI from an agent's perspective. Dispatches 18 parallel sub-agents, each given a real-world task that exercises a specific behavior. Use when the user asks to evaluate, benchmark, or assess agent-usability of the CLI; or after non-trivial CLI changes to confirm they didn't regress agent ergonomics. Compares results against the most recent baseline in evals/.
+description: Run a fanned-out swarm eval of the Taskbench CLI from an agent's perspective. Dispatches 18 parallel sub-agents, each given a real-world task that exercises a specific behavior. Use when the user asks to evaluate, benchmark, or assess agent-usability of the CLI; or after non-trivial CLI changes to confirm they didn't regress agent ergonomics. Compares results against the most recent baseline in evals/.
 ---
 
-# ClickUp CLI Agent-Usability Eval
+# Taskbench CLI Agent-Usability Eval
 
 A fixed set of agent-perspective tasks, codified for reuse. Re-run after CLI changes to see whether agent ergonomics improved or regressed. The suite measures the CLI, not the sub-agents: every task is something a real coding agent plausibly does for a user, phrased without hints about which commands or flags exist.
 
@@ -18,18 +18,18 @@ When the user asks for an eval / benchmark / agent-usability check, or right aft
 1. Confirm `.env` exists at project root with a real `CLICKUP_API_KEY`. If missing, stop and ask the user to provide one.
 2. **Isolate eval config from real user config — one path PER SUB-AGENT.** Create a base dir, then give every sub-agent its own file:
    ```bash
-   EVAL_CFG_BASE="/tmp/clickup-eval-$(date +%s)"
+   EVAL_CFG_BASE="/tmp/taskbench-eval-$(date +%s)"
    mkdir -p "$EVAL_CFG_BASE"
-   # sub-agent N gets: CLICKUP_CONFIG_PATH="$EVAL_CFG_BASE/config-task<N>.json"
+   # sub-agent N gets: TASKBENCH_CONFIG_PATH="$EVAL_CFG_BASE/config-task<N>.json"
    ```
-   The env var is honoured by `Config()`, so writes never touch `~/.config/clickup-toolkit/config.json`. Per-agent paths matter: several tasks WRITE config (`setup run --auto`, aliases), and `save_config()` rewrites the whole file — 18 concurrent agents sharing one path clobber each other's defaults (this produced a phantom "setup --auto doesn't persist" finding in the 2026-06-12 r3 run). Substitute the per-agent path into each prompt's `{CLICKUP_CONFIG_PATH}`.
+   The env var is honoured by `Config()`, so writes never touch `~/.config/taskbench/config.json`. Per-agent paths matter: several tasks WRITE config (`setup run --auto`, aliases), and `save_config()` rewrites the whole file — 18 concurrent agents sharing one path clobber each other's defaults (this produced a phantom "setup --auto doesn't persist" finding in the 2026-06-12 r3 run). Substitute the per-agent path into each prompt's `{TASKBENCH_CONFIG_PATH}`.
 3. **Purge and re-warm the uvx wheel cache.** uvx caches wheels by name+version, and `--refresh-package` only fixes the *refreshing* invocation — the sub-agents' plain `uvx` calls can still resolve the stale archive (this silently invalidated the 2026-06-12 run: agents evaluated a wheel several PRs old while the version number matched). The only reliable sequence is:
    ```bash
-   uv cache clean clickup-toolkit
-   uvx --python 3.13 --from /home/evan/dev/clickup-tools clickup version
+   uv cache clean taskbench
+   uvx --python 3.13 --from /home/evan/dev/clickup-tools taskbench version
    ```
    If `uv cache clean` times out on the cache lock (concurrent uv processes hold it), bump the patch version instead — a new version is a new cache key, which sidesteps the stale archive entirely.
-   Then verify freshness with a **behavioral sentinel**, not just the version number: pick a command/flag added by the most recent merged PR and confirm plain `uvx --python 3.13 --from /home/evan/dev/clickup-tools clickup ... --help` shows it. A good standing sentinel: `clickup task list --list-id 1 --format json` must emit a one-line JSON error envelope with a hint (not a rich traceback). Do not dispatch until the sentinel passes.
+   Then verify freshness with a **behavioral sentinel**, not just the version number: pick a command/flag added by the most recent merged PR and confirm plain `uvx --python 3.13 --from /home/evan/dev/clickup-tools taskbench ... --help` shows it. A good standing sentinel: `taskbench task list --list-id 1 --format json` must emit a one-line JSON error envelope with a hint (not a rich traceback). Do not dispatch until the sentinel passes.
 4. Confirm the user's workspace state. Real values for the eval:
    - User: Evan Oman, ID `150240437`, email `evan058@gmail.com`
    - Workspace: `90131945555` ("Evan Oman's Workspace") — singleton
@@ -43,18 +43,18 @@ Use the Agent tool, `subagent_type: general-purpose`, `model: opus`, single mess
 ### Base prompt template
 
 ```
-You are evaluating whether the ClickUp CLI is easy for a brand-new AI agent to use. You have never seen this CLI before. Behave like a competent coding agent doing a real job for a user — not like a QA engineer hunting for bugs.
+You are evaluating whether the Taskbench CLI is easy for a brand-new AI agent to use. You have never seen this CLI before. Behave like a competent coding agent doing a real job for a user — not like a QA engineer hunting for bugs.
 
 SETUP
 - Project root: /home/evan/dev/clickup-tools
 - A real CLICKUP_API_KEY is in .env there.
-- Invoke the CLI as a real user would: `uvx --python 3.13 --from /home/evan/dev/clickup-tools clickup ...` (Python 3.13 required — pydantic-core build fails on 3.14).
-- Both `clickup` and `cup` are valid binary names after install.
+- Invoke the CLI as a real user would: `uvx --python 3.13 --from /home/evan/dev/clickup-tools taskbench ...` (Python 3.13 required — pydantic-core build fails on 3.14).
+- Both `taskbench` and `tb` are valid binary names after install.
 - IMPORTANT: Before running any CLI command, export the isolated config path so your writes don't pollute the user's real config:
-  `export CLICKUP_CONFIG_PATH="{CLICKUP_CONFIG_PATH}"`
+  `export TASKBENCH_CONFIG_PATH="{TASKBENCH_CONFIG_PATH}"`
 
 HARD CONSTRAINTS
-- Do NOT read the CLI's source code. No Read on clickup/cli/* or clickup/core/*. No grep through those dirs. No reading AGENT.md or CLAUDE.md.
+- Do NOT read the CLI's source code. No Read on taskbench/cli/* or taskbench/core/*. No grep through those dirs. No reading AGENT.md or CLAUDE.md.
 - Your only docs are `--help` output, the README at /home/evan/dev/clickup-tools/README.md, and trial-and-error.
 - If you create anything, you must also clean it up (delete it / restore original state) before finishing, and say so in your report.
 - Time budget ~5 minutes. If you hit a wall, stop and report honestly — a truthful FAIL is more valuable than a flattering PARTIAL.
@@ -90,7 +90,7 @@ command_count = CLI invocations that did real work (exclude --help calls; count 
 | 9 | "Pick any existing task EXCEPT ones named `agent-test-eval-*` (those are ephemeral artifacts of sibling evals and may vanish mid-run). Get its full details and list its comments. Report which fields came back." | task get expansion, comments read |
 | 10 | "Export tasks from any non-empty list to JSON at /tmp/clickup-export-eval-10.json. Then `head -c 500` the file to confirm." | export |
 | 11 | "Find which list is the user's most active (most tasks and most recent activity). Explain how you decided." | list-level stats |
-| 12 | "Starting from zero configuration, end with `clickup task list` working without any flags. If a default isn't set, set one using only non-interactive commands." | onboarding, default resolution |
+| 12 | "Starting from zero configuration, end with `taskbench task list` working without any flags. If a default isn't set, set one using only non-interactive commands." | onboarding, default resolution |
 | 13 | "Pick any task in list 901316076590. Find out which statuses are valid for that list, move the task to a different valid status, verify the change, then move it back to its original status." | status discovery + transition |
 | 14 | "Create three tasks named `agent-test-eval-14-a`, `agent-test-eval-14-b`, `agent-test-eval-14-c` in list 901316076590. Then, in as few commands as possible, mark all three complete, verify, and delete all three." | batch ops over explicit IDs |
 | 15 | "Report all open (not closed/done) tasks in list 901316076575 that were updated in the last 30 days, sorted most-recently-updated first. Give the count and the titles." | date filters, open-only, sort |
@@ -128,7 +128,7 @@ Command counts and help counts are **telemetry, not gates**: record them per tas
 | 9 | Full field inventory + a comments read (empty list OK) |
 | 10 | File exists, valid JSON, >0 tasks |
 | 11 | A defensible answer naming one list, justified by both task count and recency, without hand-rolling JSON post-processing |
-| 12 | Final bare `clickup task list` exits 0 with task data; no interactive prompts used |
+| 12 | Final bare `taskbench task list` exits 0 with task data; no interactive prompts used |
 | 13 | Valid statuses enumerated via the CLI (not guessed); both transitions verified; original status restored |
 | 14 | All three closed AND deleted via batched commands (one command per operation type, not per task) |
 | 15 | Filtering and sorting done by CLI flags, not manual post-processing; count + titles reported |
@@ -191,9 +191,9 @@ If previous eval JSONs exist in `evals/`, compare per-task verdicts for tasks 1�
 ## Cleanup
 
 After the eval:
-- Verify no `agent-test-eval-*` tasks remain in list `901316076590` (Personal): `cup --format json task list --list-id 901316076590` and check; delete leftovers with `cup task delete --task-ids ... --force`.
-- Verify no stray `inbox` alias or other config leaked into the REAL user config (`~/.config/clickup-toolkit/config.json`) — it shouldn't have, thanks to `CLICKUP_CONFIG_PATH`.
-- Remove the disposable eval config dir: `rm -rf "$(dirname "$CLICKUP_CONFIG_PATH")"`.
+- Verify no `agent-test-eval-*` tasks remain in list `901316076590` (Personal): `tb --format json task list --list-id 901316076590` and check; delete leftovers with `tb task delete --task-ids ... --force`.
+- Verify no stray `inbox` alias or other config leaked into the REAL user config (`~/.config/taskbench/config.json`) — it shouldn't have, thanks to `TASKBENCH_CONFIG_PATH`.
+- Remove the disposable eval config dir: `rm -rf "$(dirname "$TASKBENCH_CONFIG_PATH")"`.
 - Remove `/tmp/clickup-export-eval-10.json`.
 
 ## Result history

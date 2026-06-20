@@ -15,9 +15,9 @@ from unittest.mock import AsyncMock, MagicMock, Mock, patch
 import pytest
 from typer.testing import CliRunner
 
-from clickup.cli.main import app
-from clickup.core.exceptions import ClickUpError
-from clickup.core.models import Assignee, PriorityInfo, StatusInfo, Task
+from taskbench.cli.main import app
+from taskbench.core.exceptions import ClickUpError
+from taskbench.core.models import Assignee, PriorityInfo, StatusInfo, Task
 
 from .conftest import make_mock_ctx
 
@@ -80,7 +80,7 @@ def create_task_mocks(sample_tasks_json):
     return task_mocks
 
 
-@patch("clickup.cli.commands.bulk.get_client")
+@patch("taskbench.cli.commands.bulk.get_client")
 def test_bulk_export_csv(mock_get_client, sample_tasks_json):
     """Test bulk export to CSV format."""
     mock_client = AsyncMock()
@@ -102,7 +102,7 @@ def test_bulk_export_csv(mock_get_client, sample_tasks_json):
         assert data == {"exported": 3, "output_file": f.name, "format": "csv"}
 
 
-@patch("clickup.cli.commands.bulk.get_client")
+@patch("taskbench.cli.commands.bulk.get_client")
 def test_bulk_export_json(mock_get_client, sample_tasks_json):
     """Test bulk export to JSON format."""
     mock_client = AsyncMock()
@@ -127,7 +127,7 @@ def test_bulk_export_json(mock_get_client, sample_tasks_json):
         assert data == {"exported": 3, "output_file": f.name, "format": "json"}
 
 
-@patch("clickup.cli.commands.bulk.get_client")
+@patch("taskbench.cli.commands.bulk.get_client")
 def test_bulk_import_csv_dry_run(mock_get_client, sample_tasks_csv):
     """Test bulk import from CSV with dry run."""
     mock_client = AsyncMock()
@@ -146,7 +146,7 @@ def test_bulk_import_csv_dry_run(mock_get_client, sample_tasks_csv):
         assert len(data["tasks"]) == 3
 
 
-@patch("clickup.cli.commands.bulk.get_client")
+@patch("taskbench.cli.commands.bulk.get_client")
 def test_bulk_import_json_actual(mock_get_client, sample_tasks_json):
     """Test bulk import from JSON with actual creation."""
     mock_client = AsyncMock()
@@ -172,7 +172,7 @@ def test_bulk_import_json_actual(mock_get_client, sample_tasks_json):
         assert '"failed": 0' in result.stdout
 
 
-@patch("clickup.cli.commands.bulk.get_client")
+@patch("taskbench.cli.commands.bulk.get_client")
 def test_bulk_import_without_flag_refuses(mock_get_client, sample_tasks_json):
     """Bulk import must require --force/--yes."""
     mock_get_client.return_value.__aenter__.return_value = AsyncMock()
@@ -185,7 +185,7 @@ def test_bulk_import_without_flag_refuses(mock_get_client, sample_tasks_json):
         assert "Refusing to import" in result.stderr
 
 
-@patch("clickup.cli.commands.bulk.get_client")
+@patch("taskbench.cli.commands.bulk.get_client")
 def test_bulk_update_without_flag_refuses(mock_get_client):
     """Bulk update must require --force/--yes."""
     mock_client = AsyncMock()
@@ -208,7 +208,7 @@ def test_bulk_update_without_flag_refuses(mock_get_client):
     assert "Refusing to update" in result.stderr
 
 
-@patch("clickup.cli.commands.bulk.get_client")
+@patch("taskbench.cli.commands.bulk.get_client")
 def test_bulk_update_tasks(mock_get_client):
     """Test bulk update of tasks."""
     mock_client = AsyncMock()
@@ -239,7 +239,7 @@ def test_bulk_update_tasks(mock_get_client):
     assert '"failed": 0' in result.stdout
 
 
-@patch("clickup.cli.commands.bulk.get_client")
+@patch("taskbench.cli.commands.bulk.get_client")
 def test_bulk_update_with_filter(mock_get_client):
     """Test bulk update with status filter."""
     mock_client = AsyncMock()
@@ -295,7 +295,7 @@ def test_bulk_import_invalid_format():
         assert result.exit_code != 0
 
 
-@patch("clickup.cli.commands.bulk.get_client")
+@patch("taskbench.cli.commands.bulk.get_client")
 def test_bulk_import_dry_run_json_shape(mock_get_client, sample_tasks_json):
     """import-tasks --dry-run JSON shape: {dry_run, would_create, tasks}."""
     mock_client = AsyncMock()
@@ -313,7 +313,7 @@ def test_bulk_import_dry_run_json_shape(mock_get_client, sample_tasks_json):
         assert isinstance(data["tasks"], list)
 
 
-@patch("clickup.cli.commands.bulk.get_client")
+@patch("taskbench.cli.commands.bulk.get_client")
 def test_bulk_update_dry_run_json_shape(mock_get_client):
     """bulk-update --dry-run JSON shape: {dry_run, would_update, updates, tasks}."""
     mock_client = AsyncMock()
@@ -340,7 +340,7 @@ def test_bulk_update_dry_run_json_shape(mock_get_client):
     assert data["tasks"][0]["id"] == "1"
 
 
-@patch("clickup.cli.commands.bulk.get_client")
+@patch("taskbench.cli.commands.bulk.get_client")
 def test_bulk_update_dry_run_table_mode(mock_get_client):
     """bulk-update --dry-run --format table shows the preview table."""
     mock_client = AsyncMock()
@@ -366,7 +366,7 @@ def test_bulk_update_dry_run_table_mode(mock_get_client):
     assert "Bulk Update Preview" in result.output
 
 
-@patch("clickup.cli.commands.bulk.get_client")
+@patch("taskbench.cli.commands.bulk.get_client")
 def test_bulk_update_deterministic_order(mock_get_client):
     """Updated tasks should be processed in input order (deterministic output)."""
     mock_client = AsyncMock()
@@ -404,7 +404,7 @@ def test_bulk_update_deterministic_order(mock_get_client):
     assert len(call_ids) == 5
 
 
-@patch("clickup.cli.commands.bulk.get_client")
+@patch("taskbench.cli.commands.bulk.get_client")
 def test_bulk_update_partial_failure(mock_get_client):
     """Partial failures should be aggregated; exit 1 if any failed."""
     mock_client = AsyncMock()
@@ -419,7 +419,7 @@ def test_bulk_update_partial_failure(mock_get_client):
     mock_client.get_tasks.return_value = mock_tasks
 
     # Second task fails
-    from clickup.core.exceptions import ClickUpError
+    from taskbench.core.exceptions import ClickUpError
 
     async def partial_fail_update(task_id, **kwargs):
         if task_id == "1":
@@ -443,7 +443,7 @@ def test_bulk_update_partial_failure(mock_get_client):
     assert "Simulated failure" in result.stderr
 
 
-@patch("clickup.cli.commands.bulk.get_client")
+@patch("taskbench.cli.commands.bulk.get_client")
 def test_bulk_import_parallel_creation(mock_get_client, sample_tasks_json):
     """import-tasks should create tasks in parallel batches."""
     mock_client = AsyncMock()
@@ -475,11 +475,11 @@ def test_bulk_import_parallel_creation(mock_get_client, sample_tasks_json):
     assert call_count == 3
 
 
-@patch("clickup.cli.commands.bulk.get_client")
+@patch("taskbench.cli.commands.bulk.get_client")
 def test_bulk_import_partial_failure_exits_1(mock_get_client, sample_tasks_json):
     """import-tasks should exit 1 if any task creation fails."""
     mock_client = AsyncMock()
-    from clickup.core.exceptions import ClickUpError
+    from taskbench.core.exceptions import ClickUpError
 
     call_idx = 0
 
@@ -515,7 +515,7 @@ def test_bulk_import_partial_failure_exits_1(mock_get_client, sample_tasks_json)
 # =============================================================================
 
 
-@patch("clickup.cli.commands.bulk.get_client")
+@patch("taskbench.cli.commands.bulk.get_client")
 def test_bulk_export_csv_sync(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_tasks.return_value = [Task(id="t1", name="One")]
@@ -529,7 +529,7 @@ def test_bulk_export_csv_sync(mock_get_client):
     assert result.exit_code == 0
 
 
-@patch("clickup.cli.commands.bulk.get_client")
+@patch("taskbench.cli.commands.bulk.get_client")
 def test_bulk_import_dry_run_no_force_required(mock_get_client):
     """--dry-run should not require --force."""
     mock_client = AsyncMock()
@@ -550,7 +550,7 @@ def test_bulk_import_dry_run_no_force_required(mock_get_client):
 # =============================================================================
 
 
-@patch("clickup.cli.commands.bulk.get_client")
+@patch("taskbench.cli.commands.bulk.get_client")
 def test_bulk_import_unsupported_xml_format(mock_get_client):
     mock_client = AsyncMock()
     mock_get_client.return_value = make_mock_ctx(mock_client)
@@ -563,7 +563,7 @@ def test_bulk_import_unsupported_xml_format(mock_get_client):
     assert "Unsupported" in result.output or "format" in result.output.lower()
 
 
-@patch("clickup.cli.commands.bulk.get_client")
+@patch("taskbench.cli.commands.bulk.get_client")
 def test_bulk_import_empty_file(mock_get_client):
     mock_client = AsyncMock()
     mock_get_client.return_value = make_mock_ctx(mock_client)
@@ -576,7 +576,7 @@ def test_bulk_import_empty_file(mock_get_client):
     assert result.stdout.strip() == ""
 
 
-@patch("clickup.cli.commands.bulk.get_client")
+@patch("taskbench.cli.commands.bulk.get_client")
 def test_bulk_export_unsupported_format(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_tasks.return_value = []
@@ -590,7 +590,7 @@ def test_bulk_export_unsupported_format(mock_get_client):
     assert result.exit_code == 1
 
 
-@patch("clickup.cli.commands.bulk.get_client")
+@patch("taskbench.cli.commands.bulk.get_client")
 def test_bulk_update_dry_run_sync(mock_get_client):
     mock_client = AsyncMock()
     task = Mock()
@@ -608,7 +608,7 @@ def test_bulk_update_dry_run_sync(mock_get_client):
     assert data["would_update"] == 1
 
 
-@patch("clickup.cli.commands.bulk.get_client")
+@patch("taskbench.cli.commands.bulk.get_client")
 def test_bulk_export_api_error(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_tasks.side_effect = ClickUpError("nope")
@@ -623,7 +623,7 @@ def test_bulk_export_api_error(mock_get_client):
     assert "nope" in result.stderr
 
 
-@patch("clickup.cli.commands.bulk.get_client")
+@patch("taskbench.cli.commands.bulk.get_client")
 def test_bulk_update_no_updates_specified(mock_get_client):
     mock_client = AsyncMock()
     mock_get_client.return_value = make_mock_ctx(mock_client)
@@ -633,7 +633,7 @@ def test_bulk_update_no_updates_specified(mock_get_client):
     assert "at least one update" in result.stderr.lower()
 
 
-@patch("clickup.cli.commands.bulk.get_client")
+@patch("taskbench.cli.commands.bulk.get_client")
 def test_bulk_update_no_matches_warns(mock_get_client):
     mock_client = AsyncMock()
     mock_client.get_tasks.return_value = []
@@ -695,15 +695,15 @@ class TestBulkUpdateAllLists:
 
     def test_all_lists_dry_run(self, tmp_path, capsys):
         """--all-lists --dry-run previews tasks across multiple lists."""
-        from clickup.cli.commands.bulk import bulk_update
+        from taskbench.cli.commands.bulk import bulk_update
 
         tasks_a = [_bulk_task(id="t1", name="Task A")]
         tasks_b = [_bulk_task(id="t2", name="Task B")]
         client = self._make_mock_client({"list_a": tasks_a, "list_b": tasks_b})
 
         with (
-            patch("clickup.cli.commands.bulk.get_client", return_value=client),
-            patch("clickup.cli.shared.Config", return_value=_mock_config_with_lists(self._TWO_LISTS)),
+            patch("taskbench.cli.commands.bulk.get_client", return_value=client),
+            patch("taskbench.cli.shared.Config", return_value=_mock_config_with_lists(self._TWO_LISTS)),
         ):
             bulk_update(
                 list_id=None,
@@ -721,15 +721,15 @@ class TestBulkUpdateAllLists:
 
     def test_all_lists_force_updates(self, tmp_path, capsys):
         """--all-lists --force actually applies updates across lists."""
-        from clickup.cli.commands.bulk import bulk_update
+        from taskbench.cli.commands.bulk import bulk_update
 
         tasks_a = [_bulk_task(id="t1", name="Task A")]
         tasks_b = [_bulk_task(id="t2", name="Task B")]
         client = self._make_mock_client({"list_a": tasks_a, "list_b": tasks_b})
 
         with (
-            patch("clickup.cli.commands.bulk.get_client", return_value=client),
-            patch("clickup.cli.shared.Config", return_value=_mock_config_with_lists(self._TWO_LISTS)),
+            patch("taskbench.cli.commands.bulk.get_client", return_value=client),
+            patch("taskbench.cli.shared.Config", return_value=_mock_config_with_lists(self._TWO_LISTS)),
         ):
             bulk_update(
                 list_id=None,
@@ -748,14 +748,14 @@ class TestBulkUpdateAllLists:
         """Without --force, exits 2."""
         import typer as _typer
 
-        from clickup.cli.commands.bulk import bulk_update
+        from taskbench.cli.commands.bulk import bulk_update
 
         tasks_a = [_bulk_task(id="t1", name="Task A")]
         client = self._make_mock_client({"list_a": tasks_a})
 
         with (
-            patch("clickup.cli.commands.bulk.get_client", return_value=client),
-            patch("clickup.cli.shared.Config", return_value=_mock_config_with_lists({"inbox": "list_a"})),
+            patch("taskbench.cli.commands.bulk.get_client", return_value=client),
+            patch("taskbench.cli.shared.Config", return_value=_mock_config_with_lists({"inbox": "list_a"})),
             pytest.raises(_typer.Exit) as exc_info,
         ):
             bulk_update(
@@ -775,10 +775,10 @@ class TestBulkUpdateAllLists:
         """--all-lists with no configured aliases is a usage error (exit 2)."""
         import typer as _typer
 
-        from clickup.cli.commands.bulk import bulk_update
+        from taskbench.cli.commands.bulk import bulk_update
 
         with (
-            patch("clickup.cli.shared.Config", return_value=_mock_config_with_lists(None)),
+            patch("taskbench.cli.shared.Config", return_value=_mock_config_with_lists(None)),
             pytest.raises(_typer.Exit) as exc_info,
         ):
             bulk_update(
@@ -796,7 +796,7 @@ class TestBulkUpdateAllLists:
 
     def test_all_lists_continues_through_per_list_failure(self, capsys):
         """Per-list fetch failure doesn't abort remaining lists."""
-        from clickup.cli.commands.bulk import bulk_update
+        from taskbench.cli.commands.bulk import bulk_update
 
         tasks_b = [_bulk_task(id="t2", name="Task B")]
         client = AsyncMock()
@@ -812,8 +812,8 @@ class TestBulkUpdateAllLists:
         client.__aexit__ = AsyncMock(return_value=None)
 
         with (
-            patch("clickup.cli.commands.bulk.get_client", return_value=client),
-            patch("clickup.cli.shared.Config", return_value=_mock_config_with_lists(self._TWO_LISTS)),
+            patch("taskbench.cli.commands.bulk.get_client", return_value=client),
+            patch("taskbench.cli.shared.Config", return_value=_mock_config_with_lists(self._TWO_LISTS)),
         ):
             bulk_update(
                 list_id=None,
@@ -838,7 +838,7 @@ class TestBulkUpdateAllLists:
 class TestExportDefaultsJson:
     """Both bulk export-tasks and task export default to JSON format now."""
 
-    @patch("clickup.cli.commands.bulk.get_client")
+    @patch("taskbench.cli.commands.bulk.get_client")
     def test_bulk_export_default_produces_json_file(self, mock_get_client):
         """bulk export-tasks with no --output-format writes tasks.json."""
         mock_client = AsyncMock()
@@ -857,7 +857,7 @@ class TestExportDefaultsJson:
         assert isinstance(content, list)
         Path("tasks.json").unlink(missing_ok=True)
 
-    @patch("clickup.cli.commands.bulk.get_client")
+    @patch("taskbench.cli.commands.bulk.get_client")
     def test_bulk_export_csv_explicit_produces_csv_file(self, mock_get_client):
         """bulk export-tasks --format csv without --output produces tasks.csv."""
         mock_client = AsyncMock()
@@ -874,7 +874,7 @@ class TestExportDefaultsJson:
 
         Path("tasks.csv").unlink(missing_ok=True)
 
-    @patch("clickup.cli.commands.bulk.get_client")
+    @patch("taskbench.cli.commands.bulk.get_client")
     def test_bulk_export_explicit_output_respected(self, mock_get_client):
         """--output overrides the default filename."""
         mock_client = AsyncMock()
@@ -888,7 +888,7 @@ class TestExportDefaultsJson:
         data = json.loads(result.stdout)
         assert data["output_file"] == f.name
 
-    @patch("clickup.cli.commands.task.get_client")
+    @patch("taskbench.cli.commands.task.get_client")
     def test_task_export_default_produces_json_file(self, mock_get_client):
         """task export with no --output produces tasks.json."""
         mock_client = AsyncMock()
@@ -907,7 +907,7 @@ class TestExportDefaultsJson:
         assert isinstance(content, list)
         Path("tasks.json").unlink(missing_ok=True)
 
-    @patch("clickup.cli.commands.task.get_client")
+    @patch("taskbench.cli.commands.task.get_client")
     def test_task_export_csv_produces_csv_file(self, mock_get_client):
         """task export --output-format csv without --output produces tasks.csv."""
         mock_client = AsyncMock()
@@ -924,7 +924,7 @@ class TestExportDefaultsJson:
 
         Path("tasks.csv").unlink(missing_ok=True)
 
-    @patch("clickup.cli.commands.task.get_client")
+    @patch("taskbench.cli.commands.task.get_client")
     def test_task_export_explicit_output_respected(self, mock_get_client):
         """--output overrides the default filename for task export."""
         mock_client = AsyncMock()

@@ -1,4 +1,4 @@
-"""Tests for `clickup setup run --auto` — fully automatic setup."""
+"""Tests for `taskbench setup run --auto` — fully automatic setup."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, patch
 
 from typer.testing import CliRunner
 
-from clickup.cli.main import app
+from taskbench.cli.main import app
 
 from .conftest import make_mock_ctx, named_mock
 
@@ -45,7 +45,7 @@ def _ctx(client):
 
 
 class TestAutoSingleOption:
-    @patch("clickup.cli.commands.setup.ClickUpClient")
+    @patch("taskbench.cli.commands.setup.ClickUpClient")
     def test_single_everything_auto_selects(self, mock_cls):
         """Single workspace + space + list: auto picks all, no prompt."""
         team = _named(id="T1", name="Acme")
@@ -72,7 +72,7 @@ class TestAutoSingleOption:
 
 
 class TestAutoMultipleLists:
-    @patch("clickup.cli.commands.setup.ClickUpClient")
+    @patch("taskbench.cli.commands.setup.ClickUpClient")
     def test_picks_max_task_count_list(self, mock_cls):
         """With multiple lists, auto picks the one with the most tasks."""
         team = _named(id="T1", name="Acme")
@@ -94,7 +94,7 @@ class TestAutoMultipleLists:
         assert payload["default_list_id"] == "L2"
         assert payload["default_list_name"] == "Many"
 
-    @patch("clickup.cli.commands.setup.ClickUpClient")
+    @patch("taskbench.cli.commands.setup.ClickUpClient")
     def test_warns_on_stderr_about_auto_selection(self, mock_cls):
         """Auto-selected list emits a warning on stderr."""
         team = _named(id="T1", name="Acme")
@@ -121,7 +121,7 @@ class TestAutoMultipleLists:
 
 
 class TestAutoMultipleWorkspaces:
-    @patch("clickup.cli.commands.setup.ClickUpClient")
+    @patch("taskbench.cli.commands.setup.ClickUpClient")
     def test_exits_2_listing_options(self, mock_cls):
         teams = [_named(id="T1", name="A"), _named(id="T2", name="B")]
         client = _mock_client(teams=teams)
@@ -138,7 +138,7 @@ class TestAutoMultipleWorkspaces:
 
 
 class TestAutoMultipleSpaces:
-    @patch("clickup.cli.commands.setup.ClickUpClient")
+    @patch("taskbench.cli.commands.setup.ClickUpClient")
     def test_exits_2(self, mock_cls):
         team = _named(id="T1", name="Acme")
         spaces = [_named(id="S1", name="Eng"), _named(id="S2", name="Design")]
@@ -156,7 +156,7 @@ class TestAutoMultipleSpaces:
 
 
 class TestAutoExplicitFlags:
-    @patch("clickup.cli.commands.setup.ClickUpClient")
+    @patch("taskbench.cli.commands.setup.ClickUpClient")
     def test_team_id_overrides(self, mock_cls):
         teams = [_named(id="T1", name="A"), _named(id="T2", name="B")]
         space = _named(id="S1", name="Eng")
@@ -172,7 +172,7 @@ class TestAutoExplicitFlags:
         payload = json.loads(result.stdout)
         assert payload["default_team_id"] == "T2"
 
-    @patch("clickup.cli.commands.setup.ClickUpClient")
+    @patch("taskbench.cli.commands.setup.ClickUpClient")
     def test_space_id_overrides(self, mock_cls):
         team = _named(id="T1", name="A")
         spaces = [_named(id="S1", name="X"), _named(id="S2", name="Y")]
@@ -188,7 +188,7 @@ class TestAutoExplicitFlags:
         payload = json.loads(result.stdout)
         assert payload["default_space_id"] == "S2"
 
-    @patch("clickup.cli.commands.setup.ClickUpClient")
+    @patch("taskbench.cli.commands.setup.ClickUpClient")
     def test_list_id_overrides(self, mock_cls):
         team = _named(id="T1", name="A")
         space = _named(id="S1", name="X")
@@ -215,7 +215,7 @@ class TestAutoExplicitFlags:
 
 
 class TestAutoNoToken:
-    @patch("clickup.cli.commands.setup.ClickUpClient")
+    @patch("taskbench.cli.commands.setup.ClickUpClient")
     def test_no_token_exits_2(self, mock_cls):
         result = runner.invoke(app, ["setup", "run", "--auto"])
         assert result.exit_code == 2
@@ -228,7 +228,7 @@ class TestAutoNoToken:
 
 
 class TestAutoNoLists:
-    @patch("clickup.cli.commands.setup.ClickUpClient")
+    @patch("taskbench.cli.commands.setup.ClickUpClient")
     def test_no_lists_warns_succeeds(self, mock_cls):
         team = _named(id="T1", name="A")
         space = _named(id="S1", name="X")

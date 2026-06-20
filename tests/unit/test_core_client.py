@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import httpx
 import pytest
 
-from clickup.core import (
+from taskbench.core import (
     AuthenticationError,
     ClickUpClient,
     ClickUpError,

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from clickup.core import Config
+from taskbench.core import Config
 
 
 def test_config_creation(temp_config_dir):

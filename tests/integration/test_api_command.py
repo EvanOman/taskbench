@@ -5,8 +5,8 @@ from unittest.mock import AsyncMock, patch
 
 from typer.testing import CliRunner
 
-from clickup.cli.main import app
-from clickup.core.exceptions import ClickUpError
+from taskbench.cli.main import app
+from taskbench.core.exceptions import ClickUpError
 
 runner = CliRunner()
 
@@ -17,7 +17,7 @@ def _ctx(client):
     return cm
 
 
-@patch("clickup.cli.commands.api.get_client")
+@patch("taskbench.cli.commands.api.get_client")
 def test_api_request_get_json(mock_get_client):
     mock_client = AsyncMock()
     mock_client.raw_request.return_value = {"id": "task123", "name": "Task"}
@@ -38,7 +38,7 @@ def test_api_request_get_json(mock_get_client):
     )
 
 
-@patch("clickup.cli.commands.api.get_client")
+@patch("taskbench.cli.commands.api.get_client")
 def test_api_request_repeated_params_become_list(mock_get_client):
     mock_client = AsyncMock()
     mock_client.raw_request.return_value = {"ok": True}
@@ -57,7 +57,7 @@ def test_api_request_repeated_params_become_list(mock_get_client):
     )
 
 
-@patch("clickup.cli.commands.api.get_client")
+@patch("taskbench.cli.commands.api.get_client")
 def test_api_request_post_with_json_body(mock_get_client):
     mock_client = AsyncMock()
     mock_client.raw_request.return_value = {"ok": True}
@@ -102,7 +102,7 @@ def test_api_request_rejects_empty_param_key():
     assert "key cannot be empty" in result.stderr
 
 
-@patch("clickup.cli.commands.api.get_client")
+@patch("taskbench.cli.commands.api.get_client")
 def test_api_request_handles_clickup_error(mock_get_client):
     mock_client = AsyncMock()
     mock_client.raw_request.side_effect = ClickUpError("boom")

@@ -1,1 +1,1 @@
-"""Tests for ClickUp Toolkit."""
+"""Tests for Taskbench."""

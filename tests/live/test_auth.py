@@ -5,7 +5,7 @@ These tests verify that authentication works correctly with the real ClickUp API
 
 import pytest
 
-from clickup.core import ClickUpClient, Config
+from taskbench.core import ClickUpClient, Config
 
 
 @pytest.mark.live

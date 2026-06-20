@@ -1,6 +1,6 @@
 """Pure filter, sort, and validation helpers for task commands.
 
-Extracted from ``clickup.cli.commands.task`` so the helpers can be tested
+Extracted from ``taskbench.cli.commands.task`` so the helpers can be tested
 and reused without pulling in the full Typer command tree.
 
 All functions are the module's public API -- no leading underscores.
