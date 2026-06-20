@@ -2368,3 +2368,49 @@ class TestCommentUserOptional:
         )
         assert comment.user is not None
         assert comment.user.username == "u"
+
+
+def test_name_only_substring_match_includes_eval_style_names() -> None:
+    """Lock down --name-only filtering against tricky names that contain the
+    query as a substring inside a hyphenated token (e.g. 'agent-test-eval-7').
+
+    The r9 eval reported one such task being excluded, which was almost
+    certainly cross-agent race (the sibling create/delete window), not a CLI
+    bug. This test pins the actual filter semantics so any regression
+    surfaces immediately.
+    """
+    from unittest.mock import AsyncMock, Mock, patch
+
+    mock_client = AsyncMock()
+    mock_client.get_user.return_value = Mock(id=1, username="evan", email="e@x.com")
+    mock_client.search_tasks.return_value = [
+        _make_task_b49("a", "agent-test-eval-7 update-flow"),
+        _make_task_b49("b", "Test Task — Minimal"),
+        _make_task_b49("c", "tEsTING the matcher"),
+        _make_task_b49("d", "Unrelated work"),
+        _make_task_b49("e", "contest entrant"),  # contains "test" as a substring
+    ]
+
+    def _ctx() -> AsyncMock:
+        m = AsyncMock()
+        m.__aenter__.return_value = mock_client
+        return m
+
+    with patch("taskbench.cli.commands.task.get_client") as mock_get_client:
+        mock_get_client.return_value = _ctx()
+        result = runner.invoke(
+            app,
+            ["task", "search", "--query", "test", "--workspace-id", "W1", "--name-only", "--brief"],
+        )
+
+    assert result.exit_code == 0
+    data = json.loads(result.stdout)
+    names = [t["name"] for t in data["data"]]
+    # All four substring matches present (incl. the hyphenated/eval-style name and the case-insensitive one).
+    assert "agent-test-eval-7 update-flow" in names
+    assert "Test Task — Minimal" in names
+    assert "tEsTING the matcher" in names
+    assert "contest entrant" in names
+    # And only the obvious non-match was dropped.
+    assert "Unrelated work" not in names
+    assert data["count"] == 4

@@ -449,9 +449,11 @@ async def test_401_resource_endpoint_leads_with_id_interpretation(mock_clickup_c
     with pytest.raises(ResourceAccessError) as exc:
         await mock_clickup_client._request("GET", "/task/doesnotexist123")
     msg = str(exc.value)
-    assert msg.startswith("ClickUp returned 401 for /task/doesnotexist123")
-    assert "the ID does not exist" in msg
-    assert "token itself is invalid" in msg
+    # Lead with the most-likely cause so agents don't chase auth first.
+    assert msg.startswith("Resource not found or not accessible: /task/doesnotexist123")
+    assert msg.index("Resource not found") < msg.index("401")
+    assert "double-check the ID" in msg
+    assert "token itself may be invalid" in msg
 
 
 @pytest.mark.asyncio

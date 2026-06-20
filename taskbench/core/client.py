@@ -74,12 +74,17 @@ class ClickUpClient:
                     error_data = {}
                 detail = error_data.get("err", "") if isinstance(error_data, dict) else ""
                 if self._RESOURCE_ENDPOINT_RE.search(endpoint):
+                    # Lead with the most-likely cause (resource missing/inaccessible).
+                    # ClickUp returns HTTP 401 for unknown resource IDs; the literal
+                    # "Team not authorized" detail primes agents to chase auth, so it
+                    # moves into a parenthetical that follows the human-shaped framing.
                     message = (
-                        f"ClickUp returned 401 for {endpoint}"
-                        f"{': ' + detail if detail else ''}. "
-                        "For resource endpoints this usually means the ID does not exist "
-                        "or is not accessible to this token; it can also mean the token "
-                        "itself is invalid — if other commands work, double-check the ID."
+                        f"Resource not found or not accessible: {endpoint}. "
+                        f"(ClickUp returns HTTP 401"
+                        f"{' — "' + detail + '"' if detail else ''} "
+                        "when an ID is missing, was deleted, or the token can't see it. "
+                        "If other commands work too, double-check the ID; "
+                        "if everything fails, the token itself may be invalid.)"
                     )
                     raise ResourceAccessError(message, response.status_code)
                 message = (
