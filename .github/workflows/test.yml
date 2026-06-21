@@ -45,6 +45,12 @@ jobs:
     - name: Run tests with coverage
       run: uv run pytest --cov=taskbench --cov-report=xml --cov-report=term-missing
 
+    - name: Audit dependencies for known vulnerabilities (issue #67 P3)
+      # Runs once per matrix entry; lightweight (a single PyPI lookup per dep).
+      # Failure here gates the merge — exactly the point of a security tier.
+      # `--path .venv` audits the project env, not pip-audit's tool env.
+      run: uv tool run pip-audit --strict --path .venv
+
     - name: Generate coverage badge
       if: matrix.python-version == '3.13' && github.ref == 'refs/heads/master'
       run: |
