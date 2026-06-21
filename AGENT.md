@@ -56,32 +56,48 @@ The fix is simple: always use `uv run taskbench ...` (or `just cli ...`) from th
 
 ## Project layout
 
+For the *current* file tree, run:
+
 ```
-taskbench/
-├── pyproject.toml          # both `taskbench` and `tb` entry points
-├── justfile                # dev commands (`just fc` = format+lint+type+test)
-├── taskbench/
-│   ├── core/               # provider port, adapters, config, models, exceptions
-│   │   ├── providers.py    # TaskProvider protocol + get_provider() factory
-│   │   ├── client.py       # ClickUp adapter (default)
-│   │   ├── json_provider.py    # zero-infra local adapter
-│   │   └── params.py       # CLI parameter constants/enums
-│   ├── cli/
-│   │   ├── main.py         # Typer root, --format callback, status, version
-│   │   ├── output.py       # ALL output rendering (see "Output contract")
-│   │   ├── shared.py       # cross-command helpers (get_client, usage_error, resolve_*)
-│   │   ├── task_filters.py # pure filter/sort/validation helpers for task commands
-│   │   ├── utils.py        # run_async + no-op spinner shim
-│   │   └── commands/       # per-feature subcommands
-│   └── nlp/                # PARKED — see "Parked features"
-├── docs/                   # architecture, backends, adapter guide
-├── spec/                   # OpenAPI contract for HTTP backends + design notes
-├── tests/
-│   ├── unit/               # mocked
-│   ├── integration/        # mocked end-to-end CLI
-│   └── live/               # marked @pytest.mark.live, hits real API
-└── .claude/skills/cli-agent-eval/   # the regression eval (see below)
+ls taskbench/ taskbench/cli/ taskbench/core/ tests/ docs/ spec/
 ```
+
+What each top-level subpackage means (this is what doesn't change; file
+names occasionally do):
+
+- **`taskbench/core/`** — the backend layer. Owns the `TaskProvider`
+  protocol that every backend implements, the pydantic models that flow
+  through it (`models.py`), the configuration loader (`config.py`),
+  built-in adapters for ClickUp and a file-backed JSON store, exception
+  taxonomy, and the `get_provider()` factory that loads external adapters
+  via `importlib.metadata` entry points (group `taskbench.providers`).
+- **`taskbench/cli/`** — the user-facing Typer app.
+  - `main.py`: root Typer callback, `--format` flag plumbing, top-level
+    `status`/`version` commands, error envelope wiring.
+  - `output.py`: **every** user-visible render goes through here — JSON
+    or table, agents-first. See decision 1 below.
+  - `shared.py`: cross-command helpers (`get_client`, `usage_error`,
+    `resolve_*`, the batch-results partitioner, etc.).
+  - `task_filters.py`: pure filter/sort/validation logic for task
+    commands.
+  - `utils.py`: small async runner.
+  - `commands/`: one file per feature group (`task.py`, `list.py`,
+    `bulk.py`, `discover.py`, `config.py`, etc.). Each registers a Typer
+    sub-app on the root.
+- **`docs/`** — architecture, backends-as-product, adapter-author guide,
+  written for humans.
+- **`spec/`** — OpenAPI projection of `TaskProvider` plus design notes,
+  for backends implemented in other languages.
+- **`tests/unit/`** — fast, mocked.
+- **`tests/integration/`** — drives the CLI through `CliRunner`. Most
+  mock the provider; `test_mock_provider.py` and
+  `test_e2e_json_scenario.py` exercise the file-backed `JsonProvider`
+  end-to-end (see "Decision 9" / the scenario-test rationale below).
+- **`tests/live/`** — `@pytest.mark.live`, hits the real ClickUp API.
+  Opt-in only.
+- **`.claude/skills/cli-agent-eval/`** — the 18-task agent eval (see
+  "Eval skill").
+- **`evals/`** — historical per-commit eval results (`<sha>-rN.json`).
 
 ## Backends (providers)
 
@@ -237,3 +253,17 @@ Non-obvious choices and why they were made, for future contributors.
 **Why the rename from clickup-toolkit to taskbench** — The CLI outgrew ClickUp: the `TaskProvider` protocol, the JSON local adapter, and entry-point plugin discovery mean any backend can be swapped in. The old name implied ClickUp-only. The rename also drops the `cup` binary (replaced by `tb`), moves the config dir to `~/.config/taskbench/`, and bumps to 1.0.0. Legacy env vars (`CLICKUP_PROVIDER`, `CLICKUP_CONFIG_PATH`) emit a one-time deprecation warning and continue to work.
 
 **uvx caching for local dev** — See "Distribution" section above for the local-dev mitigation.
+
+## Roadmap
+
+The active backlog lives in the GitHub issue tracker, not this file.
+`gh issue list --state open` is the source of truth; the factory-readiness
+assessment lives at [#67](https://github.com/EvanOman/taskbench/issues/67)
+and tracks the multi-iteration items (P1b deterministic eval subset, P2
+contract forward-test, P4 self-deprecating feedback loop). Anything not
+on the issue tracker is not committed work — please file before
+starting.
+
+For the recent history of *what just landed*: `git log --oneline -20`
+or `evals/` (per-commit eval results encode the surface changes agents
+actually noticed).
