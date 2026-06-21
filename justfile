@@ -28,6 +28,15 @@ check-local:
     @echo "Running live integration tests..."
     uv run pytest tests/live -v --no-cov
 
+# Audit dependencies for known vulnerabilities (issue #67 P3).
+# Runs pip-audit via `uv tool run` so it isn't a project dep — it's a
+# security tool, not a runtime requirement. `--path .venv` targets the
+# project environment, otherwise pip-audit ends up auditing its own
+# transitive deps in the isolated tool env.
+audit:
+    @echo "Auditing dependencies for known vulnerabilities..."
+    uv tool run pip-audit --strict --path .venv
+
 # Fix linting and formatting issues
 fix:
     @echo "Fixing linting issues..."
